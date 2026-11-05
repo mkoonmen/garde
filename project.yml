@@ -48,6 +48,7 @@ targets:
           UIColorName: LaunchBackground
           UIImageName: LaunchLogo
           UIImageRespectsSafeAreaInsets: true
+        GardeGoogleClientID: 956562639556-22sq6kbra3d2p7ami7g8n8lpejapoa8c.apps.googleusercontent.com   # public sign-in ID (Google Cloud project garde-513820)
         UIBackgroundModes: [remote-notification]
         NSUbiquitousContainers:
           iCloud.com.michaelkoonmen.garde:
