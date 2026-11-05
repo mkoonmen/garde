@@ -54,7 +54,7 @@ struct InsightsView: View {
                         HStack {
                             Text(log.title).lineLimit(1)
                             Spacer()
-                            if log.rating > 0 { Text(String(repeating: "★", count: log.rating)).font(.caption).foregroundStyle(Theme.accent) }
+                            if log.rating > 0 { Text(String(repeating: "★", count: log.rating)).font(.caption).foregroundStyle(Theme.gold) }
                             Text(log.cost ?? 0, format: .currency(code: "USD")).foregroundStyle(.secondary)
                         }
                     }

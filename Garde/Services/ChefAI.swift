@@ -102,7 +102,7 @@ struct ParsedScan {
         total = r.total > 0 ? r.total : nil
         items = r.items.map {
             ParsedItem(name: $0.name,
-                       category: FoodCategory(rawValue: $0.category.lowercased()) ?? .other,
+                       category: FoodCategory(rawValue: $0.category.lowercased()) ?? ShoppingBrain.guessCategory($0.name),
                        quantity: $0.quantity > 0 ? $0.quantity : 1,
                        unit: $0.unit.isEmpty ? "each" : $0.unit,
                        price: $0.price > 0 ? $0.price : nil,
@@ -145,6 +145,8 @@ final class ChefAI {
         Today is \(Date.now.formatted(date: .numeric, time: .omitted)).
         Text read from the photo:
         \(text.isEmpty ? "(no text)" : String(text.prefix(4000)))
+
+        Receipt abbreviations found (use these meanings): \(ReceiptLexicon.hints(for: text).ifEmpty("none"))
 
         Objects recognized in the photo: \(labels.isEmpty ? "(none)" : labels.joined(separator: ", "))
         """
@@ -295,22 +297,29 @@ extension String {
 
 /// Simple line-by-line receipt parser used if the on-device model is unavailable.
 enum HeuristicParser {
+    static let skipWords = ["total", "subtotal", "tax", "change", "cash", "visa", "mastercard", "amex", "discover", "debit", "credit",
+                            "balance", "savings", "saved", "coupon", "bag", "bags", "fee", "deposit", "thank", "card", "auth", "member",
+                            "points", "approved", "tender", "tip", "delivery", "service", "refund", "void", "price you pay", "you saved"]
+
     static func parse(_ text: String) -> ParsedScan {
-        let skip = ["total", "subtotal", "tax", "change", "cash", "visa", "mastercard", "amex", "debit", "credit",
-                    "balance", "savings", "coupon", "bag", "thank", "card", "auth", "member", "points", "approved"]
         var items: [ParsedItem] = []
         var total = 0.0
-        let priceRegex = /(\d+\.\d{2})\s*[A-Z]?\s*$/
+        let priceRegex = /(-?\d+\.\d{2})\s*[A-Z]{0,2}\s*$/
         let lines = text.split(separator: "\n").map(String.init)
         for line in lines {
             let lower = line.lowercased()
             guard let m = line.firstMatch(of: priceRegex), let price = Double(m.1) else { continue }
-            if lower.contains("total") && !lower.contains("sub") { total = price; continue }
-            if skip.contains(where: lower.contains) { continue }
-            let name = line.replacing(priceRegex, with: "")
+            let words = Set(lower.split(whereSeparator: { !$0.isLetter }).map(String.init))
+            if words.contains("total") && !words.contains("subtotal") { total = price; continue }
+            if price <= 0 || skipWords.contains(where: { $0.contains(" ") ? lower.contains($0) : words.contains($0) }) { continue }
+            let raw = line.replacing(priceRegex, with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-            guard name.count >= 3, name.rangeOfCharacter(from: .letters) != nil else { continue }
-            items.append(ParsedItem(name: name.capitalized, category: .other, quantity: 1, unit: "each",
+            guard raw.count >= 3, raw.rangeOfCharacter(from: .letters) != nil else { continue }
+            let name = ReceiptLexicon.expand(raw)
+            guard !name.isEmpty else { continue }
+            // "2 @ 3.49" style quantity
+            let qty = line.firstMatch(of: /(\d+)\s*@/).flatMap { Double($0.1) } ?? 1
+            items.append(ParsedItem(name: name, category: ShoppingBrain.guessCategory(name), quantity: qty, unit: "each",
                                     price: price, printedExpiration: nil))
         }
         let store = lines.first(where: { $0.rangeOfCharacter(from: .letters) != nil })?.capitalized ?? ""

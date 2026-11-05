@@ -4,6 +4,8 @@ import WidgetKit
 
 @main
 struct GardeApp: App {
+    init() { Theme.applyNavigationStyle() }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -47,4 +49,19 @@ struct RootView: View {
             }
         }
     }
+}
+
+extension Theme {
+    /// Serif (New York) navigation titles to match the icon's script-and-serif feel.
+    static func applyNavigationStyle() {
+        func serif(_ style: UIFont.TextStyle, _ weight: UIFont.Weight) -> UIFont {
+            let base = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: style).pointSize, weight: weight)
+            let desc = base.fontDescriptor.withDesign(.serif) ?? base.fontDescriptor
+            return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont(descriptor: desc, size: 0))
+        }
+        let nav = UINavigationBar.appearance()
+        nav.largeTitleTextAttributes = [.font: serif(.largeTitle, .bold)]
+        nav.titleTextAttributes = [.font: serif(.headline, .semibold)]
+    }
+
 }

@@ -174,10 +174,10 @@ struct ScanReviewView: View {
             receipt = r
         }
         for p in scan.items where p.include && !p.name.trimmingCharacters(in: .whitespaces).isEmpty {
-            let loc = ShelfLife.defaultLocation(for: p.category)
+            let loc = ShelfLife.defaultLocation(for: p.category, name: p.name)
             let item = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
                                   purchaseDate: isReceipt ? date : .now,
-                                  expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(for: p.category, in: loc, from: isReceipt ? date : .now),
+                                  expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(name: p.name, category: p.category, in: loc, from: isReceipt ? date : .now),
                                   expirationIsEstimated: p.printedExpiration == nil,
                                   price: p.price, store: scan.store.isEmpty ? nil : scan.store)
             if !isReceipt { item.photo = image?.storageJPEG(maxDimension: 600) }

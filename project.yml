@@ -19,6 +19,13 @@ targets:
     sources: [Garde, Shared]
     dependencies:
       - target: GardeWidget
+    info:
+      path: Garde/Info.plist
+      properties:
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchLogo
+          UIImageRespectsSafeAreaInsets: true
     entitlements:
       path: Garde/Garde.entitlements
       properties:
@@ -30,7 +37,6 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"          # iPhone only
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Garde
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: "Scan receipts, barcodes, groceries and food labels."
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Pick photos of receipts and food to scan."
@@ -58,3 +64,23 @@ targets:
         PRODUCT_NAME: GardeWidget
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+  GardeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [GardeTests]
+    dependencies:
+      - target: Garde
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.michaelkoonmen.garde.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Garde.app/Garde"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  Garde:
+    build:
+      targets:
+        Garde: all
+        GardeWidget: all
+    test:
+      targets: [GardeTests]

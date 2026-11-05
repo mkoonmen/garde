@@ -29,7 +29,7 @@ struct InventoryView: View {
                                             Text(Theme.expiryText(item.daysLeft)).font(.caption).foregroundStyle(Theme.expiryColor(item.daysLeft))
                                         }
                                         .padding(10).frame(width: 140, alignment: .leading)
-                                        .background(.thinMaterial, in: .rect(cornerRadius: 12))
+                                        .background(Theme.card, in: .rect(cornerRadius: 12))
                                     }.buttonStyle(.plain)
                                 }
                             }
@@ -119,8 +119,9 @@ struct ItemEditView: View {
             Form {
                 Section {
                     TextField("Name", text: $name)
+                        .onSubmit { if item == nil && estimated { location = ShelfLife.defaultLocation(for: category, name: name); reestimate() } }
                     Picker("Category", selection: $category) { ForEach(FoodCategory.allCases) { Text($0.label).tag($0) } }
-                        .onChange(of: category) { _, c in if item == nil { location = ShelfLife.defaultLocation(for: c); reestimate() } }
+                        .onChange(of: category) { _, c in if item == nil { location = ShelfLife.defaultLocation(for: c, name: name); reestimate() } }
                     Picker("Stored in", selection: $location) { ForEach(StorageLocation.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) } }
                         .onChange(of: location) { _, _ in if estimated { reestimate() } }
                 }
@@ -144,6 +145,16 @@ struct ItemEditView: View {
                 Section { PhotoField(data: $photo) }
                 if let item {
                     Section {
+                        if let opened = item.openedDate {
+                            LabeledContent("Opened", value: opened.formatted(date: .abbreviated, time: .omitted))
+                        } else {
+                            Button("I just opened it", systemImage: "seal") {
+                                item.openedDate = .now
+                                if let d = ShelfLife.openedExpiration(name: item.name, category: item.category, current: item.expirationDate) {
+                                    item.expirationDate = d; expiration = d; hasExpiration = true
+                                }
+                            }
+                        }
                         Button("Used it up") { item.markUsed(); dismiss() }
                         Button("Threw it out") { item.markUsed(tossed: true); dismiss() }
                         Button("Delete", role: .destructive) { context.delete(item); dismiss() }
@@ -160,7 +171,7 @@ struct ItemEditView: View {
         }
     }
 
-    private func reestimate() { expiration = ShelfLife.estimatedExpiration(for: category, in: location); estimated = true }
+    private func reestimate() { expiration = ShelfLife.estimatedExpiration(name: name, category: category, in: location); estimated = true }
 
     private func load() {
         guard let item else { reestimate(); return }

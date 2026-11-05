@@ -57,6 +57,8 @@ Garde/
     Notifier.swift  DataExport.swift
   Views/                        SwiftUI screens
 GardeWidget/GardeWidget.swift   home + lock screen widgets
+GardeTests/GardeTests.swift     automated tests (run in CI before upload)
+  Services/ReceiptLexicon.swift receipt abbreviation dictionary
 .github/workflows/testflight.yml   builds on GitHub's Macs, uploads to TestFlight
 ```
 
@@ -76,6 +78,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Live deal tracking across local stores and national brands (needs internet; planned as a separate, opt-in service)
 
 ## Change log
+- 2026-11-05 — v1.2: New icon (navy + cream chef's-hat G) and matching look: navy/cream colors that flip for dark mode, serif headings, recipe cards, navy launch screen, step animations and haptics. Smarter scanning: 280-entry receipt abbreviation dictionary (used offline and as AI hints), item-specific shelf lives (65 rules, fridge/freezer/pantry/opened), "I just opened it" shortens expirations. Automated tests (`GardeTests/`) for allergens, dates, timers, receipts, shelf life and aisles run before every TestFlight upload. Fixes: allergy filter no longer flags "bass" for shellfish and now catches more (carbonara, burrata, udon, calamari…); dates pick use-by over packed-on; timers read "1 1/2 hours"; expiration reminders no longer cancel cook timers; actor-isolation compile fixes.
 - 2026-11-05 — v1.1: Gmail receipt import, live barcode/date scanning, week meal plan, smart shopping list, hands-free cook mode with timers, taste memory from ratings, cost per meal + waste tracking, bar & cellar with pairings, Siri shortcuts + home/lock screen widgets, leftovers tracking and remix. Backup format bumped to `garde/v2` (still imports v1).
 - 2026-11-05 — Renamed app to Garde (bundle ID com.michaelkoonmen.garde).
 - 2026-11-05 — v1: inventory, scanning, receipts, spices, allergy profile, on-device chef, reminders, JSON export/import.

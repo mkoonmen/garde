@@ -97,7 +97,7 @@ struct ChefView: View {
                         ForEach(saved) { r in
                             NavigationLink { RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                                                               ingredients: r.ingredients, steps: r.steps, saved: r) } label: {
-                                RecipeRow(title: (r.isFavorite ? "★ " : "") + r.title, summary: r.summary, minutes: r.minutes)
+                                RecipeRow(title: r.title, summary: r.summary, minutes: r.minutes)
                             }
                         }
                         .onDelete { offsets in offsets.forEach { context.delete(saved[$0]) } }
@@ -118,7 +118,8 @@ struct ChefView: View {
                                        mustUse: items.filter { mustUse.contains($0.id) }.map(\.name))
         do {
             let out = try await chef.suggestRecipes(items: items, spices: spices, profile: profile, logs: logs, request: req)
-            ideas = out.recipes; blocked = out.blocked
+            withAnimation(.spring(duration: 0.45)) { ideas = out.recipes }
+            blocked = out.blocked
             if ideas.isEmpty { error = "No safe ideas came back. Try again or loosen the request." }
         } catch {
             self.error = "The chef got stuck: \(error.localizedDescription)"
@@ -129,11 +130,17 @@ struct ChefView: View {
 struct RecipeRow: View {
     let title: String, summary: String, minutes: Int
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.headline)
-            Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-            Label("\(minutes) min", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
-        }.padding(.vertical, 2)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: Theme.dishSymbol(title))
+                .font(.title2).foregroundStyle(Theme.cream)
+                .frame(width: 48, height: 48)
+                .background(Theme.navy.gradient, in: .rect(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).gardeHeading(.headline)
+                Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                Label("\(minutes) min", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(.vertical, 4)
     }
 }
 
@@ -164,6 +171,11 @@ struct RecipeDetailView: View {
     var body: some View {
         List {
             Section {
+                HStack(spacing: 14) {
+                    Image(systemName: Theme.dishSymbol(title)).font(.largeTitle).foregroundStyle(Theme.cream)
+                        .frame(width: 72, height: 72).background(Theme.navy.gradient, in: .rect(cornerRadius: 18))
+                    Text(title).font(.title2.weight(.bold)).fontDesign(.serif)
+                }
                 Text(summary)
                 HStack { Label("\(minutes) min", systemImage: "clock"); Spacer(); Label("Serves \(servings)", systemImage: "person.2") }
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -191,7 +203,7 @@ struct RecipeDetailView: View {
             Section("Steps") {
                 ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
                     HStack(alignment: .top, spacing: 10) {
-                        Text("\(i + 1)").font(.headline).foregroundStyle(Theme.accent).frame(width: 22)
+                        Text("\(i + 1)").font(.headline).fontDesign(.serif).foregroundStyle(Theme.accent).frame(width: 22)
                         Text(s)
                     }
                 }

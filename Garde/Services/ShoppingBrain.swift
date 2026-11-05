@@ -2,7 +2,6 @@ import Foundation
 import SwiftData
 
 /// Learns how fast you go through things and keeps the shopping list ahead of you.
-@MainActor
 enum ShoppingBrain {
     /// Store-walk order so the list reads like an aisle path.
     static let aisleOrder: [FoodCategory] = [.produce, .fruit, .bakery, .deli, .meat, .poultry, .seafood, .cheese, .dairy, .eggs,
@@ -28,6 +27,7 @@ enum ShoppingBrain {
     }
 
     /// Adds things you're about to run out of, plus empty/low spices. Safe to call often.
+    @MainActor
     static func refreshRunningLow(context: ModelContext) {
         guard let items = try? context.fetch(FetchDescriptor<PantryItem>()),
               let list = try? context.fetch(FetchDescriptor<ShoppingItem>()),
@@ -53,6 +53,7 @@ enum ShoppingBrain {
     }
 
     /// Adds what a meal plan needs.
+    @MainActor
     static func add(needToBuy: [String], for dish: String, day: Date, context: ModelContext) {
         let list = (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []
         let onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
@@ -63,6 +64,7 @@ enum ShoppingBrain {
     }
 
     /// When groceries arrive (scan/Gmail), tick them off the list.
+    @MainActor
     static func checkOff(names: [String], context: ModelContext) {
         let keys = Set(names.map(key))
         for item in (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? [] where !item.isChecked {
@@ -74,6 +76,11 @@ enum ShoppingBrain {
     static func guessCategory(_ name: String) -> FoodCategory {
         let n = name.lowercased()
         let map: [(FoodCategory, [String])] = [
+            // packaged look-alikes first ("chicken broth" is canned, not poultry)
+            (.canned, ["broth", "stock", "canned", "beans", "chickpea", "tomato paste", "crushed tomato"]),
+            (.condiments, ["sauce", "vinegar", "mustard", "mayo", "dressing", "peanut butter", "ketchup", "salsa", "honey"]),
+            (.frozen, ["frozen", "ice cream"]),
+            (.beverages, ["juice", "wine", "soda", "seltzer", "coffee", "tea", "beer"]),
             (.seafood, ["shrimp", "salmon", "fish", "cod", "tuna", "scallop", "clam", "mussel", "crab", "lobster"]),
             (.poultry, ["chicken", "turkey", "duck"]),
             (.meat, ["beef", "steak", "pork", "lamb", "bacon", "sausage", "veal", "ground"]),

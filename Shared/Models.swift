@@ -51,6 +51,7 @@ final class PantryItem {
     var usedUpDate: Date?
     var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
     var isLeftover: Bool = false
+    var openedDate: Date?
     var barcode: String?
     var receipt: Receipt?
 

@@ -62,7 +62,8 @@ struct CookModeView: View {
             Spacer()
             VStack(spacing: 18) {
                 Text("STEP \(index + 1) OF \(steps.count)").font(.caption.weight(.bold)).foregroundStyle(.secondary)
-                Text(step).font(.system(size: 30, weight: .medium)).multilineTextAlignment(.center).minimumScaleFactor(0.5)
+                Text(step).font(.system(size: 30, weight: .medium, design: .serif)).multilineTextAlignment(.center).minimumScaleFactor(0.5)
+                    .id(index).transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 if let secs = stepSeconds {
                     Button { startTimer(secs) } label: {
                         Label("Start \(secs >= 3600 ? "\(secs / 3600)h \(secs % 3600 / 60)m" : "\(secs / 60) min") timer", systemImage: "timer")
@@ -127,7 +128,8 @@ struct CookModeView: View {
     private func go(_ delta: Int) {
         let n = index + delta
         guard steps.indices.contains(n) else { if delta > 0 && index == steps.count - 1 { finishing = true }; return }
-        index = n
+        withAnimation(.snappy) { index = n }
+        UISelectionFeedbackGenerator().selectionChanged()
         if readAloud { voice.speak(step) }
     }
 
@@ -179,7 +181,8 @@ struct FinishCookingView: View {
                     HStack {
                         ForEach(1...5, id: \.self) { n in
                             Image(systemName: n <= rating ? "star.fill" : "star").font(.title)
-                                .foregroundStyle(n <= rating ? Theme.accent : .secondary)
+                                .foregroundStyle(n <= rating ? Theme.gold : .secondary)
+                                .symbolEffect(.bounce, value: rating == n)
                                 .onTapGesture { rating = n }
                         }
                     }.frame(maxWidth: .infinity)

@@ -108,9 +108,9 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 let receipt = Receipt(store: store, date: date, total: parsed.total, rawText: text)
                 context.insert(receipt)
                 for p in parsed.items {
-                    let loc = ShelfLife.defaultLocation(for: p.category)
+                    let loc = ShelfLife.defaultLocation(for: p.category, name: p.name)
                     let item = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
-                                          purchaseDate: date, expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(for: p.category, in: loc, from: date),
+                                          purchaseDate: date, expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(name: p.name, category: p.category, in: loc, from: date),
                                           expirationIsEstimated: p.printedExpiration == nil, price: p.price, store: store)
                     item.receipt = receipt
                     context.insert(item)

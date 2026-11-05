@@ -97,9 +97,9 @@ struct LiveScanView: View {
 
     private func save() {
         for c in captured where !c.name.trimmingCharacters(in: .whitespaces).isEmpty {
-            let loc = ShelfLife.defaultLocation(for: c.category)
+            let loc = ShelfLife.defaultLocation(for: c.category, name: c.name)
             let item = PantryItem(name: c.name, category: c.category, location: loc,
-                                  expirationDate: c.expiration ?? ShelfLife.estimatedExpiration(for: c.category, in: loc),
+                                  expirationDate: c.expiration ?? ShelfLife.estimatedExpiration(name: c.name, category: c.category, in: loc),
                                   expirationIsEstimated: c.expiration == nil)
             item.barcode = c.code
             context.insert(item)
@@ -110,23 +110,34 @@ struct LiveScanView: View {
 }
 
 /// Finds a printed expiration date like "BEST BY 11/18/26", "EXP 2026-11-18", "NOV 18 2026", "18NOV26".
+/// If several dates are printed (e.g. packed + use-by), the latest one is the expiration.
 enum DateSniffer {
+    static let months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+
     static func date(in raw: String) -> Date? {
         let s = raw.uppercased()
-        let cal = Calendar.current
-        func make(_ y: Int, _ m: Int, _ d: Int) -> Date? {
-            let year = y < 100 ? 2000 + y : y
-            guard (1...12).contains(m), (1...31).contains(d), (2020...2040).contains(year) else { return nil }
-            return cal.date(from: DateComponents(year: year, month: m, day: d))
+        var found: [Date] = []
+        for m in s.matches(of: /(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/) {
+            if let y = Int(m.1), let mo = Int(m.2), let d = Int(m.3), let date = make(y, mo, d) { found.append(date) }
         }
-        if let m = s.firstMatch(of: /(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/), let y = Int(m.1), let mo = Int(m.2), let d = Int(m.3) { return make(y, mo, d) }
-        if let m = s.firstMatch(of: /(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/), let mo = Int(m.1), let d = Int(m.2), let y = Int(m.3) { return make(y, mo, d) }
-        let months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-        if let m = s.firstMatch(of: /(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s*(\d{1,2}),?\s*(\d{2,4})/),
-           let mo = months.firstIndex(of: String(m.1)), let d = Int(m.2), let y = Int(m.3) { return make(y, mo + 1, d) }
-        if let m = s.firstMatch(of: /(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2,4})/),
-           let d = Int(m.1), let mo = months.firstIndex(of: String(m.2)), let y = Int(m.3) { return make(y, mo + 1, d) }
-        return nil
+        for m in s.matches(of: /\b(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})\b/) {
+            if let mo = Int(m.1), let d = Int(m.2), let y = Int(m.3), let date = make(y, mo, d) { found.append(date) }
+        }
+        for m in s.matches(of: /(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.?\s*(\d{4}|\d{2})\b/) {
+            if let d = Int(m.1), let mo = months.firstIndex(of: String(m.2)), let y = Int(m.3), let date = make(y, mo + 1, d) { found.append(date) }
+        }
+        for m in s.matches(of: /(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.?\s*(\d{1,2})(?:,\s*|\s+)(\d{4}|\d{2})\b/) {
+            if let mo = months.firstIndex(of: String(m.1)), let d = Int(m.2), let y = Int(m.3), let date = make(y, mo + 1, d) { found.append(date) }
+        }
+        return found.max()
+    }
+
+    private static func make(_ y: Int, _ m: Int, _ d: Int) -> Date? {
+        let year = y < 100 ? 2000 + y : y
+        guard (1...12).contains(m), (1...31).contains(d), (2020...2040).contains(year) else { return nil }
+        var comps = DateComponents(year: year, month: m, day: d)
+        comps.calendar = Calendar.current
+        return comps.isValidDate ? comps.date : nil
     }
 }
 

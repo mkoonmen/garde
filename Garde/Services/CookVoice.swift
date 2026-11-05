@@ -95,13 +95,20 @@ final class CookVoice {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// Finds the first duration in a step ("simmer 10 minutes", "bake for 1 hour") in seconds.
-    static func duration(in step: String) -> Int? {
+    /// Finds the first duration in a step ("simmer 10 minutes", "rest 5-7 min", "bake 1 1/2 hours") in seconds.
+    /// Ranges use the longer end.
+    nonisolated static func duration(in step: String) -> Int? {
         let s = step.lowercased()
-        if let m = s.firstMatch(of: /(\d+)\s*(?:-|to)\s*(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)/),
+        if let m = s.firstMatch(of: /(\d+)\s*(?:-|to)\s*(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/),
            let hi = Int(m.2) { return hi * unit(String(m.3)) }
-        if let m = s.firstMatch(of: /(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)/), let n = Int(m.1) { return n * unit(String(m.2)) }
+        if let m = s.firstMatch(of: /(\d+)\s+(\d)\/(\d)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/),
+           let whole = Double(m.1), let num = Double(m.2), let den = Double(m.3), den > 0 {
+            return Int((whole + num / den) * Double(unit(String(m.4))))
+        }
+        if let m = s.firstMatch(of: /(\d+(?:\.\d+)?)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/), let n = Double(m.1) {
+            return Int(n * Double(unit(String(m.2))))
+        }
         return nil
     }
-    private static func unit(_ u: String) -> Int { u.hasPrefix("h") ? 3600 : u.hasPrefix("s") ? 1 : 60 }
+    nonisolated private static func unit(_ u: String) -> Int { u.hasPrefix("h") ? 3600 : u.hasPrefix("s") ? 1 : 60 }
 }
