@@ -72,6 +72,7 @@ struct InventoryView: View {
                     }
                 }
             }
+            .gardePage()
             .navigationTitle("Kitchen")
             .searchable(text: $search, prompt: "Search food")
             .toolbar { Button("Add", systemImage: "plus") { adding = true } }
@@ -180,6 +181,7 @@ struct ItemEditView: View {
                     }
                 }
             }
+            .gardePage()
             .navigationTitle(item == nil ? "Add food" : "Edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -56,6 +56,7 @@ struct ShoppingListView: View {
                     } header: { Text("In the cart") }
                 }
             }
+            .gardePage()
             .navigationTitle("List")
             .toolbar {
                 if !open.isEmpty {
@@ -144,6 +145,7 @@ struct DealsView: View {
                 Text("Garde searches this week's grocery circulars for what's on your list and what's running low. Only the item word and ZIP code are sent; prices come from the stores' weekly ads and can change.")
             }
         }
+        .gardePage()
         .navigationTitle("Deals")
     }
 }

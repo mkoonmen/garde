@@ -100,6 +100,7 @@ struct CookModeView: View {
                 Text("Say \"next\", \"back\", \"repeat\", \"start timer\" or \"how long\"").font(.caption).foregroundStyle(.secondary).padding(.bottom, 8)
             }
         }
+        .background(Theme.page.ignoresSafeArea())
         .gesture(DragGesture(minimumDistance: 40).onEnded { g in go(g.translation.width < 0 ? 1 : -1) })
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
@@ -126,6 +127,7 @@ struct CookModeView: View {
         .sheet(isPresented: $showIngredients) {
             NavigationStack {
                 List(ingredients, id: \.self) { Text($0) }
+                    .gardePage()
                     .navigationTitle("Ingredients · serves \(servings)").navigationBarTitleDisplayMode(.inline)
             }.presentationDetents([.medium, .large])
         }
@@ -220,6 +222,7 @@ struct FinishCookingView: View {
                     if saveLeftovers { Stepper("\(leftoverServings) serving\(leftoverServings == 1 ? "" : "s")", value: $leftoverServings, in: 1...12) }
                 } footer: { Text("Leftovers go in the fridge with a 4-day countdown, and the chef can remix them.") }
             }
+            .gardePage()
             .navigationTitle("Nice work")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } } }

@@ -12,8 +12,12 @@ import UIKit
 final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProviding {
     static let shared = GmailImporter()
 
-    /// Google Cloud "iOS" OAuth client ID, e.g. 1234-abc.apps.googleusercontent.com (set in More → Gmail).
-    var clientID: String { UserDefaults.standard.string(forKey: "gmail.clientID") ?? "" }
+    /// Garde's own Google sign-in client (built into the app, so anyone can connect their Gmail with no setup).
+    /// It's a public identifier, not a secret. An override can still be set for testing.
+    var clientID: String {
+        if let o = UserDefaults.standard.string(forKey: "gmail.clientID"), !o.isEmpty { return o }
+        return Bundle.main.object(forInfoDictionaryKey: "GardeGoogleClientID") as? String ?? ""
+    }
     var isSignedIn: Bool { Keychain.get("gmail.refresh") != nil }
     private var authSession: ASWebAuthenticationSession?   // must be retained while the sheet is up
     private var isImporting = false
@@ -34,7 +38,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         case noClientID, auth(String), api(String)
         var errorDescription: String? {
             switch self {
-            case .noClientID: "Add your Google client ID first (More → Gmail receipts)."
+            case .noClientID: "Gmail sign-in isn't set up in this build yet."
             case .auth(let m): "Google sign-in failed: \(m)"
             case .api(let m): "Gmail error: \(m)"
             }

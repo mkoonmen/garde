@@ -71,6 +71,7 @@ struct ScanView: View {
                 }
                 .padding()
             }
+            .gardePage()
             .navigationTitle("Scan")
             .fullScreenCover(isPresented: $live) { LiveScanView() }
             .fullScreenCover(isPresented: $showCamera) { CameraPicker { process($0) }.ignoresSafeArea() }
@@ -154,6 +155,7 @@ struct ScanReviewView: View {
                     Text("Expiration dates are estimated from typical shelf life unless a package date was read. You can edit any item later.")
                 }
             }
+            .gardePage()
             .navigationTitle("Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

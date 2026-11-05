@@ -69,6 +69,7 @@ struct MealPlanView: View {
                 }
             }
         }
+        .gardePage()
         .navigationTitle("Week plan")
     }
 

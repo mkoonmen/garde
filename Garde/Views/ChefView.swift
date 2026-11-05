@@ -126,6 +126,7 @@ struct ChefView: View {
                     }
                 }
             }
+            .gardePage()
             .navigationTitle("Chef")
             .toolbar {
                 NavigationLink { MealPlanView() } label: { Label("Week plan", systemImage: "calendar") }
@@ -253,6 +254,7 @@ struct RecipeDetailView: View {
                 }
             }
         }
+        .gardePage()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $cooking) {

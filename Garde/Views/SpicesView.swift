@@ -50,6 +50,7 @@ struct SpicesView: View {
                     }
                 }
             }
+            .gardePage()
             .navigationTitle("Spices")
             .searchable(text: $search)
             .toolbar { Button("Add", systemImage: "plus") { adding = true } }
@@ -104,6 +105,7 @@ struct SpiceEditView: View {
                     }
                 }
             }
+            .gardePage()
             .navigationTitle(spice == nil ? "Add spice" : "Edit spice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

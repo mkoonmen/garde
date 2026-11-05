@@ -32,6 +32,7 @@ struct RootView: View {
             Tab("List", systemImage: "checklist") { ShoppingListView() }
             Tab("More", systemImage: "ellipsis.circle") { MoreView() }
         }
+        .toolbarBackground(Theme.page, for: .tabBar)
         .fullScreenCover(isPresented: Binding(get: { !onboarded }, set: { if !$0 { onboarded = true } })) {
             OnboardingView { onboarded = true }
         }

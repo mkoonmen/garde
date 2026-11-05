@@ -55,6 +55,7 @@ struct GardeSettingsView: View {
 
             Section("Deals") { NavigationLink("Weekly ads & stores") { DealsView() } }
         }
+        .gardePage()
         .navigationTitle("Settings")
         .task {
             let status = try? await CKContainer(identifier: GardeStore.cloudContainer).accountStatus()

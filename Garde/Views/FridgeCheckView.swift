@@ -67,6 +67,7 @@ struct FridgeCheckView: View {
             }
             if let note { Section { Text(note) } }
         }
+        .gardePage()
         .navigationTitle("Fridge check-in")
         .fullScreenCover(isPresented: $showCamera) { CameraPicker { analyze($0) }.ignoresSafeArea() }
         .onChange(of: pick) { _, new in

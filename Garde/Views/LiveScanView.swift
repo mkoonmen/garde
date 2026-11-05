@@ -70,6 +70,7 @@ struct LiveScanView: View {
                 default: cameraAllowed = false
                 }
             }
+            .gardePage()
             .navigationTitle("Live scan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

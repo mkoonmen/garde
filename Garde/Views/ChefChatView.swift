@@ -127,6 +127,7 @@ struct ChefChatView: View {
                 inputBar
             }
         }
+        .gardePage()
         .navigationTitle("Ask the chef")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { Button("New chat", systemImage: "square.and.pencil") { convo.reset(); startIfReady() } }

@@ -40,6 +40,7 @@ struct BarView: View {
                 }
             }
         }
+        .gardePage()
         .navigationTitle("Bar & cellar")
         .toolbar { Button("Add", systemImage: "plus") { adding = true } }
         .sheet(isPresented: $adding) { BottleEditView(bottle: nil) }
@@ -71,6 +72,7 @@ struct BottleEditView: View {
                 Section { PhotoField(data: $photo) }
                 if let bottle { Button("Delete", role: .destructive) { context.delete(bottle); dismiss() } }
             }
+            .gardePage()
             .navigationTitle(bottle == nil ? "Add bottle" : "Edit bottle").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

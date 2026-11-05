@@ -13,15 +13,15 @@ enum Theme {
         ? UIColor(red: 242 / 255, green: 234 / 255, blue: 216 / 255, alpha: 1)
         : UIColor(red: 21 / 255, green: 34 / 255, blue: 79 / 255, alpha: 1) })
 
-    /// Card surface: warm cream in light mode, lifted navy in dark mode.
+    /// Card / row surface: lifted navy in dark mode, warm cream in light mode.
     static let card = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.12, green: 0.16, blue: 0.29, alpha: 1)
-        : UIColor(red: 0.97, green: 0.95, blue: 0.90, alpha: 1) })
+        ? UIColor(red: 0.13, green: 0.18, blue: 0.33, alpha: 1)      // #212E54
+        : UIColor(red: 0.98, green: 0.96, blue: 0.92, alpha: 1) })
 
-    /// Page background behind lists.
+    /// Page background: the icon's navy in dark mode (never pure black), soft cream in light mode.
     static let page = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.05, green: 0.07, blue: 0.15, alpha: 1)
-        : UIColor(red: 0.99, green: 0.98, blue: 0.96, alpha: 1) })
+        ? UIColor(red: 21 / 255, green: 34 / 255, blue: 79 / 255, alpha: 1)   // #15224F, same as the icon
+        : UIColor(red: 0.95, green: 0.92, blue: 0.85, alpha: 1) })
 
     static func expiryColor(_ days: Int?) -> Color {
         guard let d = days else { return .secondary }
@@ -69,7 +69,19 @@ struct CardStyle: ViewModifier {
     }
 }
 
+/// Applies Garde's page color behind every screen and list, instead of system black/gray.
+struct GardePage: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(Theme.page.ignoresSafeArea())
+            .containerBackground(Theme.page, for: .navigation)
+            .toolbarBackground(Theme.page, for: .navigationBar)
+    }
+}
+
 extension View {
+    func gardePage() -> some View { modifier(GardePage()) }
     func gardeCard() -> some View { modifier(CardStyle()) }
     /// Serif heading in the house style.
     func gardeHeading(_ style: Font = .title3) -> some View { font(style.weight(.semibold)).fontDesign(.serif) }

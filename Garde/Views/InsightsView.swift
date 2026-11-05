@@ -67,6 +67,7 @@ struct InsightsView: View {
                 if !top.isEmpty { ForEach(top) { Text("★ \($0.title)") } }
             }
         }
+        .gardePage()
         .navigationTitle("Insights")
     }
 }

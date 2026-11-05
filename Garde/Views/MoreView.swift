@@ -29,11 +29,13 @@ struct MoreView: View {
                     }
                     if let exportURL { ShareLink("Share backup file", item: exportURL) }
                     Button("Import backup", systemImage: "square.and.arrow.down") { importing = true }
+                    NavigationLink { ResetView() } label: { Label("Reset / start over", systemImage: "arrow.counterclockwise") }
                 } header: { Text("Your data") } footer: {
                     Text("Plain JSON, readable by any app or AI. Everything stays on this iPhone unless you share it.")
                 }
                 if let message { Section { Text(message) } }
             }
+            .gardePage()
             .navigationTitle("More")
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
                 switch result {
@@ -77,6 +79,7 @@ private struct ProfileForm: View {
                         value: $profile.expirationWarningDays, in: 1...7)
             }
         }
+        .gardePage()
         .navigationTitle("Allergies & tastes")
     }
 }
@@ -135,6 +138,7 @@ struct ReceiptsView: View {
                 .onDelete { offsets in offsets.forEach { context.delete(receipts[$0]) } }
             }
         }
+        .gardePage()
         .navigationTitle("Receipts")
     }
 }
@@ -154,6 +158,7 @@ struct ReceiptDetailView: View {
             }
             Section { DisclosureGroup("Raw text", isExpanded: $showText) { Text(receipt.rawText).font(.caption.monospaced()) } }
         }
+        .gardePage()
         .navigationTitle(receipt.store.isEmpty ? "Receipt" : receipt.store)
     }
 }
@@ -169,13 +174,13 @@ struct UsedUpView: View {
             }
             .onDelete { offsets in offsets.forEach { context.delete(used[$0]) } }
         }
+        .gardePage()
         .navigationTitle("Used up")
     }
 }
 
 struct GmailSettingsView: View {
     @Environment(\.modelContext) private var context
-    @AppStorage("gmail.clientID") private var clientID = ""
     @AppStorage("gmail.autoImport") private var auto = false
     @AppStorage("gmail.query") private var query = ""
     @State private var signedIn = GmailImporter.shared.isSignedIn
@@ -185,13 +190,9 @@ struct GmailSettingsView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Google iOS client ID", text: $clientID).textInputAutocapitalization(.never).autocorrectionDisabled().font(.footnote.monospaced())
-            } header: { Text("Setup") } footer: {
-                Text("One-time: in Google Cloud Console, enable the Gmail API, create an OAuth client of type iOS with bundle ID com.michaelkoonmen.garde, and add yourself as a test user. Paste the client ID here.")
-            }
-            Section {
                 if signedIn {
-                    Toggle("Import automatically", isOn: $auto)
+                    Label("Gmail connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Toggle("Import new receipts automatically", isOn: $auto)
                     Button(working ? "Importing…" : "Import now", systemImage: "arrow.down.circle") {
                         working = true
                         Task {
@@ -200,26 +201,32 @@ struct GmailSettingsView: View {
                             working = false
                         }
                     }.disabled(working)
+                    if let last = UserDefaults.standard.object(forKey: "gmail.lastSync") as? Date {
+                        LabeledContent("Last import", value: last.formatted(.relative(presentation: .named)))
+                    }
                     Button("Disconnect Gmail", role: .destructive) { GmailImporter.shared.signOut(); signedIn = false; auto = false }
                 } else {
-                    Button("Connect Gmail (read-only)", systemImage: "envelope.badge") {
+                    Button {
                         Task {
-                            do { try await GmailImporter.shared.signIn(); signedIn = true; auto = true; message = "Connected." }
+                            do { try await GmailImporter.shared.signIn(); signedIn = true; auto = true; message = nil
+                                 _ = try? await GmailImporter.shared.importNew(context: context) }
                             catch { message = error.localizedDescription }
                         }
-                    }.disabled(clientID.isEmpty)
-                }
-                if let last = UserDefaults.standard.object(forKey: "gmail.lastSync") as? Date {
-                    LabeledContent("Last import", value: last.formatted(.relative(presentation: .named)))
+                    } label: { Label("Connect Gmail", systemImage: "envelope.badge").font(.headline) }
                 }
             } footer: {
-                Text("Garde only reads emails that look like grocery receipts or orders. Email text is read on this iPhone; nothing goes to any other server.")
+                Text("Sign in with any Google account. Garde asks for read-only access and only looks at emails that look like grocery receipts or orders (Instacart, Whole Foods, Stop & Shop, Costco and more). Emails are read on this iPhone; nothing is sent anywhere else. Disconnect anytime.")
             }
-            Section("Search (advanced)") {
+            Section {
+                Label("No Gmail? Share a receipt email from the Mail app to Garde, or snap a paper receipt in Scan.", systemImage: "square.and.arrow.up")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("Which emails (advanced)") {
                 TextField("Gmail search", text: $query, prompt: Text("Default: grocery stores and order receipts"), axis: .vertical).font(.footnote.monospaced())
             }
             if let message { Section { Text(message) } }
         }
+        .gardePage()
         .navigationTitle("Gmail receipts")
     }
 }
