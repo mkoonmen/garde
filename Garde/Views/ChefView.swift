@@ -41,6 +41,15 @@ struct ChefView: View {
                     }
                 }
 
+                let shared = RecipeInbox.load().count
+                Section {
+                    NavigationLink { InboxView() } label: {
+                        Label(shared == 0 ? "Recipes shared from other apps" : "\(shared) shared recipe\(shared == 1 ? "" : "s") waiting",
+                              systemImage: "square.and.arrow.down")
+                    }
+                    NavigationLink { FridgeCheckView() } label: { Label("Fridge check-in", systemImage: "camera.viewfinder") }
+                } footer: { Text("Share a TikTok, Instagram post, web page or photo to Garde to save the recipe.") }
+
                 Section("Or pick a mood") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {

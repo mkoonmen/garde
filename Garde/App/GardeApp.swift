@@ -48,6 +48,7 @@ struct RootView: View {
                 Notifier.reschedule(items: items, warningDays: profiles.first?.expirationWarningDays ?? 2)
                 Notifier.scheduleThawReminders(plan: plan, items: items)
                 WidgetCenter.shared.reloadAllTimelines()
+                KitchenFeed.publish(context: context)
             case .active:
                 if gmailAuto { Task { _ = try? await GmailImporter.shared.importNew(context: context) } }
                 ShoppingBrain.refreshRunningLow(context: context)

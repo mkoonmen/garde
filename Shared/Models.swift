@@ -135,7 +135,7 @@ final class Receipt {
     var total: Double?
     var rawText: String = ""
     @Attribute(.externalStorage) var image: Data?
-    @Relationship(deleteRule: .nullify, inverse: \PantryItem.receipt) var items: [PantryItem] = []
+    @Relationship(deleteRule: .nullify, inverse: \PantryItem.receipt) var items: [PantryItem]? = []   // optional for iCloud sync
 
     init(store: String, date: Date = Date(), total: Double? = nil, rawText: String = "", image: Data? = nil) {
         self.store = store
@@ -328,13 +328,28 @@ enum GardeStore {
     static let schema = Schema([PantryItem.self, Receipt.self, Spice.self, SavedRecipe.self, KitchenProfile.self,
                                 ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self])
 
-    static let container: ModelContainer = {
-        let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup))
+    static let cloudContainer = "iCloud.com.michaelkoonmen.garde"
+
+    /// The app syncs through the user's private iCloud database (when iCloud sync is on); the widget only reads locally.
+    static var syncEnabled: Bool {
+        UserDefaults(suiteName: appGroup)?.object(forKey: "icloudSync") as? Bool ?? true
+    }
+
+    static let container: ModelContainer = makeContainer(cloud: syncEnabled && !isExtension)
+    static var isExtension: Bool { Bundle.main.bundlePath.hasSuffix(".appex") }
+
+    static func makeContainer(cloud: Bool) -> ModelContainer {
+        if cloud {
+            let synced = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup),
+                                            cloudKitDatabase: .private(cloudContainer))
+            if let c = try? ModelContainer(for: schema, configurations: synced) { return c }
+        }
+        let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup), cloudKitDatabase: .none)
         if let c = try? ModelContainer(for: schema, configurations: config) { return c }
         // Fallback if the App Group isn't provisioned yet: app-only storage.
-        if let c = try? ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema)) { return c }
+        if let c = try? ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, cloudKitDatabase: .none)) { return c }
         // Last resort so the app still opens (data won't persist this launch).
         print("Garde: persistent store unavailable, using in-memory store")
-        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
-    }()
+        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+    }
 }

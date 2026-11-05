@@ -203,7 +203,7 @@ final class ChefAI {
         let inventory = inventoryText(active, limit: 30)
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ")
 
-        let session = LanguageModelSession(instructions: baseInstructions(profile: profile, logs: logs))
+        let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
 
         let prompt = """
         Kitchen inventory (soonest-expiring first):
@@ -280,11 +280,12 @@ final class ChefAI {
         let start = Date.now.formatted(.dateTime.weekday(.wide).month().day())
 
         // 1. Outline: one short line per day.
-        let outlineSession = LanguageModelSession(instructions: baseInstructions(profile: profile, logs: logs))
+        let outlineSession = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
         let outline = try await outlineSession.respond(to: """
         Sketch one dinner per day for \(days) days starting \(start) (dayIndex 0 to \(days - 1)). Titles and main ingredients only.
         Use the soonest-expiring food on the earliest days. Vary proteins and cuisines. Weeknights under 45 minutes.
         Frozen items need a night to thaw: don't put frozen meat or fish on day 0.
+        \(DealsService.shared.plannerHint.isEmpty ? "" : "On sale near them this week (use these when buying): \(DealsService.shared.plannerHint)")
         \(notes.isEmpty ? "" : "Notes for this week: \(notes)")
         Kitchen (soonest-expiring first):
         \(inventory)
@@ -296,7 +297,7 @@ final class ChefAI {
         let sketches = outline.dinners.sorted { $0.dayIndex < $1.dayIndex }.prefix(days)
         for (i, sketch) in sketches.enumerated() {
             progress?(i + 1, sketches.count)
-            let session = LanguageModelSession(instructions: baseInstructions(profile: profile, logs: logs))
+            let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
             guard let dinner = try? await session.respond(to: """
             Write the full recipe for: \(sketch.title) (main ingredients: \(sketch.keyIngredients.joined(separator: ", "))).
             Kitchen (soonest-expiring first):
@@ -317,7 +318,7 @@ final class ChefAI {
     func pair(dish: String, ingredients: [String], bottles: [BarBottle]) async throws -> Pairing? {
         guard state == .available else { return nil }
         let cellar = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.kind.label)\($0.vintage.isEmpty ? "" : ", \($0.vintage)")\($0.region.isEmpty ? "" : ", \($0.region)"))" }
-        let session = LanguageModelSession(instructions: "You are a sommelier and bartender. Pair drinks with food. Only pick a bottle that is in the list.")
+        let session = ChefEngine.shared.session(instructions: "You are a sommelier and bartender. Pair drinks with food. Only pick a bottle that is in the list.")
         let prompt = """
         Dish: \(dish)
         Main ingredients: \(ingredients.prefix(12).joined(separator: ", "))

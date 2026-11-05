@@ -12,6 +12,7 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink { GardeSettingsView() } label: { Label("Settings: chef brain, iCloud, TVs", systemImage: "gearshape") }
                     NavigationLink { SpicesView() } label: { Label("Spice rack", systemImage: "leaf") }
                     NavigationLink { BarView() } label: { Label("Bar & cellar", systemImage: "wineglass") }
                     NavigationLink { InsightsView() } label: { Label("Insights: cost & waste", systemImage: "chart.bar") }
@@ -124,7 +125,7 @@ struct ReceiptsView: View {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(r.store.isEmpty ? "Receipt" : r.store).font(.body.weight(.medium))
-                                Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(r.items.count) items").font(.caption).foregroundStyle(.secondary)
+                                Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(r.items?.count ?? 0) items").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             if let t = r.total { Text(t, format: .currency(code: "USD")) }
@@ -147,7 +148,7 @@ struct ReceiptDetailView: View {
                 Section { Image(uiImage: img).resizable().scaledToFit() }
             }
             Section("Items") {
-                ForEach(receipt.items) { i in
+                ForEach(receipt.items ?? []) { i in
                     HStack { Text(i.name); Spacer(); if let p = i.price { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary) } }
                 }
             }

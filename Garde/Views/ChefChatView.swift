@@ -41,7 +41,7 @@ final class ChefConversation {
         Spices: \(spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ").ifEmpty("basic only"))
         """
         self.instructions = instructions
-        session = LanguageModelSession(instructions: instructions)
+        session = ChefEngine.shared.session(instructions: instructions)
         if messages.isEmpty {
             messages.append(Message(fromUser: false, text: "What are we making? Tell me what you're craving, what you've got, or how much time you have."))
         }
@@ -51,7 +51,7 @@ final class ChefConversation {
 
     func send(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if session == nil, let instructions { session = LanguageModelSession(instructions: instructions) }
+        if session == nil, let instructions { session = ChefEngine.shared.session(instructions: instructions) }
         guard !trimmed.isEmpty, let session else { return }
         messages.append(Message(fromUser: true, text: trimmed))
         thinking = true
