@@ -63,7 +63,7 @@ struct ShoppingListView: View {
                     ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             }
-            .refreshable { await ShoppingBrain.refreshRunningLow(context: context); await refreshDeals() }
+            .refreshable { ShoppingBrain.refreshRunningLow(context: context); await refreshDeals() }
             .task {
                 if (deals.lastRefresh ?? .distantPast) < .now.addingTimeInterval(-6 * 3600) { await refreshDeals() }
             }

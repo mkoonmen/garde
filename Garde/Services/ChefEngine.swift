@@ -3,6 +3,7 @@ import FoundationModels
 import MLXLLM
 import MLXLMCommon
 import MLXHuggingFace
+import MLXFoundationModels
 import HuggingFace
 import Tokenizers
 
