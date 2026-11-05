@@ -1,8 +1,8 @@
 name: Build & send to TestFlight
 
+# Manual only for now: Garde is built and uploaded with Xcode on Michael's Mac (like his other apps).
+# To use this instead, add the four secrets in the README and run it from the Actions tab.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:

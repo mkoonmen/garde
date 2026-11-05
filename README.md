@@ -63,7 +63,9 @@ GardeTests/GardeTests.swift     automated tests (run in CI before upload)
 ```
 
 ## Building & installing (TestFlight)
-Every push to `main` builds and uploads to TestFlight. Repo secrets:
+**Main route:** on the Mac, `brew install xcodegen`, run `xcodegen generate` in this folder, open `Garde.xcodeproj` in Xcode, then Product → Archive → Distribute App → TestFlight & App Store. App Store Connect record: "Garde Kitchen" (bundle ID `com.michaelkoonmen.garde`, TestFlight internal group "Me"). Home-screen name stays "Garde".
+
+**Optional cloud route:** the GitHub workflow builds and uploads, but only when run by hand from the Actions tab. Repo secrets:
 
 | Secret | Where it comes from |
 |---|---|
