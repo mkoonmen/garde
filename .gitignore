@@ -3,3 +3,6 @@ build/
 DerivedData/
 .DS_Store
 *.p8
+build/
+setup-log.txt
+build-log.txt
