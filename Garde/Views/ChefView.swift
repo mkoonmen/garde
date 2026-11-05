@@ -7,6 +7,7 @@ struct ChefView: View {
     @Query private var spices: [Spice]
     @Query private var profiles: [KitchenProfile]
     @Query(sort: \SavedRecipe.createdAt, order: .reverse) private var saved: [SavedRecipe]
+    @Query private var logs: [CookLog]
 
     @State private var chef = ChefAI()
     @State private var mood = ""
@@ -38,6 +39,16 @@ struct ChefView: View {
                     }
                     TextField("Or describe it: \"something Italian with the chicken\"", text: $mood, axis: .vertical)
                     Stepper("Up to \(maxMinutes) minutes", value: $maxMinutes, in: 10...180, step: 5)
+                }
+
+                let leftovers = items.filter(\.isLeftover)
+                if !leftovers.isEmpty {
+                    Section {
+                        Button("Remix my leftovers", systemImage: "arrow.triangle.2.circlepath") {
+                            mustUse = Set(leftovers.map(\.id)); mood = "Turn the leftovers into something new"
+                            Task { await cook() }
+                        }
+                    } footer: { Text(leftovers.map(\.name).joined(separator: ", ")) }
                 }
 
                 if !expiring.isEmpty {
@@ -94,6 +105,9 @@ struct ChefView: View {
                 }
             }
             .navigationTitle("Chef")
+            .toolbar {
+                NavigationLink { MealPlanView() } label: { Label("Week plan", systemImage: "calendar") }
+            }
         }
     }
 
@@ -103,7 +117,7 @@ struct ChefView: View {
         let req = ChefAI.RecipeRequest(mood: mood, maxMinutes: maxMinutes,
                                        mustUse: items.filter { mustUse.contains($0.id) }.map(\.name))
         do {
-            let out = try await chef.suggestRecipes(items: items, spices: spices, profile: profile, request: req)
+            let out = try await chef.suggestRecipes(items: items, spices: spices, profile: profile, logs: logs, request: req)
             ideas = out.recipes; blocked = out.blocked
             if ideas.isEmpty { error = "No safe ideas came back. Try again or loosen the request." }
         } catch {
@@ -126,12 +140,20 @@ struct RecipeRow: View {
 struct RecipeDetailView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var items: [PantryItem]
+    @Query private var allItems: [PantryItem]
+    @Query private var bottles: [BarBottle]
     let title: String, summary: String, minutes: Int, servings: Int
     let ingredients: [String], steps: [String]
     var idea: RecipeIdea? = nil
     var saved: SavedRecipe? = nil
     @State private var didSave = false
     @State private var showUseUp = false
+    @State private var cooking = false
+    @State private var pairing: Pairing?
+    @State private var pairingLoading = false
+    @State private var chef = ChefAI()
+
+    private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: ingredients, items: allItems) }
 
     private var usedItems: [PantryItem] {
         let names = (idea?.usesFromKitchen ?? []).map { $0.lowercased() }
@@ -145,6 +167,25 @@ struct RecipeDetailView: View {
                 Text(summary)
                 HStack { Label("\(minutes) min", systemImage: "clock"); Spacer(); Label("Serves \(servings)", systemImage: "person.2") }
                     .font(.subheadline).foregroundStyle(.secondary)
+                if cost.matched > 0 {
+                    Label("About \(cost.total.formatted(.currency(code: "USD"))) from what you paid (\(cost.matched) of \(ingredients.count) ingredients priced)",
+                          systemImage: "dollarsign.circle").font(.caption).foregroundStyle(.secondary)
+                }
+                Button { cooking = true } label: {
+                    Label("Start cook mode", systemImage: "play.circle.fill").frame(maxWidth: .infinity).font(.headline)
+                }.buttonStyle(.borderedProminent).controlSize(.large)
+            }
+            Section("Pairing") {
+                if let p = pairing {
+                    if !p.bottleFromCellar.isEmpty { Label(p.bottleFromCellar, systemImage: "wineglass").font(.headline) }
+                    Text(p.why).font(.subheadline)
+                    if p.bottleFromCellar.isEmpty || !p.ifBuying.isEmpty { Text("If buying: \(p.ifBuying)").font(.caption).foregroundStyle(.secondary) }
+                } else {
+                    Button(pairingLoading ? "Thinking…" : (bottles.isEmpty ? "Suggest a drink" : "Pair from my bar"), systemImage: "wineglass") {
+                        pairingLoading = true
+                        Task { pairing = try? await chef.pair(dish: title, ingredients: ingredients, bottles: bottles); pairingLoading = false }
+                    }.disabled(pairingLoading)
+                }
             }
             Section("Ingredients") { ForEach(ingredients, id: \.self) { Text("• \($0)") } }
             Section("Steps") {
@@ -171,8 +212,12 @@ struct RecipeDetailView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $cooking) {
+            CookModeView(title: title, steps: steps, ingredients: ingredients, servings: servings, usedItems: usedItems,
+                         estimatedCost: cost.matched > 0 ? cost.total : nil) { saved?.timesCooked += 1 }
+        }
         .confirmationDialog("Mark these as used up?", isPresented: $showUseUp, titleVisibility: .visible) {
-            Button("Mark \(usedItems.count) used up") { usedItems.forEach { $0.isUsedUp = true } }
+            Button("Mark \(usedItems.count) used up") { usedItems.forEach { $0.markUsed() } }
         } message: { Text(usedItems.map(\.name).joined(separator: ", ")) }
     }
 }

@@ -2,58 +2,80 @@
 
 *Garde* is short for **garde-manger**, the kitchen station that keeps the larder: stocked, labeled, nothing wasted.
 
-A private kitchen assistant that runs entirely on the iPhone. Nothing is uploaded; the AI is Apple's on-device model.
+A private kitchen assistant. The AI is Apple's on-device model; your food, receipts and tastes stay on the iPhone. The only network calls are Gmail (if you connect it) and barcode lookups (Open Food Facts, barcode number only).
 
-## What it does
-| Tab | Features |
+## Tabs
+| Tab | What's there |
 |---|---|
-| **Kitchen** | Inventory by fridge / freezer / pantry / counter, expiration countdowns, "use these first" strip, search, photos per item, swipe to mark used up |
-| **Scan** | Photograph a receipt, a grocery haul or fridge shelf, or a label. On-device OCR (Vision) + the on-device model turn it into items you review before saving. Package dates are read when visible; otherwise expiration is estimated from typical shelf life |
-| **Chef** | Recipe ideas from what you actually have, soonest-expiring first, by mood and time limit, with "must use" items. Save / favorite recipes, and "I made this" marks the ingredients used |
-| **Spices** | Rack tracker with fill level, where it lives, freshness (ground ~2 yrs, whole ~3.5 yrs), restock list, quick-add of 20 common spices |
-| **More** | Allergies & tastes profile, receipts with photo + spending by store and month, used-up history, JSON export/import |
+| **Kitchen** | Inventory by fridge / freezer / pantry / counter, expiration countdowns, "use these first", leftovers badge, swipe **Ate it** or **Tossed** (tossed feeds the waste tracker) |
+| **Scan** | **Live scan**: beep through barcodes as you unpack, tap a printed date to attach it, allergen warning if a product contains one of yours. **Photo scan**: receipt, grocery haul / fridge, or label → reviewed list of items |
+| **Chef** | Recipe ideas from what you have (soonest-expiring first, mood, time, must-use, **remix leftovers**). **Week plan** (toolbar): dinners for 2–7 days built around expirations, missing groceries sent to the List. Recipe pages show **estimated cost**, **pairing from your bar**, and **Cook mode** |
+| **List** | Smart shopping list in store-walk order. Auto-adds what you're about to run out of (learned from your buying pace), staples you finished, low/empty spices, and week-plan needs. Ticks itself off when groceries are scanned or imported |
+| **More** | Spice rack · Bar & cellar · Insights (spend, waste, cost per meal, taste memory) · Allergies & tastes · Receipts · Gmail receipts · Used-up history · JSON export/import |
 
-Expiration reminders fire at 9 AM, N days before (N set in the profile).
+### Cook mode
+Full screen, big text, screen stays on. Steps can be read aloud; say **"next", "back", "repeat", "start timer", "how long"** (speech recognized on-device). Steps with a time get a one-tap timer (with a backup notification if the phone locks). When you finish: rate it (1–5, "what I'd change", "never again"), mark ingredients used, save leftovers with a 4-day countdown.
+
+### Taste memory
+Every rating is fed back into the chef and the week planner: loved dishes steer suggestions, feedback is applied, "never again" dishes are filtered out in code.
+
+### Siri & widgets
+- "What's expiring in Garde" · "What's for dinner in Garde" · "Add to my Garde list"
+- Home-screen widget (small / medium) and lock-screen widgets: tonight's planned dinner + what to use first.
+
+### Gmail receipts (one-time setup)
+1. Google Cloud Console → new project → enable **Gmail API**.
+2. OAuth consent screen: External, add yourself as a **test user**.
+3. Credentials → OAuth client ID → type **iOS**, bundle ID `com.michaelkoonmen.garde`.
+4. In Garde: More → Gmail receipts → paste the client ID → Connect.
+Read-only scope. Garde searches only for grocery/order receipts (search is editable), reads them on the phone, and imports items + the receipt.
 
 ## Allergy safety
-Allergies are given to the AI as an absolute rule **and** every recipe is re-checked in plain code by `Services/AllergenGuard.swift` (e.g. "shellfish" expands to shrimp, crab, lobster, scallop…). Any recipe that mentions one is discarded. It's a strong net, not a guarantee — always read real labels.
+Allergies are an absolute rule in every AI prompt **and** every recipe and plan is re-checked in plain code (`Services/AllergenGuard.swift`, e.g. "shellfish" expands to shrimp, crab, lobster, scallop…). Anything that mentions one is discarded. Barcode scans warn when a product's listed allergens match. Strong net, not a guarantee: always read real labels.
 
 ## Requirements
-- iPhone 15 Pro or newer (built for iPhone 17 Pro) on iOS 26, with Apple Intelligence turned on.
-- If Apple Intelligence is off, scanning falls back to a simpler line-by-line receipt reader and the Chef tab explains why it's disabled.
+iPhone 15 Pro or newer (built for 17 Pro), iOS 26, Apple Intelligence on. Without it, scanning falls back to a simpler receipt reader and the chef explains why it's off.
 
 ## Project layout
 ```
-project.yml                 XcodeGen spec (the .xcodeproj is generated, not committed)
+project.yml                     XcodeGen spec (app + widget; .xcodeproj is generated)
+Shared/                         used by app AND widget
+  Models.swift                  SwiftData models + GardeStore (App Group container)
+  ShelfLife.swift  Theme.swift
 Garde/
-  App/GardeApp.swift   entry point, tabs, theme
-  Models/Models.swift           SwiftData models: PantryItem, Receipt, Spice, SavedRecipe, KitchenProfile
+  App/GardeApp.swift            entry, tabs, background refresh hooks
   Services/
-    ChefAI.swift                on-device model: scan parsing + recipes (@Generable structured output)
+    ChefAI.swift                on-device model: scan parsing, recipes, week plan, pairing, taste prompts
     AllergenGuard.swift         hard allergen filter
     TextRecognizer.swift        Vision OCR + image labels
-    ShelfLife.swift             default shelf lives by category/location
-    Notifier.swift              local expiration reminders
-    DataExport.swift            plain JSON backup format "garde/v1"
+    GmailImporter.swift         OAuth (PKCE) + Gmail read-only import, Keychain
+    BarcodeLookup.swift         Open Food Facts lookup
+    ShoppingBrain.swift         buying-pace learning, list automation, aisle order
+    CostCalculator.swift        cost per recipe, waste report
+    CookVoice.swift             speech in/out, step-time parsing
+    GardeIntents.swift          Siri / Shortcuts
+    Notifier.swift  DataExport.swift
   Views/                        SwiftUI screens
-.github/workflows/testflight.yml   builds on GitHub's Mac runners and uploads to TestFlight
+GardeWidget/GardeWidget.swift   home + lock screen widgets
+.github/workflows/testflight.yml   builds on GitHub's Macs, uploads to TestFlight
 ```
 
 ## Building & installing (TestFlight)
-Every push to `main` builds the app on GitHub's macOS runners and uploads it to TestFlight. Repo secrets needed:
+Every push to `main` builds and uploads to TestFlight. Repo secrets:
 
 | Secret | Where it comes from |
 |---|---|
 | `APPLE_TEAM_ID` | developer.apple.com → Membership → Team ID |
-| `ASC_KEY_ID` | App Store Connect → Users and Access → Integrations → App Store Connect API → key ID |
-| `ASC_ISSUER_ID` | same page, Issuer ID |
-| `ASC_KEY_P8` | contents of the downloaded `AuthKey_XXXX.p8` file |
+| `ASC_KEY_ID` | App Store Connect → Users and Access → Integrations → App Store Connect API |
+| `ASC_ISSUER_ID` | same page |
+| `ASC_KEY_P8` | contents of the downloaded `AuthKey_XXXX.p8` |
 
-One-time: create the app record in App Store Connect with bundle ID `com.michaelkoonmen.garde` (name "Garde", or similar if taken), then add your personal Apple ID as an internal TestFlight tester.
+One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen.garde`, then add your personal Apple ID as an internal tester. The App Group `group.com.michaelkoonmen.garde` is registered automatically by signing; if the first build complains about it, create it under developer.apple.com → Identifiers → App Groups.
 
-## Not built yet (planned)
-- Live deal tracking across local stores and national brands (needs internet; will be a separate, opt-in service)
+## Not built yet
+- Live deal tracking across local stores and national brands (needs internet; planned as a separate, opt-in service)
 
 ## Change log
+- 2026-11-05 — v1.1: Gmail receipt import, live barcode/date scanning, week meal plan, smart shopping list, hands-free cook mode with timers, taste memory from ratings, cost per meal + waste tracking, bar & cellar with pairings, Siri shortcuts + home/lock screen widgets, leftovers tracking and remix. Backup format bumped to `garde/v2` (still imports v1).
 - 2026-11-05 — Renamed app to Garde (bundle ID com.michaelkoonmen.garde).
 - 2026-11-05 — v1: inventory, scanning, receipts, spices, allergy profile, on-device chef, reminders, JSON export/import.

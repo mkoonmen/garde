@@ -53,7 +53,8 @@ struct InventoryView: View {
                     ForEach(visible) { item in
                         Button { editing = item } label: { ItemRow(item: item) }.buttonStyle(.plain)
                             .swipeActions(edge: .trailing) {
-                                Button("Used up", systemImage: "checkmark") { item.isUsedUp = true }.tint(.green)
+                                Button("Ate it", systemImage: "checkmark") { item.markUsed() }.tint(.green)
+                                Button("Tossed", systemImage: "trash.slash") { item.markUsed(tossed: true) }.tint(.gray)
                                 Button("Delete", systemImage: "trash", role: .destructive) { context.delete(item) }
                             }
                     }
@@ -79,7 +80,10 @@ struct ItemRow: View {
                     .background(.quaternary, in: .rect(cornerRadius: 8)).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.name).font(.body.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(item.name).font(.body.weight(.medium))
+                    if item.isLeftover { Text("LEFTOVER").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1).background(Theme.accent.opacity(0.2), in: .capsule) }
+                }
                 Text("\(item.quantity.formatted()) \(item.unit) · \(item.category.label)").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -140,7 +144,8 @@ struct ItemEditView: View {
                 Section { PhotoField(data: $photo) }
                 if let item {
                     Section {
-                        Button("Mark used up") { item.isUsedUp = true; dismiss() }
+                        Button("Used it up") { item.markUsed(); dismiss() }
+                        Button("Threw it out") { item.markUsed(tossed: true); dismiss() }
                         Button("Delete", role: .destructive) { context.delete(item); dismiss() }
                     }
                 }

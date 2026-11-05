@@ -12,8 +12,14 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink { SpicesView() } label: { Label("Spice rack", systemImage: "leaf") }
+                    NavigationLink { BarView() } label: { Label("Bar & cellar", systemImage: "wineglass") }
+                    NavigationLink { InsightsView() } label: { Label("Insights: cost & waste", systemImage: "chart.bar") }
+                }
+                Section {
                     NavigationLink { ProfileView() } label: { Label("Allergies & tastes", systemImage: "heart.text.square") }
-                    NavigationLink { ReceiptsView() } label: { Label("Receipts & spending", systemImage: "receipt") }
+                    NavigationLink { ReceiptsView() } label: { Label("Receipts", systemImage: "receipt") }
+                    NavigationLink { GmailSettingsView() } label: { Label("Gmail receipts", systemImage: "envelope") }
                     NavigationLink { UsedUpView() } label: { Label("Used-up history", systemImage: "clock.arrow.circlepath") }
                 }
                 Section {
@@ -163,5 +169,56 @@ struct UsedUpView: View {
             .onDelete { offsets in offsets.forEach { context.delete(used[$0]) } }
         }
         .navigationTitle("Used up")
+    }
+}
+
+struct GmailSettingsView: View {
+    @Environment(\.modelContext) private var context
+    @AppStorage("gmail.clientID") private var clientID = ""
+    @AppStorage("gmail.autoImport") private var auto = false
+    @AppStorage("gmail.query") private var query = ""
+    @State private var signedIn = GmailImporter.shared.isSignedIn
+    @State private var working = false
+    @State private var message: String?
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Google iOS client ID", text: $clientID).textInputAutocapitalization(.never).autocorrectionDisabled().font(.footnote.monospaced())
+            } header: { Text("Setup") } footer: {
+                Text("One-time: in Google Cloud Console, enable the Gmail API, create an OAuth client of type iOS with bundle ID com.michaelkoonmen.garde, and add yourself as a test user. Paste the client ID here.")
+            }
+            Section {
+                if signedIn {
+                    Toggle("Import automatically", isOn: $auto)
+                    Button(working ? "Importing…" : "Import now", systemImage: "arrow.down.circle") {
+                        working = true
+                        Task {
+                            do { let n = try await GmailImporter.shared.importNew(context: context); message = n == 0 ? "No new grocery receipts." : "Added \(n) items." }
+                            catch { message = error.localizedDescription }
+                            working = false
+                        }
+                    }.disabled(working)
+                    Button("Disconnect Gmail", role: .destructive) { GmailImporter.shared.signOut(); signedIn = false; auto = false }
+                } else {
+                    Button("Connect Gmail (read-only)", systemImage: "envelope.badge") {
+                        Task {
+                            do { try await GmailImporter.shared.signIn(); signedIn = true; auto = true; message = "Connected." }
+                            catch { message = error.localizedDescription }
+                        }
+                    }.disabled(clientID.isEmpty)
+                }
+                if let last = UserDefaults.standard.object(forKey: "gmail.lastSync") as? Date {
+                    LabeledContent("Last import", value: last.formatted(.relative(presentation: .named)))
+                }
+            } footer: {
+                Text("Garde only reads emails that look like grocery receipts or orders. Email text is read on this iPhone; nothing goes to any other server.")
+            }
+            Section("Search (advanced)") {
+                TextField("Gmail search", text: $query, prompt: Text("Default: grocery stores and order receipts"), axis: .vertical).font(.footnote.monospaced())
+            }
+            if let message { Section { Text(message) } }
+        }
+        .navigationTitle("Gmail receipts")
     }
 }

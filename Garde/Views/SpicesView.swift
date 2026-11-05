@@ -12,7 +12,7 @@ struct SpicesView: View {
     private var needs: [Spice] { spices.filter { $0.level == .low || $0.level == .empty || $0.isStale } }
 
     var body: some View {
-        NavigationStack {
+        Group {
             List {
                 if !needs.isEmpty && search.isEmpty {
                     Section("Restock or replace") {

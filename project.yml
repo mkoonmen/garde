@@ -8,7 +8,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"   # Swift 6 language mode can be turned on later
-    MARKETING_VERSION: "1.0"
+    MARKETING_VERSION: "1.1"
     CURRENT_PROJECT_VERSION: "1"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
@@ -16,7 +16,13 @@ targets:
   Garde:
     type: application
     platform: iOS
-    sources: [Garde]
+    sources: [Garde, Shared]
+    dependencies:
+      - target: GardeWidget
+    entitlements:
+      path: Garde/Garde.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.michaelkoonmen.garde]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.michaelkoonmen.garde
@@ -26,7 +32,29 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Garde
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSCameraUsageDescription: "Scan receipts, groceries and food labels."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan receipts, barcodes, groceries and food labels."
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Pick photos of receipts and food to scan."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Hands-free cook mode listens for “next”, “back” and “start timer”."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Understands cook-mode voice commands on this iPhone."
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  GardeWidget:
+    type: app-extension
+    platform: iOS
+    sources: [GardeWidget, Shared]
+    entitlements:
+      path: GardeWidget/GardeWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.michaelkoonmen.garde]
+    info:
+      path: GardeWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Garde
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.michaelkoonmen.garde.widget
+        PRODUCT_NAME: GardeWidget
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO

@@ -26,11 +26,23 @@ struct ScanView: View {
     @State private var review: ScanReviewModel?
     @State private var rawText = ""
     @State private var chef = ChefAI()
+    @State private var live = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    Button { live = true } label: {
+                        HStack {
+                            Image(systemName: "barcode.viewfinder").font(.title)
+                            VStack(alignment: .leading) {
+                                Text("Live scan").font(.headline)
+                                Text("Beep through barcodes and dates as you unpack").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }.padding().background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 14))
+                    }.buttonStyle(.plain)
+
                     Picker("What are you scanning?", selection: $kind) { ForEach(Kind.allCases) { Text($0.rawValue).tag($0) } }
                         .pickerStyle(.segmented)
                     Text(kind.hint).font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
@@ -60,6 +72,7 @@ struct ScanView: View {
                 .padding()
             }
             .navigationTitle("Scan")
+            .fullScreenCover(isPresented: $live) { LiveScanView() }
             .fullScreenCover(isPresented: $showCamera) { CameraPicker { process($0) }.ignoresSafeArea() }
             .onChange(of: pick) { _, new in
                 Task {
@@ -171,6 +184,7 @@ struct ScanReviewView: View {
             item.receipt = receipt
             context.insert(item)
         }
+        ShoppingBrain.checkOff(names: scan.items.filter(\.include).map(\.name), context: context)
         dismiss(); onDone()
     }
 }

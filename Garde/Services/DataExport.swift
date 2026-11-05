@@ -20,13 +20,22 @@ struct KitchenExport: Codable {
     struct RecipeRow: Codable { var title, summary: String; var minutes, servings: Int; var ingredients, steps: [String]; var isFavorite: Bool }
     struct ProfileRow: Codable { var allergies, dislikes, loves: [String]; var dietNotes: String; var householdSize: Int; var skillLevel: String; var expirationWarningDays: Int }
 
-    var format = "garde/v1"
+    struct ShoppingRow: Codable { var name, category, quantityNote, reason: String; var isChecked: Bool }
+    struct PlanRow: Codable { var day: Date; var title, summary: String; var minutes, servings: Int; var ingredients, steps, needToBuy: [String]; var isCooked: Bool }
+    struct CookRow: Codable { var title: String; var date: Date; var rating: Int; var wouldChange: String; var neverAgain: Bool; var cost: Double? }
+    struct BottleRow: Codable { var name, kind, vintage, region, notes: String; var count: Int }
+
+    var format = "garde/v2"
     var exportedAt = Date()
     var items: [Item]
     var receipts: [ReceiptRow]
     var spices: [SpiceRow]
     var recipes: [RecipeRow]
     var profile: ProfileRow?
+    var shopping: [ShoppingRow]? = []
+    var mealPlan: [PlanRow]? = []
+    var cookLog: [CookRow]? = []
+    var bar: [BottleRow]? = []
 }
 
 enum DataExport {
@@ -43,7 +52,7 @@ enum DataExport {
         let recipes = try context.fetch(FetchDescriptor<SavedRecipe>())
         let profile = try context.fetch(FetchDescriptor<KitchenProfile>()).first
 
-        let export = KitchenExport(
+        var export = KitchenExport(
             items: items.map { .init(name: $0.name, category: $0.categoryRaw, location: $0.locationRaw, unit: $0.unit,
                                      quantity: $0.quantity, purchaseDate: $0.purchaseDate, expirationDate: $0.expirationDate,
                                      expirationIsEstimated: $0.expirationIsEstimated, price: $0.price, store: $0.store,
@@ -54,6 +63,11 @@ enum DataExport {
                                          ingredients: $0.ingredients, steps: $0.steps, isFavorite: $0.isFavorite) },
             profile: profile.map { .init(allergies: $0.allergies, dislikes: $0.dislikes, loves: $0.loves, dietNotes: $0.dietNotes,
                                          householdSize: $0.householdSize, skillLevel: $0.skillLevel, expirationWarningDays: $0.expirationWarningDays) })
+
+        export.shopping = try context.fetch(FetchDescriptor<ShoppingItem>()).map { .init(name: $0.name, category: $0.categoryRaw, quantityNote: $0.quantityNote, reason: $0.reason, isChecked: $0.isChecked) }
+        export.mealPlan = try context.fetch(FetchDescriptor<MealPlanEntry>()).map { .init(day: $0.day, title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings, ingredients: $0.ingredients, steps: $0.steps, needToBuy: $0.needToBuy, isCooked: $0.isCooked) }
+        export.cookLog = try context.fetch(FetchDescriptor<CookLog>()).map { .init(title: $0.title, date: $0.date, rating: $0.rating, wouldChange: $0.wouldChange, neverAgain: $0.neverAgain, cost: $0.cost) }
+        export.bar = try context.fetch(FetchDescriptor<BarBottle>()).map { .init(name: $0.name, kind: $0.kindRaw, vintage: $0.vintage, region: $0.region, notes: $0.notes, count: $0.count) }
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("garde-\(Date.now.formatted(.iso8601.year().month().day())).json")
         try encoder.encode(export).write(to: url)
@@ -83,6 +97,22 @@ enum DataExport {
             let saved = SavedRecipe(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps)
             saved.isFavorite = r.isFavorite
             context.insert(saved)
+        }
+        for r in data.shopping ?? [] {
+            let i = ShoppingItem(name: r.name, category: FoodCategory(rawValue: r.category) ?? .other, quantityNote: r.quantityNote, reason: r.reason)
+            i.isChecked = r.isChecked; context.insert(i)
+        }
+        for r in data.mealPlan ?? [] {
+            let e = MealPlanEntry(day: r.day, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps, needToBuy: r.needToBuy)
+            e.isCooked = r.isCooked; context.insert(e)
+        }
+        for r in data.cookLog ?? [] {
+            let l = CookLog(title: r.title, rating: r.rating, wouldChange: r.wouldChange, neverAgain: r.neverAgain, cost: r.cost)
+            l.date = r.date; context.insert(l)
+        }
+        for r in data.bar ?? [] {
+            let b = BarBottle(name: r.name, kind: BottleKind(rawValue: r.kind) ?? .other, vintage: r.vintage, region: r.region, count: r.count)
+            b.notes = r.notes; context.insert(b)
         }
         if let p = data.profile {
             let existing = try context.fetch(FetchDescriptor<KitchenProfile>()).first ?? { let n = KitchenProfile(); context.insert(n); return n }()

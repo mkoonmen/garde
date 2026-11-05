@@ -45,6 +45,30 @@ struct RecipeIdea {
 }
 
 @Generable
+struct PlannedDinner {
+    @Guide(description: "Day number starting at 0 for the first day of the plan")
+    var dayIndex: Int
+    var recipe: RecipeIdea
+    @Guide(description: "Ingredients this dinner needs that are NOT in the kitchen inventory or spices, as short grocery names")
+    var needToBuy: [String]
+}
+
+@Generable
+struct WeekPlan {
+    var dinners: [PlannedDinner]
+}
+
+@Generable
+struct Pairing {
+    @Guide(description: "Exact name of the bottle from the list, or empty if nothing on hand fits")
+    var bottleFromCellar: String
+    @Guide(description: "One or two sentences on why it works with this dish")
+    var why: String
+    @Guide(description: "A style to buy if nothing on hand is a good match, e.g. 'Oregon Pinot Noir'")
+    var ifBuying: String
+}
+
+@Generable
 struct RecipeBatch {
     @Guide(description: "Distinct recipe ideas", .count(3))
     var recipes: [RecipeIdea]
@@ -141,27 +165,15 @@ final class ChefAI {
 
     /// Generates recipes from what's in the kitchen, prioritizing what expires first.
     /// Any recipe that mentions an allergen is discarded by `AllergenGuard`.
-    func suggestRecipes(items: [PantryItem], spices: [Spice], profile: KitchenProfile, request: RecipeRequest) async throws -> (recipes: [RecipeIdea], blocked: Int) {
+    func suggestRecipes(items: [PantryItem], spices: [Spice], profile: KitchenProfile, logs: [CookLog] = [], request: RecipeRequest) async throws -> (recipes: [RecipeIdea], blocked: Int) {
         guard state == .available else { return ([], 0) }
 
         let active = items.filter { !$0.isUsedUp }
             .sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
-        let inventory = active.prefix(60).map { item -> String in
-            let d = item.daysLeft.map { $0 < 0 ? "EXPIRED" : "\($0)d left" } ?? "no date"
-            return "- \(item.name) (\(formatQty(item.quantity)) \(item.unit), \(item.location.label), \(d))"
-        }.joined(separator: "\n")
+        let inventory = inventoryText(active)
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ")
 
-        let session = LanguageModelSession(instructions: """
-        You are a private chef cooking for one household from what they already have.
-        ABSOLUTE RULE: never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: ", ")).
-        Avoid: \(profile.dislikes.joined(separator: ", ").ifEmpty("nothing")).
-        They love: \(profile.loves.joined(separator: ", ").ifEmpty("anything good")).
-        Diet notes: \(profile.dietNotes.ifEmpty("none")).
-        Cooking level: \(profile.skillLevel). Default servings: \(profile.householdSize).
-        Prefer ingredients that expire soonest. Assume salt, pepper, oil and water are available.
-        Do not use EXPIRED items.
-        """)
+        let session = LanguageModelSession(instructions: baseInstructions(profile: profile, logs: logs))
 
         let prompt = """
         Kitchen inventory (soonest-expiring first):
@@ -176,10 +188,98 @@ final class ChefAI {
         """
 
         let batch = try await session.respond(to: prompt, generating: RecipeBatch.self).content
+        let never = Set(logs.filter(\.neverAgain).map { $0.title.lowercased() })
         let safe = batch.recipes.filter {
             AllergenGuard.violations(in: [$0.title] + $0.ingredients + $0.steps, allergies: profile.allergies).isEmpty
         }
-        return (safe, batch.recipes.count - safe.count)
+        return (safe.filter { !never.contains($0.title.lowercased()) }, batch.recipes.count - safe.count)
+    }
+
+
+    // MARK: Shared prompt pieces
+
+    func inventoryText(_ active: [PantryItem]) -> String {
+        active.prefix(60).map { item -> String in
+            let d = item.daysLeft.map { $0 < 0 ? "EXPIRED" : "\($0)d left" } ?? "no date"
+            let tag = item.isLeftover ? " [LEFTOVER, already cooked]" : ""
+            return "- \(item.name)\(tag) (\(formatQty(item.quantity)) \(item.unit), \(item.location.label), \(d))"
+        }.joined(separator: "\n")
+    }
+
+    /// Turns cook ratings into taste guidance.
+    func tasteText(_ logs: [CookLog]) -> String {
+        let recent = logs.sorted { $0.date > $1.date }.prefix(40)
+        let loved = recent.filter { $0.rating >= 4 }.map(\.title)
+        let meh = recent.filter { $0.rating > 0 && $0.rating <= 2 && !$0.neverAgain }.map(\.title)
+        let never = recent.filter(\.neverAgain).map(\.title)
+        let changes = recent.filter { !$0.wouldChange.isEmpty }.prefix(8).map { "\($0.title): \($0.wouldChange)" }
+        var out: [String] = []
+        if !loved.isEmpty { out.append("Dishes they rated highly (make more like these): \(loved.joined(separator: "; "))") }
+        if !meh.isEmpty { out.append("Dishes they found mediocre: \(meh.joined(separator: "; "))") }
+        if !never.isEmpty { out.append("Never suggest these again: \(never.joined(separator: "; "))") }
+        if !changes.isEmpty { out.append("Their feedback: \(changes.joined(separator: " | "))") }
+        return out.joined(separator: "\n")
+    }
+
+    func baseInstructions(profile: KitchenProfile, logs: [CookLog]) -> String {
+        """
+        You are a private chef cooking for one household from what they already have.
+        ABSOLUTE RULE: never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: ", ")).
+        Avoid: \(profile.dislikes.joined(separator: ", ").ifEmpty("nothing")).
+        They love: \(profile.loves.joined(separator: ", ").ifEmpty("anything good")).
+        Diet notes: \(profile.dietNotes.ifEmpty("none")).
+        Cooking level: \(profile.skillLevel). Default servings: \(profile.householdSize).
+        Prefer ingredients that expire soonest. Assume salt, pepper, oil and water are available.
+        Do not use EXPIRED items. LEFTOVER items are already-cooked dishes: transform them into something new rather than just reheating.
+        Write steps with explicit times when there's waiting, e.g. 'Simmer 10 minutes'.
+        \(tasteText(logs))
+        """
+    }
+
+    // MARK: Weekly plan
+
+    /// Plans dinners for the next `days` days, using soonest-expiring food first,
+    /// and lists what has to be bought. Unsafe dinners are dropped.
+    func planWeek(days: Int, items: [PantryItem], spices: [Spice], profile: KitchenProfile, logs: [CookLog], notes: String) async throws -> (dinners: [PlannedDinner], blocked: Int) {
+        guard state == .available else { return ([], 0) }
+        let active = items.filter { !$0.isUsedUp }.sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
+        let session = LanguageModelSession(instructions: baseInstructions(profile: profile, logs: logs))
+        let start = Date.now.formatted(.dateTime.weekday(.wide).month().day())
+        let prompt = """
+        Plan one dinner per day for \(days) days starting \(start) (dayIndex 0).
+        Use the soonest-expiring food on the earliest days so nothing goes to waste.
+        Vary proteins and cuisines across the week. Keep weeknights under 45 minutes.
+        \(notes.isEmpty ? "" : "Notes for this week: \(notes)")
+
+        Kitchen inventory:
+        \(inventoryText(active).ifEmpty("(empty)"))
+        Spices: \(spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ").ifEmpty("basic only"))
+        """
+        let plan = try await session.respond(to: prompt, generating: WeekPlan.self).content
+        let safe = plan.dinners.filter {
+            AllergenGuard.violations(in: [$0.recipe.title] + $0.recipe.ingredients + $0.recipe.steps + $0.needToBuy, allergies: profile.allergies).isEmpty
+        }
+        return (safe, plan.dinners.count - safe.count)
+    }
+
+    // MARK: Pairing
+
+    func pair(dish: String, ingredients: [String], bottles: [BarBottle]) async throws -> Pairing? {
+        guard state == .available else { return nil }
+        let cellar = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.kind.label)\($0.vintage.isEmpty ? "" : ", \($0.vintage)")\($0.region.isEmpty ? "" : ", \($0.region)"))" }
+        let session = LanguageModelSession(instructions: "You are a sommelier and bartender. Pair drinks with food. Only pick a bottle that is in the list.")
+        let prompt = """
+        Dish: \(dish)
+        Main ingredients: \(ingredients.prefix(12).joined(separator: ", "))
+        Bottles on hand:
+        \(cellar.joined(separator: "\n").ifEmpty("(none)"))
+        """
+        var result = try await session.respond(to: prompt, generating: Pairing.self).content
+        // Never claim a bottle they don't own.
+        if !bottles.contains(where: { $0.name.caseInsensitiveCompare(result.bottleFromCellar) == .orderedSame }) {
+            result.bottleFromCellar = ""
+        }
+        return result
     }
 
     private func formatQty(_ q: Double) -> String {

@@ -48,6 +48,10 @@ final class PantryItem {
     var notes: String = ""
     @Attribute(.externalStorage) var photo: Data?
     var isUsedUp: Bool = false
+    var usedUpDate: Date?
+    var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
+    var isLeftover: Bool = false
+    var barcode: String?
     var receipt: Receipt?
 
     init(name: String,
@@ -79,6 +83,12 @@ final class PantryItem {
     var location: StorageLocation {
         get { StorageLocation(rawValue: locationRaw) ?? .fridge }
         set { locationRaw = newValue.rawValue }
+    }
+
+    func markUsed(tossed: Bool = false) {
+        isUsedUp = true
+        wasTossed = tossed
+        usedUpDate = .now
     }
 
     /// Whole days until expiration (negative = expired). nil if unknown.
@@ -154,6 +164,7 @@ final class SavedRecipe {
     var steps: [String] = []
     var createdAt: Date = Date()
     var isFavorite: Bool = false
+    var timesCooked: Int = 0
 
     init(title: String, summary: String, minutes: Int, servings: Int, ingredients: [String], steps: [String]) {
         self.title = title
@@ -178,4 +189,123 @@ final class KitchenProfile {
     var expirationWarningDays: Int = 2
 
     init() {}
+}
+
+// MARK: - Shopping list
+
+@Model
+final class ShoppingItem {
+    var id: UUID = UUID()
+    var name: String = ""
+    var categoryRaw: String = FoodCategory.other.rawValue
+    var quantityNote: String = ""
+    var isChecked: Bool = false
+    var reason: String = ""          // "Running low", "For Tue: Chicken piccata", "Added by you"
+    var createdAt: Date = Date()
+
+    init(name: String, category: FoodCategory = .other, quantityNote: String = "", reason: String = "Added by you") {
+        self.name = name
+        self.categoryRaw = category.rawValue
+        self.quantityNote = quantityNote
+        self.reason = reason
+    }
+    var category: FoodCategory {
+        get { FoodCategory(rawValue: categoryRaw) ?? .other }
+        set { categoryRaw = newValue.rawValue }
+    }
+}
+
+// MARK: - Meal plan
+
+@Model
+final class MealPlanEntry {
+    var id: UUID = UUID()
+    var day: Date = Date()           // start of day
+    var title: String = ""
+    var summary: String = ""
+    var minutes: Int = 0
+    var servings: Int = 2
+    var ingredients: [String] = []
+    var steps: [String] = []
+    var needToBuy: [String] = []
+    var isCooked: Bool = false
+
+    init(day: Date, title: String, summary: String, minutes: Int, servings: Int, ingredients: [String], steps: [String], needToBuy: [String]) {
+        self.day = Calendar.current.startOfDay(for: day)
+        self.title = title
+        self.summary = summary
+        self.minutes = minutes
+        self.servings = servings
+        self.ingredients = ingredients
+        self.steps = steps
+        self.needToBuy = needToBuy
+    }
+}
+
+// MARK: - Taste memory
+
+@Model
+final class CookLog {
+    var id: UUID = UUID()
+    var title: String = ""
+    var date: Date = Date()
+    var rating: Int = 0              // 1–5
+    var wouldChange: String = ""
+    var neverAgain: Bool = false
+    var cost: Double?
+
+    init(title: String, rating: Int, wouldChange: String = "", neverAgain: Bool = false, cost: Double? = nil) {
+        self.title = title
+        self.rating = rating
+        self.wouldChange = wouldChange
+        self.neverAgain = neverAgain
+        self.cost = cost
+    }
+}
+
+// MARK: - Bar & cellar
+
+enum BottleKind: String, Codable, CaseIterable, Identifiable {
+    case red, white, rose, sparkling, dessert, bourbon, whiskey, tequila, rum, gin, vodka, other
+    var id: String { rawValue }
+    var label: String { self == .rose ? "Rosé" : rawValue.capitalized }
+}
+
+@Model
+final class BarBottle {
+    var id: UUID = UUID()
+    var name: String = ""
+    var kindRaw: String = BottleKind.red.rawValue
+    var vintage: String = ""
+    var region: String = ""
+    var count: Int = 1
+    var notes: String = ""
+    @Attribute(.externalStorage) var photo: Data?
+
+    init(name: String, kind: BottleKind, vintage: String = "", region: String = "", count: Int = 1) {
+        self.name = name
+        self.kindRaw = kind.rawValue
+        self.vintage = vintage
+        self.region = region
+        self.count = count
+    }
+    var kind: BottleKind {
+        get { BottleKind(rawValue: kindRaw) ?? .other }
+        set { kindRaw = newValue.rawValue }
+    }
+}
+
+// MARK: - Shared container (app + widget + Siri)
+
+enum GardeStore {
+    static let appGroup = "group.com.michaelkoonmen.garde"
+    static let schema = Schema([PantryItem.self, Receipt.self, Spice.self, SavedRecipe.self, KitchenProfile.self,
+                                ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self])
+
+    static let container: ModelContainer = {
+        let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup))
+        if let c = try? ModelContainer(for: schema, configurations: config) { return c }
+        // Fallback if the App Group isn't provisioned yet: app-only storage.
+        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema))
+    }()
 }
