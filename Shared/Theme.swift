@@ -54,7 +54,7 @@ enum Theme {
             ("frying.pan", ["egg", "omelet", "frittata", "hash", "stir"]),
             ("birthday.cake", ["cake", "tart", "dessert", "cookie", "pie"]),
         ]
-        return map.first { $0.1.contains(where: t.contains) }?.0 ?? "fork.knife.circle"
+        return map.first { $0.1.contains(where: { t.contains($0) }) }?.0 ?? "fork.knife.circle"
     }
 }
 

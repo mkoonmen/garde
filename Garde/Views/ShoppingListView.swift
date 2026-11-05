@@ -46,7 +46,7 @@ struct ShoppingListView: View {
                     ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             }
-            .refreshable { ShoppingBrain.refreshRunningLow(context: context) }
+            .refreshable { await ShoppingBrain.refreshRunningLow(context: context) }
         }
     }
 

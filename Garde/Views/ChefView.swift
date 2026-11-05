@@ -28,7 +28,20 @@ struct ChefView: View {
                     Section { Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
                 }
 
-                Section("What are you feeling?") {
+                Section {
+                    NavigationLink { ChefChatView() } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.title2).foregroundStyle(Theme.cream)
+                                .frame(width: 48, height: 48).background(Theme.navy.gradient, in: .rect(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ask the chef").gardeHeading(.headline)
+                                Text("Type or talk. Works with no internet.").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                Section("Or pick a mood") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
                             ForEach(moods, id: \.self) { m in
@@ -161,11 +174,11 @@ struct RecipeDetailView: View {
     @State private var chef = ChefAI()
 
     private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: ingredients, items: allItems) }
+    private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
 
     private var usedItems: [PantryItem] {
-        let names = (idea?.usesFromKitchen ?? []).map { $0.lowercased() }
-        let text = (names + ingredients.map { $0.lowercased() }).joined(separator: " ")
-        return items.filter { text.contains($0.name.lowercased()) }
+        let text = ((idea?.usesFromKitchen ?? []) + ingredients).joined(separator: " ")
+        return items.filter { !$0.isLeftover && ShoppingBrain.appears($0.name, in: text) }
     }
 
     var body: some View {
@@ -179,6 +192,15 @@ struct RecipeDetailView: View {
                 Text(summary)
                 HStack { Label("\(minutes) min", systemImage: "clock"); Spacer(); Label("Serves \(servings)", systemImage: "person.2") }
                     .font(.subheadline).foregroundStyle(.secondary)
+                if nutrition.isReliable {
+                    HStack(spacing: 0) {
+                        NutrientTile(value: "\(Int(nutrition.kcal.rounded()))", label: "kcal")
+                        NutrientTile(value: "\(Int(nutrition.protein.rounded()))g", label: "protein")
+                        NutrientTile(value: "\(Int(nutrition.carbs.rounded()))g", label: "carbs")
+                        NutrientTile(value: "\(Int(nutrition.fat.rounded()))g", label: "fat")
+                    }
+                    Text("Per serving, estimated offline from \(nutrition.counted) of \(nutrition.total) ingredients.").font(.caption2).foregroundStyle(.tertiary)
+                }
                 if cost.matched > 0 {
                     Label("About \(cost.total.formatted(.currency(code: "USD"))) from what you paid (\(cost.matched) of \(ingredients.count) ingredients priced)",
                           systemImage: "dollarsign.circle").font(.caption).foregroundStyle(.secondary)
@@ -231,5 +253,15 @@ struct RecipeDetailView: View {
         .confirmationDialog("Mark these as used up?", isPresented: $showUseUp, titleVisibility: .visible) {
             Button("Mark \(usedItems.count) used up") { usedItems.forEach { $0.markUsed() } }
         } message: { Text(usedItems.map(\.name).joined(separator: ", ")) }
+    }
+}
+
+struct NutrientTile: View {
+    let value: String, label: String
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(value).font(.headline).fontDesign(.serif).monospacedDigit()
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity)
     }
 }

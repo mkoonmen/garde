@@ -6,44 +6,35 @@ enum TextRecognizer {
     /// Reads all text in a photo (receipts, labels, expiration stamps), top-to-bottom.
     static func recognizeText(in image: UIImage) async throws -> String {
         guard let cg = image.cgImage else { return "" }
-        return try await withCheckedThrowingContinuation { cont in
-            let request = VNRecognizeTextRequest { req, err in
-                if let err { cont.resume(throwing: err); return }
-                let obs = (req.results as? [VNRecognizedTextObservation]) ?? []
-                // Sort top-to-bottom, then left-to-right so receipt lines stay in order.
-                let lines = obs.sorted {
-                    abs($0.boundingBox.midY - $1.boundingBox.midY) > 0.01
-                        ? $0.boundingBox.midY > $1.boundingBox.midY
-                        : $0.boundingBox.minX < $1.boundingBox.minX
-                }.compactMap { $0.topCandidates(1).first?.string }
-                cont.resume(returning: lines.joined(separator: "\n"))
-            }
+        let orientation = image.cgOrientation
+        return try await Task.detached(priority: .userInitiated) {
+            let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            let handler = VNImageRequestHandler(cgImage: cg, orientation: image.cgOrientation)
-            DispatchQueue.global(qos: .userInitiated).async {
-                do { try handler.perform([request]) } catch { cont.resume(throwing: error) }
-            }
-        }
+            try VNImageRequestHandler(cgImage: cg, orientation: orientation).perform([request])
+            let obs = request.results ?? []
+            // Top-to-bottom, then left-to-right, so receipt lines stay in order.
+            let lines = obs.sorted {
+                abs($0.boundingBox.midY - $1.boundingBox.midY) > 0.01
+                    ? $0.boundingBox.midY > $1.boundingBox.midY
+                    : $0.boundingBox.minX < $1.boundingBox.minX
+            }.compactMap { $0.topCandidates(1).first?.string }
+            return lines.joined(separator: "\n")
+        }.value
     }
 
     /// Labels what's in a photo (e.g. "apple", "cheese") for fridge/haul photos.
     static func classify(_ image: UIImage, minConfidence: Float = 0.25) async throws -> [String] {
         guard let cg = image.cgImage else { return [] }
-        return try await withCheckedThrowingContinuation { cont in
-            let request = VNClassifyImageRequest { req, err in
-                if let err { cont.resume(throwing: err); return }
-                let labels = ((req.results as? [VNClassificationObservation]) ?? [])
-                    .filter { $0.confidence >= minConfidence }
-                    .prefix(15)
-                    .map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
-                cont.resume(returning: Array(labels))
-            }
-            let handler = VNImageRequestHandler(cgImage: cg, orientation: image.cgOrientation)
-            DispatchQueue.global(qos: .userInitiated).async {
-                do { try handler.perform([request]) } catch { cont.resume(throwing: error) }
-            }
-        }
+        let orientation = image.cgOrientation
+        return try await Task.detached(priority: .userInitiated) {
+            let request = VNClassifyImageRequest()
+            try VNImageRequestHandler(cgImage: cg, orientation: orientation).perform([request])
+            return (request.results ?? [])
+                .filter { $0.confidence >= minConfidence }
+                .prefix(15)
+                .map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
+        }.value
     }
 }
 

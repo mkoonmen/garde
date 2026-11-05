@@ -35,4 +35,32 @@ enum Notifier {
             center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("exp-") && !current.contains($0) })
         }
     }
+
+    /// For each planned dinner that needs something from the freezer, a 7 PM reminder the night before
+    /// ("Move the chicken thighs to the fridge for tomorrow's piccata"). Same-day plans get a reminder now-ish if it's early.
+    static func scheduleThawReminders(plan: [MealPlanEntry], items: [PantryItem]) {
+        let center = UNUserNotificationCenter.current()
+        let cal = Calendar.current
+        let frozen = items.filter { !$0.isUsedUp && $0.location == .freezer }
+        var keep: Set<String> = []
+        for entry in plan where !entry.isCooked && entry.day >= cal.startOfDay(for: .now) {
+            let text = (entry.ingredients + [entry.title]).joined(separator: " ").lowercased()
+            let needed = frozen.filter { ShoppingBrain.appears($0.name, in: text) }
+            guard !needed.isEmpty,
+                  let eve = cal.date(byAdding: .day, value: -1, to: entry.day),
+                  let fire = cal.date(bySettingHour: 19, minute: 0, second: 0, of: eve), fire > .now else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = "Thaw for tomorrow"
+            content.body = "Move \(needed.map(\.name).joined(separator: ", ")) from the freezer to the fridge for \(entry.title)."
+            content.sound = .default
+            let id = "thaw-" + entry.id.uuidString
+            keep.insert(id)
+            center.add(UNNotificationRequest(identifier: id, content: content,
+                                             trigger: UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire), repeats: false)))
+        }
+        let current = keep
+        center.getPendingNotificationRequests { pending in
+            center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("thaw-") && !current.contains($0) })
+        }
+    }
 }

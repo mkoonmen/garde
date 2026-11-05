@@ -55,7 +55,7 @@ enum ReceiptLexicon {
         "SPRKLNG": "sparkling", "WTR": "water", "JCE": "juice", "OJ": "orange juice", "COF": "coffee", "CFE": "coffee",
         // store brands
         "SS": "Stop & Shop", "STP&SHP": "Stop & Shop", "KK": "King Kullen", "TJ": "Trader Joe's", "TJS": "Trader Joe's",
-        "KS": "Kirkland Signature", "KRKLD": "Kirkland", "WF": "Whole Foods", "365": "365", "WGMNS": "Wegmans", "GG": "Good & Gather",
+        "KS": "Kirkland Signature", "OG": "organic", "GV": "Great Value", "MM": "Member's Mark", "SIMPLY BAL": "Simply Balanced", "KRKLD": "Kirkland", "WF": "Whole Foods", "365": "365", "WGMNS": "Wegmans", "GG": "Good & Gather",
         "PLN": "plain", "CRNCHY": "crunchy", "CRMY": "creamy", "UNSWT": "unsweetened", "UNSWTND": "unsweetened",
         "VAN": "vanilla", "STRW": "strawberry", "HNYCRSP": "honeycrisp", "GALA": "gala", "RSST": "russet", "YKN": "yukon gold",
         "NB": "", "STR BRND": "",

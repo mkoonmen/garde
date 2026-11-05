@@ -14,6 +14,12 @@ enum ShelfLife {
     /// Ordered: the first rule whose keyword appears in the item name wins, so specific cuts come before general words.
     static let rules: [Rule] = [
         // Look-alikes first (names that contain another food's keyword)
+        .init(keywords: ["broth", "stock", "bouillon"], fridge: nil, freezer: 90, pantry: 365, opened: 4),
+        .init(keywords: ["marinara", "tomato sauce", "pasta sauce", "tomato paste", "canned tomato", "crushed tomato", "san marzano"], fridge: nil, freezer: 120, pantry: 365, opened: 5),
+        .init(keywords: ["fish sauce", "oyster sauce", "worcestershire", "soy sauce", "hot sauce", "sriracha"], fridge: nil, freezer: nil, pantry: 730, opened: 365),
+        .init(keywords: ["goldfish", "cracker"], fridge: nil, freezer: nil, pantry: 180, opened: 30),
+        .init(keywords: ["buttermilk"], fridge: 14, freezer: 90, pantry: nil, opened: 10),
+        .init(keywords: ["deli", "sliced turkey", "sliced chicken", "turkey breast slice", "salami", "prosciutto", "lunch meat", "cold cut"], fridge: 14, freezer: 60, pantry: nil, opened: 5),
         .init(keywords: ["eggplant"], fridge: 7, freezer: nil, pantry: 2, opened: 2),
         .init(keywords: ["peanut butter", "almond butter", "nut butter"], fridge: 180, freezer: nil, pantry: 180, opened: 90),
         .init(keywords: ["butternut"], fridge: 30, freezer: 240, pantry: 30, opened: 5),
@@ -35,7 +41,6 @@ enum ShelfLife {
         .init(keywords: ["bacon"], fridge: 7, freezer: 30, pantry: nil, opened: 7),
         .init(keywords: ["hot dog", "frank"], fridge: 14, freezer: 60, pantry: nil, opened: 7),
         .init(keywords: ["sausage"], fridge: 2, freezer: 60, pantry: nil, opened: 2),
-        .init(keywords: ["deli", "sliced turkey", "salami", "prosciutto", "ham slice", "lunch meat"], fridge: 14, freezer: 60, pantry: nil, opened: 5),
         .init(keywords: ["ham"], fridge: 7, freezer: 60, pantry: nil, opened: 5),
         .init(keywords: ["steak", "ribeye", "sirloin", "tenderloin", "pot roast", "beef roast", "pork roast", "pork chop", "lamb chop", "lamb", "veal", "beef", "pork"], fridge: 4, freezer: 240, pantry: nil, opened: 4),
         // Seafood
@@ -80,8 +85,6 @@ enum ShelfLife {
         .init(keywords: ["tofu"], fridge: 30, freezer: 150, pantry: nil, opened: 4),
         .init(keywords: ["hummus", "salsa", "guacamole", "dip"], fridge: 14, freezer: nil, pantry: nil, opened: 6),
         .init(keywords: ["mayo", "mayonnaise"], fridge: nil, freezer: nil, pantry: 120, opened: 60),
-        .init(keywords: ["broth", "stock"], fridge: nil, freezer: 90, pantry: 365, opened: 4),
-        .init(keywords: ["marinara", "tomato sauce", "pasta sauce"], fridge: nil, freezer: 120, pantry: 365, opened: 5),
         .init(keywords: ["wine"], fridge: 5, freezer: nil, pantry: 730, opened: 4),
         .init(keywords: ["juice"], fridge: 10, freezer: 240, pantry: 270, opened: 7),
         .init(keywords: ["leftover"], fridge: 4, freezer: 90, pantry: nil, opened: 4),
@@ -89,7 +92,7 @@ enum ShelfLife {
 
     static func rule(for name: String) -> Rule? {
         let n = name.lowercased()
-        return rules.first { $0.keywords.contains(where: n.contains) }
+        return rules.first { $0.keywords.contains(where: { n.contains($0) }) }
     }
 
     static func days(for category: FoodCategory, in location: StorageLocation) -> Int {

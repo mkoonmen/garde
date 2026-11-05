@@ -52,6 +52,7 @@ final class PantryItem {
     var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
     var isLeftover: Bool = false
     var openedDate: Date?
+    var frozenDate: Date?
     var barcode: String?
     var receipt: Receipt?
 
@@ -84,6 +85,30 @@ final class PantryItem {
     var location: StorageLocation {
         get { StorageLocation(rawValue: locationRaw) ?? .fridge }
         set { locationRaw = newValue.rawValue }
+    }
+
+    /// Can this go in the freezer? (false for things like eggs-in-shell, lettuce, canned goods)
+    var canFreeze: Bool {
+        guard location != .freezer else { return false }
+        if let r = ShelfLife.rule(for: name) { return r.freezer != nil }
+        return ![.produce, .canned, .grains, .snacks, .beverages, .condiments].contains(category)
+    }
+
+    /// Moves it to the freezer and restarts the clock with freezer shelf life.
+    func freeze() {
+        frozenDate = .now
+        location = .freezer
+        expirationDate = ShelfLife.estimatedExpiration(name: name, category: category, in: .freezer)
+        expirationIsEstimated = true
+    }
+
+    /// Thawed in the fridge: cook within a couple of days.
+    func thaw() {
+        location = .fridge
+        frozenDate = nil
+        let days = (category == .seafood || category == .poultry || category == .meat) ? 2 : 3
+        expirationDate = Calendar.current.date(byAdding: .day, value: days, to: .now)
+        expirationIsEstimated = true
     }
 
     func markUsed(tossed: Bool = false) {
@@ -307,6 +332,9 @@ enum GardeStore {
         let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup))
         if let c = try? ModelContainer(for: schema, configurations: config) { return c }
         // Fallback if the App Group isn't provisioned yet: app-only storage.
-        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema))
+        if let c = try? ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema)) { return c }
+        // Last resort so the app still opens (data won't persist this launch).
+        print("Garde: persistent store unavailable, using in-memory store")
+        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
     }()
 }

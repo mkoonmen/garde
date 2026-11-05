@@ -13,6 +13,19 @@ enum ShoppingBrain {
             .replacing(/\s+/, with: " ").trimmingCharacters(in: .whitespaces)
     }
 
+    /// Does this pantry item show up in a recipe's text? Matches on meaningful words, so
+    /// "Boneless Skinless Chicken Thigh" matches "1 lb chicken thighs".
+    static func appears(_ itemName: String, in text: String) -> Bool {
+        let t = text.lowercased()
+        let k = key(itemName)
+        guard !k.isEmpty else { return false }
+        if t.contains(k) { return true }
+        let filler: Set<String> = ["boneless", "skinless", "organic", "whole", "fresh", "large", "small", "baby", "sliced", "shredded", "great", "value", "kirkland", "signature"]
+        let words = k.split(separator: " ").map(String.init).filter { $0.count > 3 && !filler.contains($0) }
+        guard !words.isEmpty else { return false }
+        return words.allSatisfy { w in t.contains(w) || (w.hasSuffix("s") && t.contains(String(w.dropLast()))) }
+    }
+
     /// Typical days between buying the same thing (needs 3+ purchases).
     static func paces(_ items: [PantryItem]) -> [String: (days: Double, name: String, category: FoodCategory, last: Date)] {
         var out: [String: (days: Double, name: String, category: FoodCategory, last: Date)] = [:]
@@ -32,13 +45,14 @@ enum ShoppingBrain {
         guard let items = try? context.fetch(FetchDescriptor<PantryItem>()),
               let list = try? context.fetch(FetchDescriptor<ShoppingItem>()),
               let spices = try? context.fetch(FetchDescriptor<Spice>()) else { return }
-        let onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
+        var onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
         let inStock = Set(items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover }.map { key($0.name) })
 
         for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) {
             let since = Date.now.timeIntervalSince(p.last) / 86_400
             if since >= p.days * 0.85 {
                 context.insert(ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days"))
+                onList.insert(k)
             }
         }
         // Things you finished recently with nothing left in stock (buy-again candidates).
@@ -46,9 +60,11 @@ enum ShoppingBrain {
         let staples: Set<FoodCategory> = [.eggs, .dairy, .bakery]
         for i in recentlyFinished where staples.contains(i.category) && !onList.contains(key(i.name)) && !inStock.contains(key(i.name)) {
             context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Ran out"))
+            onList.insert(key(i.name))
         }
         for s in spices where (s.level == .empty || s.level == .low) && !onList.contains(key(s.name)) {
             context.insert(ShoppingItem(name: s.name, category: .condiments, reason: s.level == .empty ? "Spice is empty" : "Spice is low"))
+            onList.insert(key(s.name))
         }
     }
 
@@ -56,10 +72,11 @@ enum ShoppingBrain {
     @MainActor
     static func add(needToBuy: [String], for dish: String, day: Date, context: ModelContext) {
         let list = (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []
-        let onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
+        var onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
         let dayName = day.formatted(.dateTime.weekday(.abbreviated))
         for n in needToBuy where !onList.contains(key(n)) {
             context.insert(ShoppingItem(name: n.capitalized, category: guessCategory(n), reason: "For \(dayName): \(dish)"))
+            onList.insert(key(n))
         }
     }
 
@@ -96,6 +113,6 @@ enum ShoppingBrain {
             (.frozen, ["frozen"]),
             (.beverages, ["wine", "juice", "soda", "water", "coffee", "tea", "beer"]),
         ]
-        return map.first { $0.1.contains(where: n.contains) }?.0 ?? .other
+        return map.first { $0.1.contains(where: { n.contains($0) }) }?.0 ?? .other
     }
 }

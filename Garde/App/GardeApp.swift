@@ -20,7 +20,9 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     @Query private var profiles: [KitchenProfile]
     @Query private var items: [PantryItem]
+    @Query private var plan: [MealPlanEntry]
     @AppStorage("gmail.autoImport") private var gmailAuto = false
+    @AppStorage("onboarded") private var onboarded = false
 
     var body: some View {
         TabView {
@@ -29,6 +31,9 @@ struct RootView: View {
             Tab("Chef", systemImage: "frying.pan") { ChefView() }
             Tab("List", systemImage: "checklist") { ShoppingListView() }
             Tab("More", systemImage: "ellipsis.circle") { MoreView() }
+        }
+        .fullScreenCover(isPresented: Binding(get: { !onboarded }, set: { if !$0 { onboarded = true } })) {
+            OnboardingView { onboarded = true }
         }
         .task {
             if profiles.isEmpty { context.insert(KitchenProfile()) }
@@ -41,6 +46,7 @@ struct RootView: View {
             case .background:
                 try? context.save()
                 Notifier.reschedule(items: items, warningDays: profiles.first?.expirationWarningDays ?? 2)
+                Notifier.scheduleThawReminders(plan: plan, items: items)
                 WidgetCenter.shared.reloadAllTimelines()
             case .active:
                 if gmailAuto { Task { _ = try? await GmailImporter.shared.importNew(context: context) } }

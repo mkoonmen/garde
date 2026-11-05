@@ -11,8 +11,9 @@ enum BarcodeLookup {
         var allergens: [String]
     }
 
-    private static var cache: [String: Product] = [:]
+    @MainActor private static var cache: [String: Product] = [:]
 
+    @MainActor
     static func lookup(_ code: String) async -> Product? {
         if let hit = cache[code] { return hit }
         guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(code).json?fields=product_name,brands,quantity,categories_tags,allergens_tags") else { return nil }

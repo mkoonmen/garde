@@ -19,6 +19,7 @@ final class CookVoice {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var lastCommandAt = Date.distantPast
+    private var generation = 0   // ignores callbacks from recognition tasks we've already replaced
 
     func speak(_ text: String) {
         synth.stopSpeaking(at: .immediate)
@@ -41,6 +42,9 @@ final class CookVoice {
     }
 
     private func beginRecognition(_ recognizer: SFSpeechRecognizer) throws {
+        generation += 1
+        let gen = generation
+        request?.endAudio()
         task?.cancel()
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
@@ -53,7 +57,7 @@ final class CookVoice {
         try engine.start()
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, gen == self.generation else { return }
                 if let text = result?.bestTranscription.formattedString.lowercased() {
                     self.heard = text
                     self.handle(text)

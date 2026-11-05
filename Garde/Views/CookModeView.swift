@@ -50,7 +50,10 @@ struct CookModeView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: left == 0 ? "bell.fill" : "timer")
                                 Text("Step \(t.step + 1)  \(left / 60):\(String(format: "%02d", left % 60))").monospacedDigit()
-                                Button("Dismiss", systemImage: "xmark.circle.fill") { timers.removeAll { $0.id == t.id } }.labelStyle(.iconOnly)
+                                Button("Dismiss", systemImage: "xmark.circle.fill") {
+                                    timers.removeAll { $0.id == t.id }
+                                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["timer-\(t.id)"])
+                                }.labelStyle(.iconOnly)
                             }
                             .font(.headline).padding(.horizontal, 12).padding(.vertical, 8)
                             .background(left == 0 ? Color.red.opacity(0.25) : Theme.accent.opacity(0.15), in: .capsule)
@@ -103,7 +106,11 @@ struct CookModeView: View {
             voice.onCommand = handle
             if readAloud { voice.speak(step) }
         }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false; voice.stop() }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            voice.stop()
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: timers.map { "timer-\($0.id)" })
+        }
         .onReceive(tick) { t in
             let before = timers.filter { $0.ends > now }.count
             now = t
@@ -134,11 +141,12 @@ struct CookModeView: View {
     }
 
     private func startTimer(_ secs: Int) {
-        timers.append(StepTimer(step: index, label: step, ends: .now.addingTimeInterval(TimeInterval(secs))))
+        let timer = StepTimer(step: index, label: step, ends: .now.addingTimeInterval(TimeInterval(secs)))
+        timers.append(timer)
         // Backup alert in case the phone gets locked.
         let content = UNMutableNotificationContent()
         content.title = "Timer done"; content.body = "Step \(index + 1): \(title)"; content.sound = .default
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content,
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "timer-\(timer.id)", content: content,
                                                                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(secs), repeats: false)))
     }
 

@@ -27,6 +27,11 @@ struct InventoryView: View {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(item.name).font(.subheadline.weight(.semibold)).lineLimit(1)
                                             Text(Theme.expiryText(item.daysLeft)).font(.caption).foregroundStyle(Theme.expiryColor(item.daysLeft))
+                                            if item.canFreeze && (item.daysLeft ?? 9) >= 0 {
+                                                Button { withAnimation { item.freeze() } } label: {
+                                                    Label("Freeze it", systemImage: "snowflake").font(.caption2.weight(.semibold))
+                                                }.buttonStyle(.bordered).controlSize(.mini).tint(.blue)
+                                            }
                                         }
                                         .padding(10).frame(width: 140, alignment: .leading)
                                         .background(Theme.card, in: .rect(cornerRadius: 12))
@@ -55,6 +60,13 @@ struct InventoryView: View {
                             .swipeActions(edge: .trailing) {
                                 Button("Ate it", systemImage: "checkmark") { item.markUsed() }.tint(.green)
                                 Button("Tossed", systemImage: "trash.slash") { item.markUsed(tossed: true) }.tint(.gray)
+                            }
+                            .swipeActions(edge: .leading) {
+                                if item.canFreeze {
+                                    Button("Freeze", systemImage: "snowflake") { withAnimation { item.freeze() } }.tint(.blue)
+                                } else if item.location == .freezer {
+                                    Button("Thaw", systemImage: "drop") { withAnimation { item.thaw() } }.tint(.teal)
+                                }
                                 Button("Delete", systemImage: "trash", role: .destructive) { context.delete(item) }
                             }
                     }
@@ -113,6 +125,7 @@ struct ItemEditView: View {
     @State private var store = ""
     @State private var notes = ""
     @State private var photo: Data?
+    @State private var loaded = false
 
     var body: some View {
         NavigationStack {
@@ -121,9 +134,9 @@ struct ItemEditView: View {
                     TextField("Name", text: $name)
                         .onSubmit { if item == nil && estimated { location = ShelfLife.defaultLocation(for: category, name: name); reestimate() } }
                     Picker("Category", selection: $category) { ForEach(FoodCategory.allCases) { Text($0.label).tag($0) } }
-                        .onChange(of: category) { _, c in if item == nil { location = ShelfLife.defaultLocation(for: c, name: name); reestimate() } }
+                        .onChange(of: category) { _, c in guard loaded, item == nil else { return }; location = ShelfLife.defaultLocation(for: c, name: name); reestimate() }
                     Picker("Stored in", selection: $location) { ForEach(StorageLocation.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) } }
-                        .onChange(of: location) { _, _ in if estimated { reestimate() } }
+                        .onChange(of: location) { _, _ in if loaded && estimated { reestimate() } }
                 }
                 Section {
                     Stepper("Quantity: \(quantity.formatted())", value: $quantity, in: 0...999, step: 0.5)
@@ -132,8 +145,8 @@ struct ItemEditView: View {
                 Section("Expiration") {
                     Toggle("Has expiration date", isOn: $hasExpiration)
                     if hasExpiration {
-                        DatePicker("Expires", selection: $expiration, displayedComponents: .date)
-                            .onChange(of: expiration) { _, _ in estimated = false }
+                        DatePicker("Expires", selection: Binding(get: { expiration }, set: { expiration = $0; estimated = false }),
+                                   displayedComponents: .date)
                         if estimated { Text("Estimated from typical shelf life. Change it if the package says otherwise.").font(.caption).foregroundStyle(.secondary) }
                     }
                 }
@@ -151,9 +164,15 @@ struct ItemEditView: View {
                             Button("I just opened it", systemImage: "seal") {
                                 item.openedDate = .now
                                 if let d = ShelfLife.openedExpiration(name: item.name, category: item.category, current: item.expirationDate) {
-                                    item.expirationDate = d; expiration = d; hasExpiration = true
+                                    item.expirationDate = d; expiration = d; hasExpiration = true; estimated = false
                                 }
                             }
+                        }
+                        if let f = item.frozenDate {
+                            LabeledContent("Frozen", value: f.formatted(date: .abbreviated, time: .omitted))
+                            Button("Thawed it in the fridge", systemImage: "drop") { item.thaw(); dismiss() }
+                        } else if item.canFreeze {
+                            Button("Freeze it", systemImage: "snowflake") { item.freeze(); dismiss() }
                         }
                         Button("Used it up") { item.markUsed(); dismiss() }
                         Button("Threw it out") { item.markUsed(tossed: true); dismiss() }
@@ -174,14 +193,14 @@ struct ItemEditView: View {
     private func reestimate() { expiration = ShelfLife.estimatedExpiration(name: name, category: category, in: location); estimated = true }
 
     private func load() {
+        defer { loaded = true }
         guard let item else { reestimate(); return }
         name = item.name; category = item.category; location = item.location
         quantity = item.quantity; unit = item.unit
         hasExpiration = item.expirationDate != nil; expiration = item.expirationDate ?? .now
         price = item.price.map { String(format: "%.2f", $0) } ?? ""
         store = item.store ?? ""; notes = item.notes; photo = item.photo
-        // set last so the onChange handlers above don't overwrite it
-        DispatchQueue.main.async { estimated = item.expirationIsEstimated }
+        estimated = item.expirationIsEstimated
     }
 
     private func save() {

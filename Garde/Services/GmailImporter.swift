@@ -15,6 +15,8 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
     /// Google Cloud "iOS" OAuth client ID, e.g. 1234-abc.apps.googleusercontent.com (set in More → Gmail).
     var clientID: String { UserDefaults.standard.string(forKey: "gmail.clientID") ?? "" }
     var isSignedIn: Bool { Keychain.get("gmail.refresh") != nil }
+    private var authSession: ASWebAuthenticationSession?   // must be retained while the sheet is up
+    private var isImporting = false
 
     /// Searches that catch grocery receipts and orders.
     static let defaultQuery = """
@@ -62,8 +64,11 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 if let url { cont.resume(returning: url) } else { cont.resume(throwing: GmailError.auth(err?.localizedDescription ?? "cancelled")) }
             }
             session.presentationContextProvider = self
-            session.start()
+            session.prefersEphemeralWebBrowserSession = false
+            self.authSession = session
+            if !session.start() { cont.resume(throwing: GmailError.auth("couldn't open Google sign-in")) }
         }
+        authSession = nil
         guard let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else {
             throw GmailError.auth("no code returned")
         }
@@ -85,7 +90,9 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
     /// Imports any receipt emails not seen before. Returns the number of items added.
     @discardableResult
     func importNew(context: ModelContext) async throws -> Int {
-        guard isSignedIn, !clientID.isEmpty, let refresh = Keychain.get("gmail.refresh") else { return 0 }
+        guard !isImporting, isSignedIn, !clientID.isEmpty, let refresh = Keychain.get("gmail.refresh") else { return 0 }
+        isImporting = true
+        defer { isImporting = false }
         let tokens = try await tokenRequest(["refresh_token": refresh, "grant_type": "refresh_token"])
         guard let access = tokens["access_token"] as? String else { throw GmailError.auth("token refresh failed") }
 

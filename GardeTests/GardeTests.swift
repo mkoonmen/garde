@@ -27,7 +27,11 @@ import Foundation
 }
 
 @Suite("Printed dates") struct DateTests {
-    func ymd(_ d: Date?) -> String? { d.map { $0.formatted(.iso8601.year().month().day()) } }
+    func ymd(_ d: Date?) -> String? {
+        guard let d else { return nil }
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: d)   // local, like DateSniffer
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
 
     @Test(arguments: [
         ("BEST BY 11/18/26", "2026-11-18"), ("EXP 2026-11-18", "2026-11-18"), ("USE BY NOV 18 2026", "2026-11-18"),
@@ -83,9 +87,71 @@ import Foundation
     }
 }
 
+@Suite("Store receipt layouts") struct StoreLayoutTests {
+    @Test func costcoCodesAndDiscounts() {
+        let scan = HeuristicParser.parse("""
+        COSTCO WHOLESALE
+        E 1234567 KS ORG EGGS 24CT  9.99 N
+        E 7654321 ATL SLMN FLT  17.49 N
+        /7654321  3.00-
+        TOTAL 27.48
+        """)
+        #expect(scan.store == "Costco")
+        #expect(scan.items.map(\.name) == ["Kirkland Signature Organic Eggs", "Atlantic Salmon Fillet"])
+        #expect(abs((scan.items.last?.price ?? 0) - 14.49) < 0.001)
+    }
+
+    @Test func stopAndShopWeightLines() {
+        let scan = HeuristicParser.parse("""
+        STOP & SHOP
+        BANANAS
+        2.41 lb @ 0.69 /lb    1.66 F
+        """)
+        #expect(scan.items.first?.name == "Bananas")
+        #expect(scan.items.first?.unit == "lb")
+        #expect(scan.items.first?.quantity == 2.41)
+    }
+
+    @Test func traderJoesQuantityLines() {
+        let scan = HeuristicParser.parse("""
+        TRADER JOE'S
+        ORGANIC BANANAS
+        3 @ 0.29   0.87
+        """)
+        #expect(scan.store == "Trader Joe's")
+        #expect(scan.items.first?.quantity == 3)
+        #expect(scan.items.first?.price == 0.87)
+    }
+
+    @Test func walmartAndTargetCodes() {
+        #expect(HeuristicParser.parse("Walmart\nGV WHOLE MILK 078742351870 F  3.12 N").items.first?.name == "Great Value Whole Milk")
+        #expect(HeuristicParser.parse("TARGET\n071000140  GG SHRP CHDR  NF  $2.79").items.first?.name == "Good & Gather Sharp Cheddar")
+    }
+}
+
+@Suite("Nutrition") struct NutritionTests {
+    @Test func creamyChickenPasta() {
+        let n = Nutrition.estimate(ingredients: ["1 1/2 lb boneless skinless chicken thighs", "2 tbsp olive oil", "4 cloves garlic, minced",
+                                                 "1 cup chicken broth", "1/2 cup heavy cream", "1 cup grated parmesan", "8 oz penne",
+                                                 "2 cups baby spinach", "Salt and pepper to taste"])
+        #expect(n.isReliable)
+        #expect(n.counted == 8)
+        let per = n.perServing(4)
+        #expect((550...800).contains(per.kcal))
+        #expect((40...65).contains(per.protein))
+    }
+
+    @Test(arguments: [("1 eggplant", "eggplant"), ("2 tbsp peanut butter", "peanut butter"), ("1 cup chicken broth", "broth"),
+                      ("1 tbsp unsalted butter", "butter"), ("1 can coconut milk", "coconut milk")])
+    func picksTheRightFood(line: String, key: String) { #expect(Nutrition.food(for: line)?.keys.first == key) }
+
+    @Test(arguments: ["Salt and pepper to taste", "1 bunch cilantro", "2 tsp smoked paprika"])
+    func zeroCalorieItems(line: String) { #expect(Nutrition.isZero(line)) }
+}
+
 @Suite("Shelf life") struct ShelfLifeTests {
     @Test(arguments: [
-        ("Boneless Skinless Chicken Thigh", 2), ("Eggplant", 7), ("Large Brown Eggs", 35), ("Hood Whole Milk Gallon", 7),
+        ("Boneless Skinless Chicken Thigh", 2), ("Eggplant", 7), ("Buttermilk", 14), ("Sliced Turkey", 14), ("Large Brown Eggs", 35), ("Hood Whole Milk Gallon", 7),
         ("Hamburger Buns", 10), ("Chopped Spinach", 5), ("Ribeye Steak", 4), ("Atlantic Salmon Fillet", 2), ("Fresh Mozzarella", 14),
         ("Strawberries", 4), ("Bacon", 7), ("Brie", 21),
     ])
@@ -98,6 +164,12 @@ import Foundation
         let opened = ShelfLife.openedExpiration(name: "Heavy cream", category: .dairy, current: sealed)!
         #expect(opened < sealed)
         #expect(Calendar.current.dateComponents([.day], from: .now, to: opened).day! <= 7)
+    }
+
+    @Test(arguments: ["Chicken broth", "Beef broth", "Canned tomatoes", "Tomato paste", "Fish sauce", "Oyster sauce"])
+    func pantryStaplesAreShelfStable(name: String) {
+        #expect(ShelfLife.defaultLocation(for: .other, name: name) == .pantry)
+        #expect(ShelfLife.days(name: name, category: .other, location: .pantry) >= 365)
     }
 
     @Test func peanutButterLivesInPantry() { #expect(ShelfLife.defaultLocation(for: .condiments, name: "Peanut Butter") == .pantry) }

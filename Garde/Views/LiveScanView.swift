@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import VisionKit
+import AVFoundation
 
 /// Point the camera at groceries: barcodes beep in one after another (looked up in Open Food Facts),
 /// and tapping a printed date assigns it to the last item.
@@ -22,11 +23,14 @@ struct LiveScanView: View {
     @State private var captured: [Captured] = []
     @State private var seen: Set<String> = []
     @State private var dateHint = ""
+    @State private var cameraAllowed: Bool?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
+                if cameraAllowed == nil {
+                    ProgressView().frame(maxHeight: .infinity)
+                } else if cameraAllowed == true && DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
                     ScannerRepresentable(onBarcode: handleBarcode, onText: handleText)
                         .frame(maxHeight: .infinity)
                         .overlay(alignment: .bottom) {
@@ -58,6 +62,13 @@ struct LiveScanView: View {
                     .onDelete { captured.remove(atOffsets: $0) }
                 }
                 .frame(height: 260)
+            }
+            .task {
+                switch AVCaptureDevice.authorizationStatus(for: .video) {
+                case .authorized: cameraAllowed = true
+                case .notDetermined: cameraAllowed = await AVCaptureDevice.requestAccess(for: .video)
+                default: cameraAllowed = false
+                }
             }
             .navigationTitle("Live scan")
             .navigationBarTitleDisplayMode(.inline)
@@ -150,10 +161,12 @@ struct ScannerRepresentable: UIViewControllerRepresentable {
                                            qualityLevel: .balanced, recognizesMultipleItems: true,
                                            isHighFrameRateTrackingEnabled: false, isHighlightingEnabled: true)
         vc.delegate = context.coordinator
-        try? vc.startScanning()
         return vc
     }
-    func updateUIViewController(_ vc: DataScannerViewController, context: Context) {}
+    func updateUIViewController(_ vc: DataScannerViewController, context: Context) {
+        // Start once the scanner is actually on screen.
+        if !vc.isScanning { DispatchQueue.main.async { try? vc.startScanning() } }
+    }
     static func dismantleUIViewController(_ vc: DataScannerViewController, coordinator: Coordinator) { vc.stopScanning() }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
