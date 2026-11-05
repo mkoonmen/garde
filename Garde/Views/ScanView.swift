@@ -1,0 +1,187 @@
+import SwiftUI
+import SwiftData
+import PhotosUI
+
+/// Snap a receipt, a grocery haul, a fridge shelf, or a label.
+/// Text is read with on-device OCR, then the on-device model turns it into items you review before saving.
+struct ScanView: View {
+    enum Kind: String, CaseIterable, Identifiable {
+        case receipt = "Receipt", groceries = "Groceries / fridge", label = "Label / date"
+        var id: String { rawValue }
+        var hint: String {
+            switch self {
+            case .receipt: "Lay the receipt flat in good light. Long receipts: take it in two photos."
+            case .groceries: "Spread items out so labels face the camera."
+            case .label: "Get close to the package so the expiration date is sharp."
+            }
+        }
+    }
+
+    @State private var kind: Kind = .receipt
+    @State private var image: UIImage?
+    @State private var showCamera = false
+    @State private var pick: PhotosPickerItem?
+    @State private var working = false
+    @State private var status = ""
+    @State private var review: ScanReviewModel?
+    @State private var rawText = ""
+    @State private var chef = ChefAI()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    Picker("What are you scanning?", selection: $kind) { ForEach(Kind.allCases) { Text($0.rawValue).tag($0) } }
+                        .pickerStyle(.segmented)
+                    Text(kind.hint).font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let image {
+                        Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 320).clipShape(.rect(cornerRadius: 14))
+                    } else {
+                        RoundedRectangle(cornerRadius: 14).fill(.quaternary).frame(height: 220)
+                            .overlay { Image(systemName: "doc.viewfinder").font(.system(size: 54)).foregroundStyle(.secondary) }
+                    }
+
+                    HStack(spacing: 12) {
+                        Button { showCamera = true } label: { Label("Camera", systemImage: "camera.fill").frame(maxWidth: .infinity) }
+                            .buttonStyle(.borderedProminent).controlSize(.large)
+                        PhotosPicker(selection: $pick, matching: .images) { Label("Photos", systemImage: "photo").frame(maxWidth: .infinity) }
+                            .buttonStyle(.bordered).controlSize(.large)
+                    }
+
+                    if working { ProgressView(status).padding() }
+                    if case .unavailable(let why) = chef.state {
+                        Label("\(why) Scans still work with a simpler reader.", systemImage: "info.circle")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Label("Everything is read on your iPhone. Nothing is uploaded.", systemImage: "lock.fill")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding()
+            }
+            .navigationTitle("Scan")
+            .fullScreenCover(isPresented: $showCamera) { CameraPicker { process($0) }.ignoresSafeArea() }
+            .onChange(of: pick) { _, new in
+                Task {
+                    if let raw = try? await new?.loadTransferable(type: Data.self), let img = UIImage(data: raw) { process(img) }
+                    pick = nil
+                }
+            }
+            .sheet(item: $review) { model in
+                ScanReviewView(scan: model.scan, isReceipt: kind == .receipt, rawText: rawText, image: image) { review = nil; image = nil }
+            }
+        }
+    }
+
+    private func process(_ img: UIImage) {
+        image = img
+        working = true
+        Task {
+            status = "Reading text…"
+            let text = (try? await TextRecognizer.recognizeText(in: img)) ?? ""
+            let labels = kind == .receipt ? [] : ((try? await TextRecognizer.classify(img)) ?? [])
+            rawText = text
+            status = "Figuring out what's what…"
+            review = ScanReviewModel(scan: await chef.parseScan(text: text, labels: labels))
+            working = false
+        }
+    }
+}
+
+struct ScanReviewModel: Identifiable { let id = UUID(); let scan: ParsedScan }
+
+struct ScanReviewView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State var scan: ParsedScan
+    let isReceipt: Bool
+    let rawText: String
+    let image: UIImage?
+    var onDone: () -> Void
+    @State private var date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if isReceipt {
+                    Section("Receipt") {
+                        TextField("Store", text: $scan.store)
+                        DatePicker("Date", selection: $date, displayedComponents: .date)
+                        if let total = scan.total { LabeledContent("Total", value: total, format: .currency(code: "USD")) }
+                    }
+                }
+                Section {
+                    if scan.items.isEmpty {
+                        Text("No food items found. Try a sharper, closer photo, or add items by hand.").foregroundStyle(.secondary)
+                    }
+                    ForEach($scan.items) { $item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Toggle(isOn: $item.include) { TextField("Name", text: $item.name).font(.body.weight(.medium)) }
+                                    .toggleStyle(CheckToggle())
+                                Spacer()
+                                if let p = item.price { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary) }
+                            }
+                            HStack {
+                                Picker("", selection: $item.category) { ForEach(FoodCategory.allCases) { Text($0.label).tag($0) } }
+                                    .labelsHidden().pickerStyle(.menu)
+                                Stepper("\(item.quantity.formatted()) \(item.unit)", value: $item.quantity, in: 0...99, step: 1).font(.caption)
+                            }
+                            if let exp = item.printedExpiration {
+                                Label("Package date \(exp.formatted(date: .abbreviated, time: .omitted))", systemImage: "calendar").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .opacity(item.include ? 1 : 0.4)
+                    }
+                    .onDelete { scan.items.remove(atOffsets: $0) }
+                    Button("Add a missed item", systemImage: "plus") {
+                        scan.items.append(ParsedItem(name: "", category: .other, quantity: 1, unit: "each"))
+                    }
+                } header: { Text("Check these before saving") } footer: {
+                    Text("Expiration dates are estimated from typical shelf life unless a package date was read. You can edit any item later.")
+                }
+            }
+            .navigationTitle("Review")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss(); onDone() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add \(scan.items.filter(\.include).count)") { save() }
+                        .disabled(scan.items.filter(\.include).isEmpty && !isReceipt)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        var receipt: Receipt?
+        if isReceipt {
+            let r = Receipt(store: scan.store, date: date, total: scan.total, rawText: rawText, image: image?.storageJPEG())
+            context.insert(r)
+            receipt = r
+        }
+        for p in scan.items where p.include && !p.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            let loc = ShelfLife.defaultLocation(for: p.category)
+            let item = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
+                                  purchaseDate: isReceipt ? date : .now,
+                                  expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(for: p.category, in: loc, from: isReceipt ? date : .now),
+                                  expirationIsEstimated: p.printedExpiration == nil,
+                                  price: p.price, store: scan.store.isEmpty ? nil : scan.store)
+            if !isReceipt { item.photo = image?.storageJPEG(maxDimension: 600) }
+            item.receipt = receipt
+            context.insert(item)
+        }
+        dismiss(); onDone()
+    }
+}
+
+struct CheckToggle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(configuration.isOn ? Theme.accent : .secondary)
+                .onTapGesture { configuration.isOn.toggle() }
+            configuration.label
+        }
+    }
+}

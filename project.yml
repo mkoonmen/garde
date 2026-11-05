@@ -1,0 +1,32 @@
+# XcodeGen spec. The .xcodeproj is generated from this file (it's not committed),
+# so any AI or person can edit the project in plain text.
+name: Garde
+options:
+  bundleIdPrefix: com.michaelkoonmen
+  deploymentTarget:
+    iOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"   # Swift 6 language mode can be turned on later
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Garde:
+    type: application
+    platform: iOS
+    sources: [Garde]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.michaelkoonmen.garde
+        PRODUCT_NAME: Garde
+        TARGETED_DEVICE_FAMILY: "1"          # iPhone only
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Garde
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan receipts, groceries and food labels."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Pick photos of receipts and food to scan."
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
