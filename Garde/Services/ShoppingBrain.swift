@@ -92,7 +92,9 @@ enum ShoppingBrain {
         for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) && !expiredNames.contains(k) && !finishedNames.contains(k) {
             let since = Date.now.timeIntervalSince(p.last) / 86_400
             if since >= p.days * 0.85 {
-                context.insert(ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days"))
+                let entry = ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days")
+                entry.isSpecificProduct = true
+                context.insert(entry)
                 onList.insert(k)
             }
         }

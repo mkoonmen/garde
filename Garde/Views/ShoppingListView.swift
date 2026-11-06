@@ -39,7 +39,11 @@ struct ShoppingListView: View {
                         Button {
                             addedUsuals = true
                             withAnimation {
-                                for n in usuals { context.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), reason: "One of your usuals")) }
+                                for n in usuals {
+                                    let entry = ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), reason: "One of your usuals")
+                                    entry.isSpecificProduct = true
+                                    context.insert(entry)
+                                }
                             }
                             try? context.save()
                         } label: {
