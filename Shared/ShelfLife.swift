@@ -9,13 +9,34 @@ enum ShelfLife {
         let freezer: Int?
         let pantry: Int?     // also used for counter
         let opened: Int?     // days once opened (in its normal spot)
+        var refrigerateAfterOpening = false
     }
 
+    static let jarRules: [Rule] = [
+        // Jars & bottles: months in the pantry sealed, then the fridge once opened.
+        .init(keywords: ["jarred salsa", "salsa jar", "salsa con queso"], fridge: nil, freezer: nil, pantry: 365, opened: 14, refrigerateAfterOpening: true),
+        .init(keywords: ["ketchup", "catsup"], fridge: nil, freezer: nil, pantry: 365, opened: 180, refrigerateAfterOpening: true),
+        .init(keywords: ["mustard", "dijon"], fridge: nil, freezer: nil, pantry: 365, opened: 365, refrigerateAfterOpening: true),
+        .init(keywords: ["relish"], fridge: nil, freezer: nil, pantry: 365, opened: 240, refrigerateAfterOpening: true),
+        .init(keywords: ["bbq sauce", "barbecue sauce", "steak sauce", "teriyaki", "hoisin"], fridge: nil, freezer: nil, pantry: 365, opened: 120, refrigerateAfterOpening: true),
+        .init(keywords: ["ranch", "salad dressing", "dressing", "vinaigrette", "caesar dressing", "blue cheese dressing"], fridge: nil, freezer: nil, pantry: 300, opened: 60, refrigerateAfterOpening: true),
+        .init(keywords: ["jam", "jelly", "preserves", "marmalade", "fruit spread"], fridge: nil, freezer: nil, pantry: 365, opened: 180, refrigerateAfterOpening: true),
+        .init(keywords: ["pickle", "pickled", "giardiniera", "pepperoncini", "jalapeño slices", "sauerkraut", "kimchi"], fridge: nil, freezer: nil, pantry: 365, opened: 90, refrigerateAfterOpening: true),
+        .init(keywords: ["olives", "capers"], fridge: nil, freezer: nil, pantry: 365, opened: 21, refrigerateAfterOpening: true),
+        .init(keywords: ["pesto"], fridge: nil, freezer: 120, pantry: 365, opened: 7, refrigerateAfterOpening: true),
+        .init(keywords: ["alfredo sauce", "vodka sauce", "enchilada sauce", "curry paste", "curry sauce"], fridge: nil, freezer: 90, pantry: 365, opened: 5, refrigerateAfterOpening: true),
+        .init(keywords: ["maple syrup"], fridge: nil, freezer: nil, pantry: 365, opened: 365, refrigerateAfterOpening: true),
+        .init(keywords: ["horseradish", "tartar sauce", "cocktail sauce", "aioli"], fridge: nil, freezer: nil, pantry: 365, opened: 60, refrigerateAfterOpening: true),
+        .init(keywords: ["chocolate syrup", "caramel sauce"], fridge: nil, freezer: nil, pantry: 365, opened: 180, refrigerateAfterOpening: true),
+        .init(keywords: ["applesauce", "fruit cup"], fridge: nil, freezer: nil, pantry: 365, opened: 7, refrigerateAfterOpening: true),
+        .init(keywords: ["almond milk shelf", "shelf-stable milk", "uht milk", "boxed milk"], fridge: nil, freezer: nil, pantry: 180, opened: 7, refrigerateAfterOpening: true),
+    ]
+
     /// Ordered: the first rule whose keyword appears in the item name wins, so specific cuts come before general words.
-    static let rules: [Rule] = [
+    static let foodRules: [Rule] = [
         // Look-alikes first (names that contain another food's keyword)
         .init(keywords: ["broth", "stock", "bouillon"], fridge: nil, freezer: 90, pantry: 365, opened: 4),
-        .init(keywords: ["marinara", "tomato sauce", "pasta sauce", "tomato paste", "canned tomato", "crushed tomato", "san marzano"], fridge: nil, freezer: 120, pantry: 365, opened: 5),
+        .init(keywords: ["marinara", "tomato sauce", "pasta sauce", "tomato paste", "canned tomato", "crushed tomato", "san marzano"], fridge: nil, freezer: 120, pantry: 365, opened: 5, refrigerateAfterOpening: true),
         .init(keywords: ["fish sauce", "oyster sauce", "worcestershire", "soy sauce", "hot sauce", "sriracha"], fridge: nil, freezer: nil, pantry: 730, opened: 365),
         .init(keywords: ["goldfish", "cracker"], fridge: nil, freezer: nil, pantry: 180, opened: 30),
         .init(keywords: ["buttermilk"], fridge: 14, freezer: 90, pantry: nil, opened: 10),
@@ -83,23 +104,8 @@ enum ShelfLife {
         .init(keywords: ["bread", "bagel", "roll", "bun", "baguette", "sourdough", "pita", "tortilla"], fridge: 10, freezer: 90, pantry: 5, opened: 5),
         .init(keywords: ["fresh pasta", "gnocchi"], fridge: 14, freezer: 60, pantry: nil, opened: 3),
         .init(keywords: ["tofu"], fridge: 30, freezer: 150, pantry: nil, opened: 4),
-        // Jars & bottles: months in the pantry sealed, then the fridge once opened.
-        .init(keywords: ["jarred salsa", "salsa jar", "salsa con queso"], fridge: nil, freezer: nil, pantry: 365, opened: 14),
-        .init(keywords: ["ketchup", "catsup"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
-        .init(keywords: ["mustard", "dijon"], fridge: nil, freezer: nil, pantry: 365, opened: 365),
-        .init(keywords: ["relish"], fridge: nil, freezer: nil, pantry: 365, opened: 240),
-        .init(keywords: ["bbq sauce", "barbecue sauce", "steak sauce", "teriyaki", "hoisin"], fridge: nil, freezer: nil, pantry: 365, opened: 120),
-        .init(keywords: ["ranch", "salad dressing", "dressing", "vinaigrette", "caesar dressing", "blue cheese dressing"], fridge: nil, freezer: nil, pantry: 300, opened: 60),
-        .init(keywords: ["jam", "jelly", "preserves", "marmalade", "fruit spread"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
-        .init(keywords: ["pickle", "pickled", "giardiniera", "pepperoncini", "jalapeño slices", "sauerkraut", "kimchi"], fridge: nil, freezer: nil, pantry: 365, opened: 90),
-        .init(keywords: ["olives", "capers"], fridge: nil, freezer: nil, pantry: 365, opened: 21),
-        .init(keywords: ["pesto"], fridge: nil, freezer: 120, pantry: 365, opened: 7),
-        .init(keywords: ["alfredo sauce", "vodka sauce", "enchilada sauce", "curry paste", "curry sauce"], fridge: nil, freezer: 90, pantry: 365, opened: 5),
-        .init(keywords: ["maple syrup"], fridge: nil, freezer: nil, pantry: 365, opened: 365),
-        .init(keywords: ["horseradish", "tartar sauce", "cocktail sauce", "aioli"], fridge: nil, freezer: nil, pantry: 365, opened: 60),
-        .init(keywords: ["chocolate syrup", "caramel sauce"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
-        .init(keywords: ["applesauce", "fruit cup"], fridge: nil, freezer: nil, pantry: 365, opened: 7),
-        .init(keywords: ["almond milk shelf", "shelf-stable milk", "uht milk", "boxed milk"], fridge: nil, freezer: nil, pantry: 180, opened: 7),
+    ]
+    static let otherRules: [Rule] = [
         .init(keywords: ["hummus", "salsa", "guacamole", "dip"], fridge: 14, freezer: nil, pantry: nil, opened: 6),
         .init(keywords: ["mayo", "mayonnaise"], fridge: nil, freezer: nil, pantry: 120, opened: 60),
         .init(keywords: ["wine"], fridge: 5, freezer: nil, pantry: 730, opened: 4),
@@ -107,8 +113,14 @@ enum ShelfLife {
         .init(keywords: ["leftover"], fridge: 4, freezer: 90, pantry: nil, opened: 4),
     ]
 
-    static func rule(for name: String) -> Rule? {
+    static let rules = foodRules + jarRules + otherRules
+
+    static func rule(for name: String, category: FoodCategory? = nil) -> Rule? {
         let n = name.lowercased()
+        // A jar of salad dressing or steak sauce should use its bottle rule ahead of lettuce or meat.
+        if category == .condiments || category == .canned || category == .beverages {
+            if let jar = jarRules.first(where: { $0.keywords.contains(where: { n.contains($0) }) }) { return jar }
+        }
         return rules.first { $0.keywords.contains(where: { n.contains($0) }) }
     }
 
@@ -147,7 +159,7 @@ enum ShelfLife {
 
     /// Best estimate in days: item rule for that spot, else category default.
     static func days(name: String, category: FoodCategory, location: StorageLocation) -> Int {
-        if let r = rule(for: name) {
+        if let r = rule(for: name, category: category) {
             let d: Int? = switch location {
             case .fridge: r.fridge
             case .freezer: r.freezer
@@ -168,7 +180,7 @@ enum ShelfLife {
 
     /// When something is opened, it may expire sooner than the package date.
     static func openedExpiration(name: String, category: FoodCategory, current: Date?, openedOn: Date = .now) -> Date? {
-        let openedDays = rule(for: name)?.opened ?? (category == .condiments ? 60 : category == .canned ? 4 : nil)
+        let openedDays = rule(for: name, category: category)?.opened ?? (category == .condiments ? 60 : category == .canned ? 4 : nil)
         guard let openedDays, let byOpening = Calendar.current.date(byAdding: .day, value: openedDays, to: openedOn) else { return current }
         guard let current else { return byOpening }
         return min(current, byOpening)
@@ -176,19 +188,22 @@ enum ShelfLife {
 
     /// Things that are fine on the shelf sealed but belong in the fridge once opened.
     static let shelfStableOnceOpened = ["vinegar", "honey", "soy sauce", "hot sauce", "sriracha", "fish sauce", "oil", "peanut butter",
-                                        "cereal", "oats", "granola", "cracker", "goldfish", "chips", "pasta", "rice", "flour", "sugar", "salt",
+                                        "cereal", "oats", "granola", "cracker", "crackers", "goldfish", "chips", "pasta", "rice", "flour", "sugar", "salt",
                                         "spice", "coffee", "tea", "cornstarch", "cornmeal", "corn tortilla", "worcestershire", "molasses", "vanilla"]
     static func needsFridgeAfterOpening(name: String, category: FoodCategory) -> Bool {
         let n = name.lowercased()
-        if shelfStableOnceOpened.contains(where: { n.contains($0) }) { return false }
-        if let r = rule(for: name), r.pantry != nil, r.opened != nil, (r.opened ?? 0) < (r.pantry ?? 0) { return true }
+        let matched = rule(for: name, category: category)
+        if matched?.refrigerateAfterOpening == true { return true }
+        let words = " " + n.split(whereSeparator: { !$0.isLetter }).joined(separator: " ") + " "
+        if shelfStableOnceOpened.contains(where: { words.contains(" " + $0 + " ") }) { return false }
+        if let r = matched, r.pantry != nil, r.opened != nil, (r.opened ?? 0) < (r.pantry ?? 0) { return true }
         return category == .condiments || category == .canned || category == .beverages && (n.contains("juice") || n.contains("milk"))
     }
 
     /// Best-guess storage spot: item rule says where it keeps longest, else by category.
     static func defaultLocation(for category: FoodCategory, name: String = "") -> StorageLocation {
         if category == .frozen { return .freezer }
-        if let r = rule(for: name) {
+        if let r = rule(for: name, category: category) {
             // Keep it wherever it lasts longest; pantry wins ties (shelf-stable things like peanut butter).
             let pantry = r.pantry ?? 0, fridge = r.fridge ?? 0
             if pantry > 0 && pantry >= fridge { return .pantry }

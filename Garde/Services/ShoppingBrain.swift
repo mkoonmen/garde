@@ -41,14 +41,37 @@ enum ShoppingBrain {
 
     /// Adds things you're about to run out of, plus empty/low spices. Safe to call often.
     @MainActor
-    static func refreshRunningLow(context: ModelContext) {
+    static func refreshRunningLow(context: ModelContext, defaults: UserDefaults = .standard) {
         guard let items = try? context.fetch(FetchDescriptor<PantryItem>()),
               let list = try? context.fetch(FetchDescriptor<ShoppingItem>()),
               let spices = try? context.fetch(FetchDescriptor<Spice>()) else { return }
         var onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
         let inStock = Set(items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover }.map { key($0.name) })
 
-        for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) {
+        // Keep a deleted restock off the list, including when the same product also qualifies as a habitual purchase.
+        let expired = items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) < 0 }
+        let expiredNames = Set(expired.map { key($0.name) })
+        let previousIDs = Set(defaults.stringArray(forKey: "restock.expired") ?? [])
+        var restocked = previousIDs
+        for item in expired {
+            let id = item.id.uuidString
+            if item.didRestockExpired {
+                restocked.insert(id)
+                continue
+            }
+            let name = key(item.name)
+            if !previousIDs.contains(id) {
+                guard !inStock.contains(name) else { continue }
+                if onList.insert(name).inserted {
+                    context.insert(ShoppingItem(name: item.name, category: item.category, reason: "Expired, restock"))
+                }
+            }
+            // Save the marker in the same SwiftData transaction as the new list entry (also syncs with the item).
+            item.didRestockExpired = true
+            restocked.insert(id)
+        }
+
+        for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) && !expiredNames.contains(k) {
             let since = Date.now.timeIntervalSince(p.last) / 86_400
             if since >= p.days * 0.85 {
                 context.insert(ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days"))
@@ -58,23 +81,19 @@ enum ShoppingBrain {
         // Things you finished recently with nothing left in stock (buy-again candidates).
         let recentlyFinished = items.filter { $0.isUsedUp && !$0.wasTossed && ($0.usedUpDate ?? .distantPast) > .now.addingTimeInterval(-3 * 86_400) }
         let staples: Set<FoodCategory> = [.eggs, .dairy, .bakery]
-        for i in recentlyFinished where staples.contains(i.category) && !onList.contains(key(i.name)) && !inStock.contains(key(i.name)) {
+        for i in recentlyFinished where staples.contains(i.category) && !onList.contains(key(i.name)) && !inStock.contains(key(i.name)) && !expiredNames.contains(key(i.name)) {
             context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Ran out"))
             onList.insert(key(i.name))
         }
-        // Expired things get put back on the list once each (removing it from the list sticks).
-        var restocked = Set(UserDefaults.standard.stringArray(forKey: "restock.expired") ?? [])
-        for i in items where !i.isUsedUp && !i.isLeftover && (i.daysLeft ?? 0) < 0 && !restocked.contains(i.id.uuidString) {
-            restocked.insert(i.id.uuidString)
-            guard !onList.contains(key(i.name)), !inStock.contains(key(i.name)) else { continue }
-            context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Expired, restock"))
-            onList.insert(key(i.name))
-        }
-        UserDefaults.standard.set(Array(restocked.suffix(500)), forKey: "restock.expired")
         for s in spices where (s.level == .empty || s.level == .low) && !onList.contains(key(s.name)) {
             context.insert(ShoppingItem(name: s.name, category: .condiments, reason: s.level == .empty ? "Spice is empty" : "Spice is low"))
             onList.insert(key(s.name))
         }
+        if context.hasChanges {
+            do { try context.save() }
+            catch { return } // Keep pending changes for a later retry.
+        }
+        if restocked != previousIDs { defaults.set(Array(restocked), forKey: "restock.expired") }
     }
 
     /// Adds what a meal plan needs.

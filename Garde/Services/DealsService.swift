@@ -33,6 +33,7 @@ final class DealsService {
     var all: [Deal] = []
     /// The subset matching your list / running-low items, keyed by the matched name.
     var matches: [String: [Deal]] = [:]
+    private var currentTerms: [String] = []
     var flyers: [Flyer] = []
     var lastRefresh: Date? = UserDefaults.standard.object(forKey: "deals.last") as? Date
     var refreshing = false
@@ -72,6 +73,7 @@ final class DealsService {
 
     /// Downloads this week's ads (if stale or ZIP changed) and re-matches against `terms`.
     func refresh(terms: [String], force: Bool = false) async {
+        currentTerms = terms
         guard enabled else { return }
         guard zip.count == 5 else { error = "Add your 5-digit ZIP code in Deals settings to see sales near you."; return }
         error = nil
@@ -93,11 +95,12 @@ final class DealsService {
             UserDefaults.standard.set(lastRefresh, forKey: "deals.last")
             saveCache()
         }
-        match(terms)
+        match(currentTerms)
     }
 
     /// Matches deals to names (list items, running-low items). Runs on the phone, no network.
     func match(_ terms: [String]) {
+        currentTerms = terms
         var out: [String: [Deal]] = [:]
         for t in Set(terms.map(ShoppingBrain.key)) where t.count >= 3 {
             let hits = all.filter { ShoppingBrain.appears(t, in: $0.name + " " + $0.brand) }

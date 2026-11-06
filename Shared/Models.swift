@@ -50,6 +50,47 @@ enum SpiceLevel: String, Codable, CaseIterable, Identifiable {
 
 // MARK: - Pantry item
 
+/// A value copy lets the editor preview opening and undoing without changing the stored item until Save.
+struct PantryStorage {
+    var location: StorageLocation = .fridge
+    var expirationDate: Date?
+    var expirationIsEstimated = true
+    var openedDate: Date?
+    var unopenedExpiration: Date?
+    var unopenedExpirationIsEstimated: Bool?
+    var unopenedLocation: StorageLocation?
+
+    mutating func open(name: String, category: FoodCategory, on date: Date) {
+        guard openedDate == nil else { return }
+        unopenedExpiration = expirationDate
+        unopenedExpirationIsEstimated = expirationIsEstimated
+        unopenedLocation = location
+        openedDate = date
+        if location != .freezer && ShelfLife.needsFridgeAfterOpening(name: name, category: category) { location = .fridge }
+        let shortened = ShelfLife.openedExpiration(name: name, category: category, current: expirationDate, openedOn: date)
+        if shortened != expirationDate {
+            expirationDate = shortened
+            expirationIsEstimated = true
+        }
+    }
+
+    mutating func unopen() {
+        guard openedDate != nil else { return }
+        openedDate = nil
+        if let unopenedExpirationIsEstimated {
+            expirationIsEstimated = unopenedExpirationIsEstimated
+            expirationDate = unopenedExpiration
+        } else if let unopenedExpiration {
+            // An older opened item may have only the sealed date. Keep its recorded date if the snapshot is missing.
+            expirationDate = unopenedExpiration
+        }
+        if let unopenedLocation { location = unopenedLocation }
+        unopenedExpiration = nil
+        unopenedExpirationIsEstimated = nil
+        unopenedLocation = nil
+    }
+}
+
 @Model
 final class PantryItem {
     var id: UUID = UUID()
@@ -65,12 +106,15 @@ final class PantryItem {
     var store: String?
     var notes: String = ""
     @Attribute(.externalStorage) var photo: Data?
+    var didRestockExpired: Bool = false
     var isUsedUp: Bool = false
     var usedUpDate: Date?
     var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
     var isLeftover: Bool = false
     var openedDate: Date?
     var unopenedExpiration: Date?      // the sealed date, kept so "not opened" can be undone
+    var unopenedExpirationIsEstimated: Bool?
+    var unopenedLocationRaw: String?
     var frozenDate: Date?
     var barcode: String?
     var receipt: Receipt?
@@ -97,24 +141,26 @@ final class PantryItem {
         self.store = store
     }
 
-    /// Mark as opened: shortens the date to the opened shelf life and moves jars/bottles to the fridge.
-    func open(on date: Date = .now) {
-        guard openedDate == nil else { return }
-        if expirationIsEstimated || expirationDate == nil { unopenedExpiration = expirationDate }
-        openedDate = date
-        if location != .freezer && ShelfLife.needsFridgeAfterOpening(name: name, category: category) { location = .fridge }
-        if let d = ShelfLife.openedExpiration(name: name, category: category, current: expirationDate, openedOn: date) {
-            expirationDate = d; expirationIsEstimated = true
+    var storage: PantryStorage {
+        get {
+            PantryStorage(location: location, expirationDate: expirationDate, expirationIsEstimated: expirationIsEstimated,
+                         openedDate: openedDate, unopenedExpiration: unopenedExpiration,
+                         unopenedExpirationIsEstimated: unopenedExpirationIsEstimated,
+                         unopenedLocation: unopenedLocationRaw.flatMap(StorageLocation.init(rawValue:)))
+        }
+        set {
+            location = newValue.location
+            expirationDate = newValue.expirationDate
+            expirationIsEstimated = newValue.expirationIsEstimated
+            openedDate = newValue.openedDate
+            unopenedExpiration = newValue.unopenedExpiration
+            unopenedExpirationIsEstimated = newValue.unopenedExpirationIsEstimated
+            unopenedLocationRaw = newValue.unopenedLocation?.rawValue
         }
     }
-    /// Undo "opened" (tapped by mistake): puts the sealed date and spot back.
-    func unopen() {
-        guard openedDate != nil else { return }
-        openedDate = nil
-        expirationDate = unopenedExpiration ?? ShelfLife.estimatedExpiration(name: name, category: category,
-                                                                            in: ShelfLife.defaultLocation(for: category, name: name), from: purchaseDate)
-        location = ShelfLife.defaultLocation(for: category, name: name)
-    }
+
+    func open(on date: Date = .now) { storage.open(name: name, category: category, on: date) }
+    func unopen() { storage.unopen() }
     var isOpened: Bool { openedDate != nil }
 
     var category: FoodCategory {
@@ -129,7 +175,7 @@ final class PantryItem {
     /// Can this go in the freezer? (false for things like eggs-in-shell, lettuce, canned goods)
     var canFreeze: Bool {
         guard location != .freezer else { return false }
-        if let r = ShelfLife.rule(for: name) { return r.freezer != nil }
+        if let r = ShelfLife.rule(for: name, category: category) { return r.freezer != nil }
         return ![.produce, .canned, .grains, .snacks, .beverages, .condiments, .candy, .coffee, .baking].contains(category)
     }
 

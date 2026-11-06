@@ -14,6 +14,12 @@ struct KitchenExport: Codable {
         var store: String?
         var notes: String
         var isUsedUp: Bool
+        var openedDate: Date?
+        var unopenedExpiration: Date?
+        var unopenedExpirationIsEstimated: Bool?
+        var unopenedLocationRaw: String?
+        var didRestockExpired: Bool?
+        var frozenDate: Date?
     }
     struct ReceiptRow: Codable { var store: String; var date: Date; var total: Double?; var rawText: String }
     struct SpiceRow: Codable { var name, level, shelfSpot: String; var purchaseDate: Date; var isWholeSpice: Bool }
@@ -60,7 +66,9 @@ enum DataExport {
             items: items.map { .init(name: $0.name, category: $0.categoryRaw, location: $0.locationRaw, unit: $0.unit,
                                      quantity: $0.quantity, purchaseDate: $0.purchaseDate, expirationDate: $0.expirationDate,
                                      expirationIsEstimated: $0.expirationIsEstimated, price: $0.price, store: $0.store,
-                                     notes: $0.notes, isUsedUp: $0.isUsedUp) },
+                                     notes: $0.notes, isUsedUp: $0.isUsedUp, openedDate: $0.openedDate,
+                                     unopenedExpiration: $0.unopenedExpiration, unopenedExpirationIsEstimated: $0.unopenedExpirationIsEstimated,
+                                     unopenedLocationRaw: $0.unopenedLocationRaw, didRestockExpired: $0.didRestockExpired, frozenDate: $0.frozenDate) },
             receipts: receipts.map { .init(store: $0.store, date: $0.date, total: $0.total, rawText: $0.rawText) },
             spices: spices.map { .init(name: $0.name, level: $0.levelRaw, shelfSpot: $0.shelfSpot, purchaseDate: $0.purchaseDate, isWholeSpice: $0.isWholeSpice) },
             recipes: recipes.map { .init(title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings,
@@ -93,6 +101,12 @@ enum DataExport {
                                   purchaseDate: i.purchaseDate, expirationDate: i.expirationDate,
                                   expirationIsEstimated: i.expirationIsEstimated, price: i.price, store: i.store)
             item.notes = i.notes; item.isUsedUp = i.isUsedUp
+            item.openedDate = i.openedDate
+            item.unopenedExpiration = i.unopenedExpiration
+            item.unopenedExpirationIsEstimated = i.unopenedExpirationIsEstimated
+            item.unopenedLocationRaw = i.unopenedLocationRaw
+            item.didRestockExpired = i.didRestockExpired ?? false
+            item.frozenDate = i.frozenDate
             context.insert(item)
         }
         for r in data.receipts { context.insert(Receipt(store: r.store, date: r.date, total: r.total, rawText: r.rawText)) }
