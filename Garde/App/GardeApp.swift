@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import CoreData
 import WidgetKit
 
 @main
@@ -42,19 +43,24 @@ struct RootView: View {
             NavigationStack { WhatsNewView { whatsNewSeen = WhatsNew.version } }
         }
         .task {
+            KitchenProfile.merge(context: context)
             if profiles.isEmpty { context.insert(KitchenProfile()) }
             #if DEBUG
             DemoData.seedIfAsked(context: context)
             if UserDefaults.standard.object(forKey: "startTab") != nil { router.tab = UserDefaults.standard.integer(forKey: "startTab") }
             #endif
             EmailReceipt.purgeJunk(context: context)
+            // First launch asks at the end of onboarding (with context), not on top of the welcome screen.
             #if DEBUG
-            if !UserDefaults.standard.bool(forKey: "demoData") { await Notifier.requestPermission() }
+            if onboarded && !UserDefaults.standard.bool(forKey: "demoData") { await Notifier.requestPermission() }
             #else
-            await Notifier.requestPermission()
+            if onboarded { await Notifier.requestPermission() }
             #endif
             if gmailAuto { _ = try? await GmailImporter.shared.importNew(context: context) }
             ShoppingBrain.refreshRunningLow(context: context)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange).receive(on: RunLoop.main)) { _ in
+            KitchenProfile.merge(context: context)   // iCloud just synced: fold any duplicate profile in
         }
         .onChange(of: phase) { _, new in
             switch new {
@@ -66,6 +72,7 @@ struct RootView: View {
                 WidgetCenter.shared.reloadAllTimelines()
                 KitchenFeed.publish(context: context)
             case .active:
+                KitchenProfile.merge(context: context)
                 if gmailAuto { Task { _ = try? await GmailImporter.shared.importNew(context: context) } }
                 ShoppingBrain.refreshRunningLow(context: context)
             default: break

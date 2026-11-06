@@ -83,11 +83,24 @@ enum ShoppingBrain {
     /// When groceries arrive (scan/Gmail), tick them off the list.
     @MainActor
     static func checkOff(names: [String], context: ModelContext) {
-        let keys = Set(names.map(key))
+        // Ignore blanks and placeholders; match whole words so "egg" never ticks off "Eggplant".
+        let keys = Set(names.map(key).filter { $0.count >= 3 && !$0.hasPrefix("looking up") })
+        guard !keys.isEmpty else { return }
         for item in (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? [] where !item.isChecked {
             let k = key(item.name)
-            if keys.contains(k) || keys.contains(where: { $0.contains(k) || k.contains($0) }) { item.isChecked = true }
+            guard k.count >= 3 else { continue }
+            if keys.contains(k) || keys.contains(where: { sameFood(k, $0) }) { item.isChecked = true }
         }
+    }
+
+    /// Whole-word match either way: "eggs" ~ "large brown eggs", "milk" ~ "whole milk"; never "egg" ~ "eggplant".
+    static func sameFood(_ a: String, _ b: String) -> Bool {
+        func words(_ s: String) -> Set<String> {
+            Set(s.split { !$0.isLetter }.map { w in let w = String(w); return w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") ? String(w.dropLast()) : w })
+        }
+        let x = words(a), y = words(b)
+        guard !x.isEmpty, !y.isEmpty else { return false }
+        return x.isSubset(of: y) || y.isSubset(of: x)
     }
 
     static func guessCategory(_ name: String) -> FoodCategory {

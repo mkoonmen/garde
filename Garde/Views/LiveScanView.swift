@@ -17,8 +17,12 @@ struct LiveScanView: View {
         var category: FoodCategory
         var expiration: Date?
         var allergyWarning: [String] = []
+        var allergens: [String] = []
         var resolved = false
+        var count = 1
+        var lastSeen = Date.now
     }
+    private var allergies: [String] { profiles.flatMap(\.allergies) }
 
     @State private var captured: [Captured] = []
     @State private var seen: Set<String> = []
@@ -38,8 +42,11 @@ struct LiveScanView: View {
                                 .font(.footnote.weight(.medium)).padding(8).background(.ultraThinMaterial, in: .capsule).padding()
                         }
                 } else {
-                    ContentUnavailableView("Live scanning isn't available", systemImage: "camera.metering.unknown",
-                                           description: Text("Allow camera access in Settings → Garde."))
+                    ContentUnavailableView {
+                        Label("Live scanning isn't available", systemImage: "camera.metering.unknown")
+                    } description: { Text("Allow camera access in Settings → Garde.") } actions: {
+                        Button("Open Settings") { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) }
+                    }
                 }
                 List { Group {
                     if captured.isEmpty { Text("Nothing scanned yet").foregroundStyle(.secondary) }
@@ -48,6 +55,8 @@ struct LiveScanView: View {
                             HStack {
                                 if !c.resolved { ProgressView().controlSize(.small) }
                                 TextField("Name", text: $c.name).font(.body.weight(.medium))
+                                    .onChange(of: c.name) { _, n in if c.resolved { c.allergyWarning = AllergenGuard.violations(in: [n] + c.allergens, allergies: allergies) } }
+                                if c.count > 1 { Text("×\(c.count)").font(.caption.weight(.bold)).foregroundStyle(Theme.copper) }
                             }
                             HStack {
                                 Text(c.category.label)
@@ -59,7 +68,10 @@ struct LiveScanView: View {
                             }
                         }
                     }
-                    .onDelete { captured.remove(atOffsets: $0) }
+                    .onDelete { offsets in
+                        offsets.forEach { seen.remove(captured[$0].code) }   // let it be scanned again
+                        captured.remove(atOffsets: offsets)
+                    }
                 }.listRowBackground(RowGlass()) }
                 .frame(height: 260)
             }
@@ -81,7 +93,14 @@ struct LiveScanView: View {
     }
 
     private func handleBarcode(_ code: String) {
-        guard !seen.contains(code) else { return }
+        if seen.contains(code) {
+            // Scanning the same thing again = another one (debounced so one long look doesn't count twice).
+            if let i = captured.firstIndex(where: { $0.code == code }), Date.now.timeIntervalSince(captured[i].lastSeen) > 2 {
+                captured[i].count += 1; captured[i].lastSeen = .now
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } else if let i = captured.firstIndex(where: { $0.code == code }) { captured[i].lastSeen = .now }
+            return
+        }
         seen.insert(code)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         captured.insert(Captured(code: code, name: "Looking up \(code)…", category: .other), at: 0)
@@ -89,9 +108,9 @@ struct LiveScanView: View {
             let product = await BarcodeLookup.lookup(code)
             guard let i = captured.firstIndex(where: { $0.code == code }) else { return }
             if let product {
-                captured[i].name = [product.brand, product.name, product.size].filter { !$0.isEmpty }.joined(separator: " ")
+                captured[i].name = product.name.isEmpty ? "" : [product.brand, product.name, product.size].filter { !$0.isEmpty }.joined(separator: " ")
                 captured[i].category = product.category
-                let allergies = profiles.first?.allergies ?? []
+                captured[i].allergens = product.allergens
                 captured[i].allergyWarning = AllergenGuard.violations(in: [product.name] + product.allergens, allergies: allergies)
             } else {
                 captured[i].name = ""   // unknown product: let you type it
@@ -110,13 +129,13 @@ struct LiveScanView: View {
     private func save() {
         for c in captured where !c.name.trimmingCharacters(in: .whitespaces).isEmpty {
             let loc = ShelfLife.defaultLocation(for: c.category, name: c.name)
-            let item = PantryItem(name: c.name, category: c.category, location: loc,
+            let item = PantryItem(name: c.name, category: c.category, location: loc, quantity: Double(c.count),
                                   expirationDate: c.expiration ?? ShelfLife.estimatedExpiration(name: c.name, category: c.category, in: loc),
                                   expirationIsEstimated: c.expiration == nil)
             item.barcode = c.code
             context.insert(item)
         }
-        ShoppingBrain.checkOff(names: captured.map(\.name), context: context)
+        ShoppingBrain.checkOff(names: captured.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }, context: context)
         dismiss()
     }
 }

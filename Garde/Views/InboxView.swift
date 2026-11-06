@@ -9,7 +9,11 @@ struct InboxView: View {
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
 
     @State private var items: [InboxItem] = RecipeInbox.load()
-    @State private var results: [UUID: Result<RecipeImporter.Imported, Error>] = [:]
+    /// Kept for the whole app session so reopening the inbox doesn't re-download and re-read everything.
+    @MainActor private static var cache: [UUID: Result<RecipeImporter.Imported, Error>] = [:]
+    @State private var results: [UUID: Result<RecipeImporter.Imported, Error>] = InboxView.cache
+    @State private var pendingReceipt: PendingReceipt?
+    struct PendingReceipt: Identifiable { let id: UUID; let item: InboxItem; let scan: ParsedScan; let text: String }
     @State private var working: Set<UUID> = []
     @State private var receiptNote: String?
 
@@ -29,6 +33,13 @@ struct InboxView: View {
         .gardePage()
         .navigationTitle("Shared recipes")
         .task { await processAll() }
+        .sheet(item: $pendingReceipt) { p in
+            ScanReviewView(scan: p.scan, isReceipt: true, rawText: p.text, image: nil) {
+                RecipeInbox.remove(p.item.id)
+                items.removeAll { $0.id == p.item.id }
+                receiptNote = "Added groceries from a shared receipt\(p.scan.store.isEmpty ? "" : " (\(p.scan.store))")."
+            }
+        }
         .refreshable { items = RecipeInbox.load(); await processAll() }
     }
 
@@ -59,9 +70,10 @@ struct InboxView: View {
                         done(item)
                     }.disabled(!imp.allergens.isEmpty)
                     Spacer()
-                    if !imp.missing.isEmpty {
+                    if !imp.missing.isEmpty && imp.allergens.isEmpty {
                         Button("Add missing to List", systemImage: "cart.badge.plus") {
-                            ShoppingBrain.add(needToBuy: imp.missing.map(shortName), for: r.title, day: .now, context: context)
+                            let safe = imp.missing.filter { AllergenGuard.violations(in: [$0], allergies: profiles.flatMap(\.allergies)).isEmpty }
+                            ShoppingBrain.add(needToBuy: safe.map(shortName), for: r.title, day: .now, context: context)
                         }
                     }
                 }.buttonStyle(.borderless)
@@ -89,7 +101,7 @@ struct InboxView: View {
 
     private func processAll() async {
         for item in items where results[item.id] == nil {
-            if await importIfReceipt(item) { continue }
+            if pendingReceipt == nil, await importIfReceipt(item) { continue }
             await process(item)
         }
     }
@@ -102,21 +114,8 @@ struct InboxView: View {
         guard priceLines >= 3, lower.contains("total") || lower.contains("order") || lower.contains("receipt") else { return false }
         let scan = await ChefAI().parseScan(text: String(text.prefix(6000)), labels: [])
         guard !scan.items.isEmpty else { return false }
-        let receipt = Receipt(store: scan.store, date: item.received, total: scan.total, rawText: text)
-        context.insert(receipt)
-        for p in scan.items {
-            let loc = ShelfLife.defaultLocation(for: p.category, name: p.name)
-            let pi = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
-                                purchaseDate: item.received,
-                                expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(name: p.name, category: p.category, in: loc, from: item.received),
-                                expirationIsEstimated: p.printedExpiration == nil, price: p.price, store: scan.store)
-            pi.receipt = receipt
-            context.insert(pi)
-        }
-        ShoppingBrain.checkOff(names: scan.items.map(\.name), context: context)
-        RecipeInbox.remove(item.id)
-        items.removeAll { $0.id == item.id }
-        receiptNote = "Added \(scan.items.count) groceries from a shared receipt\(scan.store.isEmpty ? "" : " (\(scan.store))")."
+        // Show it for review first: a recipe post with prices shouldn't silently become groceries.
+        pendingReceipt = PendingReceipt(id: item.id, item: item, scan: scan, text: text)
         return true
     }
 
@@ -125,6 +124,7 @@ struct InboxView: View {
         defer { working.remove(item.id) }
         do { results[item.id] = .success(try await RecipeImporter.importItem(item, profile: profiles.first, pantry: pantry)) }
         catch { results[item.id] = .failure(error) }
+        if case .success = results[item.id] { Self.cache[item.id] = results[item.id] }
     }
 
     private func done(_ item: InboxItem) {

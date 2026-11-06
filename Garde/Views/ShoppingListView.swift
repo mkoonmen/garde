@@ -101,12 +101,10 @@ struct ShoppingListView: View {
 
     /// What to look for: everything on the list, then staples that are close to running out.
     private func refreshDeals() async {
-        let soon = pantry.filter { ($0.daysLeft ?? 99) <= 3 }.map(\.name)
-        await deals.refresh(terms: open.map(\.name) + soon)
+        await deals.refresh(terms: DealsService.terms(list: open, pantry: pantry))
     }
     private func forceRefreshDeals() async {
-        let soon = pantry.filter { ($0.daysLeft ?? 99) <= 3 }.map(\.name)
-        await deals.refresh(terms: open.map(\.name) + soon, force: true)
+        await deals.refresh(terms: DealsService.terms(list: open, pantry: pantry), force: true)
     }
 
     /// Things you buy again and again (3+ times in the last 2 months) that aren't in the kitchen or on the list.
@@ -172,6 +170,8 @@ struct DealsView: View {
     @State private var query = ""
     @State private var zipDraft = DealsService.shared.zip
     @Query(filter: #Predicate<ShoppingItem> { !$0.isChecked }) private var list: [ShoppingItem]
+    @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
+    private var terms: [String] { DealsService.terms(list: list, pantry: pantry) }
 
     var body: some View {
         List { Group {
@@ -209,12 +209,12 @@ struct DealsView: View {
         .searchable(text: $query, prompt: "Search sale items")
         .gardePage()
         .navigationTitle("Deals")
-        .task { await deals.refresh(terms: list.map(\.name)) }
-        .refreshable { await deals.refresh(terms: list.map(\.name), force: true) }
+        .task { await deals.refresh(terms: terms) }
+        .refreshable { await deals.refresh(terms: terms, force: true) }
     }
 
     private func applyZip() {
         deals.zip = zipDraft
-        Task { await deals.refresh(terms: list.map(\.name), force: true) }
+        Task { await deals.refresh(terms: terms, force: true) }
     }
 }

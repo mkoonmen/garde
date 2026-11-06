@@ -218,6 +218,24 @@ final class KitchenProfile {
     var monthlyBudget: Double = 0       // grocery budget per month, 0 = off
 
     init() {}
+
+    /// iCloud can briefly create a second, empty profile on a new device. Merge them so allergies are never lost:
+    /// the fullest profile is kept, every list is unioned into it, the rest are deleted.
+    @MainActor static func merge(context: ModelContext) {
+        let all = (try? context.fetch(FetchDescriptor<KitchenProfile>())) ?? []
+        guard all.count > 1 else { return }
+        let keep = all.max { ($0.allergies.count + $0.loves.count + $0.dislikes.count) < ($1.allergies.count + $1.loves.count + $1.dislikes.count) }!
+        func union(_ a: [String], _ b: [String]) -> [String] { a + b.filter { x in !a.contains { $0.caseInsensitiveCompare(x) == .orderedSame } } }
+        for p in all where p !== keep {
+            keep.allergies = union(keep.allergies, p.allergies)
+            keep.loves = union(keep.loves, p.loves)
+            keep.dislikes = union(keep.dislikes, p.dislikes)
+            if keep.dietNotes.isEmpty { keep.dietNotes = p.dietNotes }
+            if keep.monthlyBudget == 0 { keep.monthlyBudget = p.monthlyBudget }
+            context.delete(p)
+        }
+        try? context.save()
+    }
 }
 
 // MARK: - Shopping list

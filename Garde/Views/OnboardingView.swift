@@ -16,6 +16,8 @@ struct OnboardingView: View {
     @State private var dislikes = ""
     @State private var staples: Set<String> = []
     @State private var spices: Set<String> = []
+    @State private var nutExceptions: Set<String> = []
+    static let nutChoices = ["Almonds", "Hazelnuts", "Cashews", "Pistachios", "Walnuts", "Pecans", "Macadamias", "Pine nuts", "Brazil nuts"]
 
     static let commonAllergies = ["Peanuts", "Tree nuts", "Shellfish", "Fish", "Dairy", "Eggs", "Gluten", "Soy", "Sesame"]
     static let stapleChoices: [(String, FoodCategory)] = [
@@ -77,6 +79,15 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header("Any food allergies?", "Garde will never suggest a recipe with these, and warns you when you scan one.")
                 FlowChips(options: Self.commonAllergies + allergies.filter { !Self.commonAllergies.contains($0) }.sorted(), selection: $allergies)
+                if allergies.contains("Tree nuts") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Any tree nuts you CAN eat?").font(.subheadline.weight(.semibold))
+                        FlowChips(options: Self.nutChoices, selection: $nutExceptions)
+                        Text(nutExceptions.isEmpty ? "Leave empty if all tree nuts are off limits." : "Everything else stays blocked, including unnamed \"nuts\".")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(12).background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
+                }
                 HStack {
                     TextField("Something else", text: $customAllergy).textFieldStyle(.roundedBorder).submitLabel(.done).onSubmit(addCustom)
                     Button("Add", action: addCustom).disabled(customAllergy.isEmpty)
@@ -129,7 +140,15 @@ struct OnboardingView: View {
 
     private func finish() {
         let profile = profiles.first ?? { let p = KitchenProfile(); context.insert(p); return p }()
-        profile.allergies = Array(Set(profile.allergies).union(allergies)).sorted()
+        var chosen = allergies
+        if chosen.contains("Tree nuts"), !nutExceptions.isEmpty {
+            // One entry with the exceptions; a plain "Tree nuts" next to it would still block them.
+            chosen.remove("Tree nuts")
+            chosen.insert("Tree nuts except " + Self.nutChoices.filter(nutExceptions.contains).map { $0.lowercased() }.joined(separator: ", "))
+            profile.allergies.removeAll { $0.caseInsensitiveCompare("Tree nuts") == .orderedSame }
+        }
+        profile.allergies = Array(Set(profile.allergies).union(chosen)).sorted()
+        Task { await Notifier.requestPermission() }   // "Garde would like to send notifications" now makes sense: expiry reminders
         profile.householdSize = household
         profile.skillLevel = skill
         let split = { (s: String) in s.split(whereSeparator: { $0 == "," || $0 == "\n" }).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }

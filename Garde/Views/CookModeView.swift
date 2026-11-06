@@ -108,13 +108,13 @@ struct CookModeView: View {
 
             HStack(spacing: 16) {
                 Button { go(-1) } label: { Image(systemName: "chevron.left").frame(maxWidth: .infinity, minHeight: 64) }
-                    .buttonStyle(.bordered).disabled(index == 0)
+                    .buttonStyle(.bordered).disabled(index == 0).accessibilityLabel("Previous step")
                 if index == steps.count - 1 {
                     Button { finishing = true } label: { Text("Done").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 64) }
                         .buttonStyle(.borderedProminent)
                 } else {
                     Button { go(1) } label: { Image(systemName: "chevron.right").frame(maxWidth: .infinity, minHeight: 64) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).accessibilityLabel("Next step")
                 }
             }.font(.title2).padding(.horizontal)
 
@@ -127,6 +127,12 @@ struct CookModeView: View {
                     Label(voice.isListening ? "Listening" : "Voice", systemImage: voice.isListening ? "mic.fill" : "mic")
                 }.buttonStyle(.bordered).tint(voice.isListening ? .red : .secondary)
             }.padding()
+            if let p = voice.problem, !voice.isListening {
+                HStack {
+                    Text(p).font(.caption).foregroundStyle(.orange)
+                    Button("Settings") { UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!) }.font(.caption)
+                }.padding(.horizontal)
+            }
             if voice.isListening {
                 Text("Say \"next\", \"back\", \"repeat\", \"start timer\" or \"how long\"").font(.caption).foregroundStyle(.secondary).padding(.bottom, 8)
             }
@@ -231,12 +237,15 @@ struct FinishCookingView: View {
                 Section("How was it?") {
                     HStack {
                         ForEach(1...5, id: \.self) { n in
-                            Image(systemName: n <= rating ? "star.fill" : "star").font(.title)
-                                .foregroundStyle(n <= rating ? Theme.gold : .secondary)
-                                .symbolEffect(.bounce, value: rating == n)
-                                .onTapGesture { rating = n }
+                            Button { rating = n } label: {
+                                Image(systemName: n <= rating ? "star.fill" : "star").font(.title)
+                                    .foregroundStyle(n <= rating ? Theme.gold : .secondary)
+                                    .symbolEffect(.bounce, value: rating == n)
+                            }.buttonStyle(.borderless).accessibilityLabel("\(n) star\(n == 1 ? "" : "s")")
                         }
                     }.frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityValue("\(rating) of 5 stars")
                     TextField("Anything you'd change? (saltier, less garlic, crispier…)", text: $change, axis: .vertical)
                     Toggle("Never suggest this again", isOn: $neverAgain)
                 }

@@ -7,30 +7,33 @@ enum Notifier {
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
     }
 
-    /// Rebuilds all expiration reminders. Each item gets one alert at 9 AM,
-    /// `warningDays` before it expires.
+    /// Rebuilds all expiration reminders: one alert per day at 9 AM listing what to use (iOS keeps at most 64 pending
+    /// notifications, so one per item would silently drop some). At most 40 days are scheduled.
     static func reschedule(items: [PantryItem], warningDays: Int) {
         let center = UNUserNotificationCenter.current()
         let cal = Calendar.current
-        var keep: Set<String> = []
-        for item in items where !item.isUsedUp {
-            guard let exp = item.expirationDate,
-                  let alertDay = cal.date(byAdding: .day, value: -warningDays, to: exp),
-                  alertDay > .distantPast else { continue }
-            var fire = cal.dateComponents([.year, .month, .day], from: alertDay)
-            fire.hour = 9
-            guard let fireDate = cal.date(from: fire), fireDate > .now else { continue }
-            let content = UNMutableNotificationContent()
-            content.title = "\(item.name) expires soon"
-            content.body = warningDays == 1 ? "Use it by tomorrow. Open the chef for ideas." : "Use it within \(warningDays) days. Open the chef for ideas."
-            content.sound = .default
-            content.userInfo = ["mustUse": item.name]   // tapping opens the Chef with this item pre-selected
-            let trigger = UNCalendarNotificationTrigger(dateMatching: fire, repeats: false)
-            let id = "exp-" + item.id.uuidString
-            keep.insert(id)
-            center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))   // same id replaces the old one
+        var byDay: [Date: [PantryItem]] = [:]
+        for item in items where !item.isUsedUp && item.location != .freezer {
+            guard let exp = item.expirationDate, let alertDay = cal.date(byAdding: .day, value: -warningDays, to: exp) else { continue }
+            let day = cal.startOfDay(for: alertDay)
+            guard day.addingTimeInterval(9 * 3600) > .now else { continue }
+            byDay[day, default: []].append(item)
         }
-        // Drop alerts for food that's gone. Cook-mode timers (no "exp-" prefix) are left alone.
+        var keep: Set<String> = []
+        for (day, list) in byDay.sorted(by: { $0.key < $1.key }).prefix(40) {
+            let names = list.map(\.name)
+            let content = UNMutableNotificationContent()
+            content.title = names.count == 1 ? "\(names[0]) expires soon"
+                : "\(names.prefix(2).joined(separator: ", "))\(names.count > 2 ? " and \(names.count - 2) more" : "") expire soon"
+            content.body = (warningDays == 1 ? "Use by tomorrow." : "Use within \(warningDays) days.") + " Tap for recipe ideas."
+            content.sound = .default
+            content.userInfo = ["mustUse": names[0]]   // tapping opens the Chef with the first one pre-selected
+            var fire = cal.dateComponents([.year, .month, .day], from: day); fire.hour = 9
+            let id = "exp-" + day.formatted(.iso8601.year().month().day())
+            keep.insert(id)
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: fire, repeats: false)))
+        }
+        // Drop old per-item alerts and days with nothing left. Cook-mode timers (no "exp-" prefix) are left alone.
         let current = keep
         center.getPendingNotificationRequests { pending in
             center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("exp-") && !current.contains($0) })

@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -35,15 +36,14 @@ final class ShareViewController: UIViewController {
             }
             if image == nil, p.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 let item = try? await p.loadItem(forTypeIdentifier: UTType.image.identifier)
-                if let u = item as? URL { image = try? Data(contentsOf: u) }
-                else if let d = item as? Data { image = d }
+                if let u = item as? URL { image = smallJPEG(CGImageSourceCreateWithURL(u as CFURL, nil)) }
+                else if let d = item as? Data { image = smallJPEG(CGImageSourceCreateWithData(d as CFData, nil)) ?? d }
                 else if let img = item as? UIImage { image = img.jpegData(compressionQuality: 0.8) }
             }
         }
         // A pasted caption often contains the link too.
         if url == nil, let t = text, let found = t.firstMatch(of: /https?:\/\/\S+/) { url = String(found.0) }
         // Re-encode photos as JPEG (HEIC/PNG from Photos) and keep them small.
-        if let raw = image, let img = UIImage(data: raw) { image = img.jpegData(compressionQuality: 0.8) }
         guard url != nil || text != nil || image != nil else { return false }
         RecipeInbox.add(url: url, text: text, imageData: image)
         return true
@@ -64,4 +64,14 @@ struct SharedConfirmation: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(red: 242 / 255, green: 234 / 255, blue: 216 / 255))
     }
+}
+
+
+/// Downscale without decoding the full photo (a 48 MP image would blow the share extension's memory limit).
+private func smallJPEG(_ src: CGImageSource?) -> Data? {
+    guard let src else { return nil }
+    let opts: [CFString: Any] = [kCGImageSourceThumbnailMaxPixelSize: 2000, kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                 kCGImageSourceCreateThumbnailWithTransform: true]
+    guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+    return UIImage(cgImage: cg).jpegData(compressionQuality: 0.8)
 }

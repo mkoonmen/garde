@@ -113,6 +113,8 @@ struct ScanReviewView: View {
     let image: UIImage?
     var onDone: () -> Void
     @State private var date = Date()
+    @Query private var profiles: [KitchenProfile]
+    private var allergies: [String] { profiles.flatMap(\.allergies) }
 
     var body: some View {
         NavigationStack {
@@ -140,6 +142,11 @@ struct ScanReviewView: View {
                                 Picker("", selection: $item.category) { ForEach(FoodCategory.allCases) { Text($0.label).tag($0) } }
                                     .labelsHidden().pickerStyle(.menu)
                                 Stepper("\(item.quantity.formatted()) \(item.unit)", value: $item.quantity, in: 0...99, step: 1).font(.caption)
+                            }
+                            let hits = AllergenGuard.violations(in: [item.name], allergies: allergies)
+                            if !hits.isEmpty {
+                                Label("Contains \(hits.joined(separator: ", ")), one of your allergies", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption.weight(.semibold)).foregroundStyle(.red)
                             }
                             if let exp = item.printedExpiration {
                                 Label("Package date \(exp.formatted(date: .abbreviated, time: .omitted))", systemImage: "calendar").font(.caption).foregroundStyle(.secondary)
@@ -186,7 +193,7 @@ struct ScanReviewView: View {
             item.receipt = receipt
             context.insert(item)
         }
-        ShoppingBrain.checkOff(names: scan.items.filter(\.include).map(\.name), context: context)
+        ShoppingBrain.checkOff(names: scan.items.filter { $0.include && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }.map(\.name), context: context)
         dismiss(); onDone()
     }
 }
@@ -194,9 +201,14 @@ struct ScanReviewView: View {
 struct CheckToggle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
-            Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(configuration.isOn ? Theme.accent : .secondary)
-                .onTapGesture { configuration.isOn.toggle() }
+            Button { configuration.isOn.toggle() } label: {
+                Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(configuration.isOn ? Theme.accent : .secondary)
+                    .frame(minWidth: 32, minHeight: 32).contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(configuration.isOn ? "Included" : "Excluded")
+            .accessibilityAddTraits(.isToggle)
             configuration.label
         }
     }

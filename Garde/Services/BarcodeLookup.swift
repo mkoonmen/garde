@@ -24,7 +24,9 @@ enum BarcodeLookup {
               (json["status"] as? Int) == 1,
               let p = json["product"] as? [String: Any] else { return nil }
         let name = (p["product_name"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return nil }
+        // An unnamed product can still carry allergen data: keep it so the scan can warn (you type the name).
+        let hasAllergenData = !((p["allergens_tags"] as? [String]) ?? []).isEmpty || !((p["traces_tags"] as? [String]) ?? []).isEmpty
+        guard !name.isEmpty || hasAllergenData else { return nil }
         let tags = (p["categories_tags"] as? [String]) ?? []
         let product = Product(name: name,
                               brand: (p["brands"] as? String ?? "").components(separatedBy: ",").first ?? "",

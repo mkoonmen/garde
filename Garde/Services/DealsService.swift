@@ -38,29 +38,33 @@ final class DealsService {
     var refreshing = false
     var error: String?
 
-    var zip: String {
-        // No default ZIP for testers; the owner's (developer options unlocked) defaults to Remsenburg.
-        get { UserDefaults.standard.string(forKey: "deals.zip") ?? (DeveloperMode.unlocked ? "11960" : "") }
-        set {
-            UserDefaults.standard.set(newValue.filter(\.isNumber), forKey: "deals.zip")
+    // Stored (not computed) so SwiftUI sees changes; each one is saved as it changes.
+    // No default ZIP for testers; the owner's (developer options unlocked) defaults to Remsenburg.
+    var zip: String = UserDefaults.standard.string(forKey: "deals.zip") ?? (DeveloperMode.unlocked ? "11960" : "") {
+        didSet {
+            UserDefaults.standard.set(zip.filter(\.isNumber), forKey: "deals.zip")
             UserDefaults.standard.removeObject(forKey: "deals.last")
             lastRefresh = nil
         }
     }
     /// Stores to hide (everything else in the grocery category is shown).
-    var hiddenStores: [String] {
-        get { UserDefaults.standard.stringArray(forKey: "deals.hidden") ?? [] }
-        set { UserDefaults.standard.set(newValue, forKey: "deals.hidden") }
+    var hiddenStores: [String] = UserDefaults.standard.stringArray(forKey: "deals.hidden") ?? [] {
+        didSet { UserDefaults.standard.set(hiddenStores, forKey: "deals.hidden") }
     }
-    var enabled: Bool {
-        get { UserDefaults.standard.object(forKey: "deals.enabled") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "deals.enabled") }
+    var enabled: Bool = UserDefaults.standard.object(forKey: "deals.enabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(enabled, forKey: "deals.enabled") }
+    }
+
+    /// What to look for on sale: everything on the list, plus things in the kitchen that run out within 3 days.
+    static func terms(list: [ShoppingItem], pantry: [PantryItem]) -> [String] {
+        list.filter { !$0.isChecked }.map(\.name) + pantry.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) <= 3 }.map(\.name)
     }
 
     var stores: [String] { Array(Set(flyers.map(\.store))).sorted() }
     var visible: [Deal] { all.filter { !hiddenStores.contains($0.store) } }
     var matchedDeals: [Deal] {
-        matches.values.flatMap { $0 }.filter { !hiddenStores.contains($0.store) }
+        var seen = Set<String>()
+        return matches.values.flatMap { $0 }.filter { !hiddenStores.contains($0.store) && seen.insert($0.id).inserted }
             .sorted { ($0.discountPercent ?? 0, -($0.price ?? 999)) > ($1.discountPercent ?? 0, -($1.price ?? 999)) }
     }
 

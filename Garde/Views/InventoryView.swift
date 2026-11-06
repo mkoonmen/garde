@@ -391,8 +391,22 @@ struct WeekStrip: View {
             .overlay(alignment: .topLeading) {
                 Text("THIS WEEK").font(.caption2.weight(.bold)).foregroundStyle(Theme.copper).offset(x: 12, y: -14)
             }
+            .overlay(alignment: .topTrailing) {
+                if let streak = Self.noWasteStreak(finished), streak >= 3 {
+                    Label("\(streak) days, nothing wasted", systemImage: "leaf.fill")
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.green)
+                        .padding(.horizontal, 8).padding(.vertical, 3).background(.green.opacity(0.15), in: .capsule)
+                        .offset(x: -8, y: -16)
+                }
+            }
             .padding(.top, 8)
         }
+    }
+
+    /// Days since you last threw food away (nil if you never have, or nothing has been used yet).
+    static func noWasteStreak(_ finished: [PantryItem], now: Date = .now) -> Int? {
+        guard let lastToss = finished.filter(\.wasTossed).compactMap(\.usedUpDate).max() else { return nil }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: lastToss), to: Calendar.current.startOfDay(for: now)).day
     }
 
     private func cell(_ v: String, _ l: String, _ icon: String, warn: Bool = false) -> some View {

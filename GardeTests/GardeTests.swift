@@ -316,3 +316,20 @@ import Foundation
         #expect(Calendar.current.dateComponents([.month, .day], from: start).day == 22)
     }
 }
+
+@Suite("List check-off matching") struct CheckOffTests {
+    @Test func wholeWords() {
+        #expect(ShoppingBrain.sameFood("eggs", "large brown eggs"))
+        #expect(ShoppingBrain.sameFood("whole milk", "milk"))
+        #expect(!ShoppingBrain.sameFood("egg", "eggplant"))
+        #expect(!ShoppingBrain.sameFood("oil", "foil"))
+    }
+}
+
+@Suite("Hidden tree nuts") struct HiddenNutTests {
+    let a = ["Tree nuts except almonds, hazelnuts"]
+    @Test(arguments: ["Mortadella sandwich", "Chicken korma", "Waldorf salad", "Chicken mole", "Baklava"])
+    func blocked(text: String) { #expect(!AllergenGuard.violations(in: [text], allergies: a).isEmpty) }
+    @Test(arguments: ["Guacamole and chips", "Pork pozole"])
+    func fine(text: String) { #expect(AllergenGuard.violations(in: [text], allergies: a).isEmpty) }
+}

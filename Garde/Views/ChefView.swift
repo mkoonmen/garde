@@ -153,15 +153,16 @@ struct ChefView: View {
                 }
 
                 if !saved.isEmpty {
-                    Section("Saved recipes") {
-                        ForEach(saved) { r in
+                    Section {
+                        ForEach(saved.prefix(5)) { r in
                             NavigationLink { RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                                                               ingredients: r.ingredients, steps: r.steps, saved: r) } label: {
                                 RecipeRow(title: r.title, summary: r.summary, minutes: r.minutes)
                             }
                         }
-                        .onDelete { offsets in offsets.forEach { context.delete(saved[$0]) } }
-                    }
+                        .onDelete { offsets in let shown = Array(saved.prefix(5)); offsets.forEach { context.delete(shown[$0]) } }
+                        NavigationLink { RecipeBookView() } label: { Label("Recipe book (\(saved.count))", systemImage: "books.vertical") }
+                    } header: { Text("Saved recipes") }
                 }
             }.listRowBackground(RowGlass()) }
             .gardePage()
@@ -264,16 +265,7 @@ struct RecipeDetailView: View {
     private var shownIngredients: [String] { ingredients.map { RecipeScaler.scale($0, by: factor) } }
 
     /// Ingredient lines with nothing matching in the kitchen (salt, pepper, oil and water assumed).
-    private func computeMissing() -> [String] {
-        let basicWords: Set<String> = ["salt", "pepper", "water", "oil", "olive", "ice", "kosher", "sea", "black", "white", "ground",
-                                        "freshly", "fresh", "cracked", "extra-virgin", "extra", "virgin", "and", "or", "flaky", "neutral", "vegetable", "canola"]
-        return shownIngredients.filter { line in
-            let food = RecipeScaler.foodName(line).lowercased()
-            let words = food.split(separator: " ").map(String.init)
-            guard !words.isEmpty, !words.allSatisfy({ basicWords.contains($0) }) else { return false }
-            return !items.contains { ShoppingBrain.appears($0.name, in: line) || ShoppingBrain.appears(food, in: $0.name) }
-        }
-    }
+    private func computeMissing() -> [String] { RecipeScaler.missing(shownIngredients, have: items) }
 
     private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: shownIngredients, items: allItems) }
     private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
