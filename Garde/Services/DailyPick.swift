@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import WidgetKit
 
 /// One dinner idea a day, built around what expires first. Made once per day on the phone and kept until tomorrow.
 @MainActor
@@ -36,5 +37,9 @@ final class DailyPick {
                      ingredients: r.ingredients, steps: r.steps)
         pick = p
         if let d = try? JSONEncoder().encode(p) { UserDefaults.standard.set(d, forKey: "dailyPick") }
+        // The widget shows tonight's idea when nothing is planned.
+        let shared = UserDefaults(suiteName: GardeStore.appGroup)
+        shared?.set(p.title, forKey: "dailyPick.title"); shared?.set(p.day, forKey: "dailyPick.day")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
