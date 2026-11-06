@@ -61,4 +61,16 @@ enum RecipeScaler {
         if rest.first == "-" { rest.removeFirst() }
         return format(v * factor) + (rest.first == " " || rest.isEmpty ? "" : " ") + rest
     }
+
+    /// The food in an ingredient line: "1 1/2 cups heavy cream, warmed" → "heavy cream".
+    static func foodName(_ line: String) -> String {
+        var rest = line
+        if let (_, end) = leadingAmount(line) { rest = String(line[end...]) }
+        rest = rest.components(separatedBy: CharacterSet(charactersIn: ",(")).first ?? rest
+        let units: Set<String> = ["cup", "cups", "tbsp", "tsp", "tablespoon", "tablespoons", "teaspoon", "teaspoons", "oz", "ounce", "ounces",
+                                  "lb", "lbs", "pound", "pounds", "g", "kg", "ml", "l", "clove", "cloves", "can", "cans", "pinch", "dash",
+                                  "bunch", "sprig", "sprigs", "slice", "slices", "piece", "pieces", "large", "medium", "small", "of", "to", "taste"]
+        let words = rest.split(separator: " ").map(String.init).filter { !units.contains($0.lowercased()) && !$0.contains("-oz") }
+        return words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    }
 }

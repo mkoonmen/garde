@@ -241,12 +241,23 @@ struct RecipeDetailView: View {
     @State private var swaps: [Int: Swaps] = [:]
     @State private var swapping: Int?
     @State private var swapError: String?
+    @State private var addedMissing = false
     @State private var plating: Plating?
     @State private var platingLoading = false
 
     private var serves: Int { people == 0 ? servings : people }
     private var factor: Double { servings > 0 ? Double(serves) / Double(servings) : 1 }
     private var shownIngredients: [String] { ingredients.map { RecipeScaler.scale($0, by: factor) } }
+
+    /// Ingredient lines with nothing matching in the kitchen (salt, pepper, oil and water assumed).
+    private var missing: [String] {
+        let basics = ["salt", "pepper", "water", "olive oil", "oil", "ice"]
+        return shownIngredients.filter { line in
+            let food = RecipeScaler.foodName(line).lowercased()
+            guard !food.isEmpty, !basics.contains(where: { food == $0 || food.hasPrefix($0 + " and") }) else { return false }
+            return !items.contains { ShoppingBrain.appears($0.name, in: line) || ShoppingBrain.appears(food, in: $0.name) }
+        }
+    }
 
     private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: shownIngredients, items: allItems) }
     private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
@@ -321,6 +332,13 @@ struct RecipeDetailView: View {
                     }
                 }
                 if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
+                let need = missing
+                if !need.isEmpty {
+                    Button(addedMissing ? "Added to your list" : "Add \(need.count) missing to list", systemImage: addedMissing ? "checkmark" : "cart.badge.plus") {
+                        ShoppingBrain.add(needToBuy: need.map { RecipeScaler.foodName($0) }, for: title, day: .now, context: context)
+                        addedMissing = true
+                    }.disabled(addedMissing)
+                }
             } header: { Text("Ingredients") } footer: {
                 Text(factor == 1 ? "Tap ⇄ next to an ingredient for a substitute." : "Amounts scaled from \(servings) to \(serves) servings.")
             }

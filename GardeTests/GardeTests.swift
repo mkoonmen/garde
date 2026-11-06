@@ -211,6 +211,10 @@ import Foundation
         ("1-1/2 cups milk", 2.0, "3 cups milk"), ("1-inch piece ginger", 2.0, "1-inch piece ginger"), ("1 lb chicken thighs", 3.0, "3 lb chicken thighs"),
     ])
     func scales(line: String, factor: Double, expected: String) { #expect(RecipeScaler.scale(line, by: factor) == expected) }
+
+    @Test(arguments: [("1 1/2 cups heavy cream, warmed", "heavy cream"), ("2 cloves garlic", "garlic"), ("1 14-oz can crushed tomatoes", "crushed tomatoes"),
+                      ("1 lb chicken thighs (boneless)", "chicken thighs")])
+    func foodNames(line: String, food: String) { #expect(RecipeScaler.foodName(line) == food) }
 }
 
 @Suite("Price book") struct PriceBookTests {
