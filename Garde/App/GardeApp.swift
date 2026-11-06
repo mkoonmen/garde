@@ -59,6 +59,11 @@ struct RootView: View {
             if gmailAuto { _ = try? await GmailImporter.shared.importNew(context: context) }
             ShoppingBrain.refreshRunningLow(context: context)
         }
+        #if DEBUG
+        .sheet(isPresented: .constant(UserDefaults.standard.string(forKey: "screen") != nil)) {
+            NavigationStack { DebugScreen(name: UserDefaults.standard.string(forKey: "screen") ?? "") }
+        }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange).receive(on: RunLoop.main)) { _ in
             KitchenProfile.merge(context: context)   // iCloud just synced: fold any duplicate profile in
         }
@@ -95,3 +100,27 @@ extension Theme {
     }
 
 }
+
+#if DEBUG
+/// Simulator-only: `-screen insights` opens a screen directly, for screenshots.
+struct DebugScreen: View {
+    let name: String
+    var body: some View {
+        switch name {
+        case "insights": InsightsView()
+        case "pricebook": PriceBookView()
+        case "takeout": TakeoutView()
+        case "host": HostView()
+        case "timeline": DinnerTimelineView()
+        case "mealprep": MealPrepView()
+        case "book": RecipeBookView()
+        case "journal": CookJournalView()
+        case "quickadd": QuickAddView()
+        case "shopping": ShoppingModeView(prices: [])
+        case "allergycard": AllergyCardView()
+        case "mix": MixView()
+        default: Text("Unknown screen \(name)")
+        }
+    }
+}
+#endif
