@@ -264,6 +264,7 @@ struct RecipeDetailView: View {
     @State private var platingLoading = false
     @State private var platingError: String?
     @State private var remixed: RecipeIdea?
+    @State private var shareCard: Image?
     @State private var remixing: String?
     @Query private var cookLogs: [CookLog]
     private let remixes = ["lighter", "higher in protein", "spicier", "vegetarian", "faster (under 30 minutes)", "for the grill", "kid-friendly", "dinner-party fancy"]
@@ -432,16 +433,26 @@ struct RecipeDetailView: View {
         .gardePage()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: shownIngredients, initial: true) { _, _ in need = computeMissing(); addedMissing = false }
+        .onChange(of: shownIngredients, initial: true) { _, _ in
+            need = computeMissing(); addedMissing = false
+            let r = ImageRenderer(content: RecipeShareCard(title: title, summary: summary, minutes: minutes, serves: serves, ingredients: shownIngredients))
+            r.scale = 3
+            shareCard = r.uiImage.map { Image(uiImage: $0) }
+        }
         .navigationDestination(item: $remixed) { r in
             RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps, idea: r)
         }
         .onChange(of: items.count) { _, _ in need = computeMissing() }
         .toolbar {
-            ShareLink(item: "\(title)\n\(summary)\n\nServes \(serves) · \(minutes) min\n\nINGREDIENTS\n" + shownIngredients.map { "• " + $0 }.joined(separator: "\n")
-                      + "\n\nSTEPS\n" + steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n") + "\n\nFrom Garde") {
-                Label("Share recipe", systemImage: "square.and.arrow.up")
-            }
+            Menu {
+                ShareLink(item: "\(title)\n\(summary)\n\nServes \(serves) · \(minutes) min\n\nINGREDIENTS\n" + shownIngredients.map { "• " + $0 }.joined(separator: "\n")
+                          + "\n\nSTEPS\n" + steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n") + "\n\nFrom Garde") {
+                    Label("Share as text", systemImage: "text.alignleft")
+                }
+                if let card = shareCard {
+                    ShareLink(item: card, preview: SharePreview(title, image: card)) { Label("Share as a card", systemImage: "photo") }
+                }
+            } label: { Label("Share recipe", systemImage: "square.and.arrow.up") }
         }
         .fullScreenCover(isPresented: $cooking) {
             CookModeView(title: title, steps: steps, ingredients: shownIngredients, servings: serves, usedItems: usedItems,
@@ -477,6 +488,27 @@ extension RecipeDetailView {
             if let s = try await chef.substitute(line, dish: title, items: items, profile: profile) { swaps[i] = s }
             else { swapError = "No safe substitute for that one." }
         } catch { swapError = "The chef couldn't think of a swap. Try again." }
+    }
+}
+
+/// A pretty recipe card image for Messages / Instagram stories.
+struct RecipeShareCard: View {
+    let title: String, summary: String, minutes: Int, serves: Int, ingredients: [String]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("GARDE").font(.caption.weight(.heavy)).tracking(4).foregroundStyle(Theme.copper)
+            Text(title).font(.system(size: 30, weight: .bold, design: .serif)).foregroundStyle(Theme.cream)
+            Text(summary).font(.callout).foregroundStyle(Theme.cream.opacity(0.8))
+            Text("\(minutes) min · serves \(serves)").font(.caption.weight(.semibold)).foregroundStyle(Theme.copper)
+            Divider().overlay(Theme.cream.opacity(0.3))
+            ForEach(Array(ingredients.prefix(12).enumerated()), id: \.offset) { _, i in
+                Text("• " + i).font(.callout).foregroundStyle(Theme.cream)
+            }
+            if ingredients.count > 12 { Text("+ \(ingredients.count - 12) more").font(.caption).foregroundStyle(Theme.cream.opacity(0.7)) }
+        }
+        .padding(28)
+        .frame(width: 400, alignment: .leading)
+        .background(LinearGradient(colors: [Theme.navy, Color(red: 0.05, green: 0.08, blue: 0.19)], startPoint: .top, endPoint: .bottom))
     }
 }
 
