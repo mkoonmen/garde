@@ -119,6 +119,12 @@ struct DebugScreen: View {
         case "shopping": ShoppingModeView(prices: [])
         case "allergycard": AllergyCardView()
         case "mix": MixView()
+        case "settings": GardeSettingsView()
+        case "onboarding": OnboardingView {}
+        case "recipe":
+            RecipeDetailView(title: "Lemon Chicken Piccata", summary: "Crisp thighs, bright lemon-caper pan sauce.", minutes: 35, servings: 2,
+                             ingredients: ["1 1/2 lb chicken thighs", "2 tbsp capers", "1/2 cup chicken broth", "1 cup buttermilk", "2-3 cloves garlic", "Salt and pepper"],
+                             steps: ["Season and sear the chicken 6 minutes per side.", "Make the pan sauce.", "Simmer 3 minutes and serve."])
         default: Text("Unknown screen \(name)")
         }
     }
