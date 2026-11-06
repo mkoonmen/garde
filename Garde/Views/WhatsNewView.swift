@@ -2,22 +2,19 @@ import SwiftUI
 
 /// Highlights of the latest version, shown once after an update (and any time from More).
 enum WhatsNew {
-    static let version = "2.8"
+    static let version = "2.9"
     static let items: [(icon: String, title: String, text: String)] = [
-        ("sun.max", "Tonight's idea", "Each day the Kitchen tab shows one dinner idea built around what expires first. Tapping an expiration reminder opens the Chef with that item ready to use."),
-        ("bag", "Takeout favorites", "Your DoorDash, Uber Eats and restaurant receipts from Gmail become a list of favorite dishes. Tap Cook it for a homemade version. Chef → Takeout favorites."),
-        ("tag", "Price book", "Every price you've paid, the lowest, and which store is cheapest. Your shopping list shows last price too. More → Price book."),
-        ("person.2", "Scale & swap", "Change servings on any recipe and every amount rescales. Tap ⇄ next to an ingredient for an allergy-safe substitute."),
-        ("fork.knife", "Plate it like a restaurant", "Every recipe can show you fine-dining plating: sauce, height, placement and a finishing touch."),
-        ("party.popper", "Host a dinner", "Guests, occasion and their allergies → a make-ahead menu, prep timeline and shopping list. Chef → Host a dinner."),
-        ("wineglass", "Mix tonight", "Cocktails from the bottles in your bar and the citrus and herbs in your kitchen, plus a guided tasting flight (bourbon night!). More → Bar & cellar."),
-        ("leaf", "In season & cook again", "Local produce for this month, and dishes you loved but haven't made in a while, on the Chef tab."),
-        ("cart.badge.plus", "Smarter list", "Add a recipe's missing ingredients in one tap, or add your usuals (things you buy again and again)."),
-        ("chart.pie", "Your taste", "Insights shows the proteins and styles you love, from your ratings and takeout."),
-        ("bell", "Sunday plan reminder", "A 5 PM Sunday nudge to plan the week around what expires. Turn it off in Settings."),
-        ("checklist", "Mise en place", "Cook mode starts with a checklist so everything's out before step one."),
-        ("dollarsign.circle", "Grocery budget", "Set a monthly budget in Insights and see your pace. Ask Siri \"How's my grocery budget in Garde\"."),
-        ("envelope", "Cleaner Gmail receipts", "Only real grocery receipts are imported now. Old junk was cleaned up automatically."),
+        ("text.badge.plus", "Quick add", "Type or say everything you bought at once: \"eggs, 2 lb chicken thighs, a gallon of milk and spinach\". Kitchen → + → Quick add."),
+        ("cart", "Shopping mode", "Big aisle-ordered list for the store. Tap to check off, screen stays on, and an estimate of what's left."),
+        ("storefront", "Where to shop", "The list tells you which store is cheapest for most of it, from your own receipts, and deals show what you usually pay."),
+        ("takeoutbag.and.cup.and.straw", "Meal prep", "A couple of batch dishes that cover the week, one efficient prep session, and the shopping list. Chef → Plan & host."),
+        ("clock.badge.checkmark", "Dinner timeline", "Pick dishes and a serving time; Garde tells you when to start each, with reminders."),
+        ("party.popper", "Thanksgiving ready", "Host a dinner has occasion presets and a turkey thaw calculator."),
+        ("books.vertical", "Recipe book", "Search all your saved recipes and see which ones you can make right now."),
+        ("doc.text.viewfinder", "Scan a recipe page", "Scan → Recipe reads a cookbook page or recipe card into your recipes. Or paste a link in Shared recipes."),
+        ("arrow.left.arrow.right", "Instant swaps", "Classic substitutions (buttermilk, cream, eggs, wine…) answer instantly, even offline."),
+        ("leaf.fill", "No-waste streak", "The Kitchen shows how long since you last threw food away, and how much food you have on hand."),
+        ("checkmark.shield", "Safer allergies", "Photo scans warn about allergens, more hidden tree-nut dishes are caught, and onboarding asks which nuts you can eat."),
     ]
     /// Opens TestFlight, where testers can send feedback straight to the developer (no personal email shown in the app).
     static let feedbackURL = URL(string: "itms-beta://")!

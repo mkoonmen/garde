@@ -148,7 +148,16 @@ struct ShoppingListView: View {
     private func add() {
         let t = draft.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
-        context.insert(ShoppingItem(name: t.prefix(1).uppercased() + t.dropFirst(), category: ShoppingBrain.guessCategory(t)))
+        // "eggs, milk and 2 lb chicken" adds three items; amounts go in the note.
+        let lines = QuickAdd.parse(t)
+        if lines.count > 1 {
+            for l in lines {
+                let note = l.unit == "each" && l.quantity == 1 ? "" : "\(l.quantity.formatted()) \(l.unit == "each" ? "" : l.unit)".trimmingCharacters(in: .whitespaces)
+                context.insert(ShoppingItem(name: l.name, category: l.category, quantityNote: note))
+            }
+        } else {
+            context.insert(ShoppingItem(name: t.prefix(1).uppercased() + t.dropFirst(), category: ShoppingBrain.guessCategory(t)))
+        }
         draft = ""; typing = true
     }
 }
