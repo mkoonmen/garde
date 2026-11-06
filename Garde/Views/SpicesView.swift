@@ -42,6 +42,12 @@ struct SpicesView: View {
                                 LevelGauge(level: s.level)
                             }.contentShape(.rect)
                         }.buttonStyle(.plain)
+                        .swipeActions(edge: .leading) {
+                            Button("Cook with it", systemImage: "frying.pan") {
+                                NotificationRouter.shared.mood = "Something that really shows off \(s.name)"
+                                NotificationRouter.shared.tab = 2
+                            }.tint(Theme.copper)
+                        }
                         .swipeActions {
                             Button("Delete", systemImage: "trash", role: .destructive) { context.delete(s) }
                             Button("Low", systemImage: "arrow.down") { s.level = .low }.tint(.orange)

@@ -73,6 +73,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationRouter()
     var tab = 0
     var mustUse: String?
+    var mood: String?          // e.g. from the spice rack: "Something that shows off smoked paprika"
 
     func install() { UNUserNotificationCenter.current().delegate = self }
 

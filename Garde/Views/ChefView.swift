@@ -160,6 +160,7 @@ struct ChefView: View {
             .navigationTitle("Chef")
             .onAppear(perform: takeRoutedItem)
             .onChange(of: NotificationRouter.shared.mustUse) { _, _ in takeRoutedItem() }
+            .onChange(of: NotificationRouter.shared.mood) { _, _ in takeRoutedItem() }
             .toolbar {
                 NavigationLink { MealPlanView() } label: { Label("Week plan", systemImage: "calendar") }
             }
@@ -168,6 +169,7 @@ struct ChefView: View {
 
     /// An expiration reminder was tapped: tick that item as "must use" and set the mood.
     private func takeRoutedItem() {
+        if let m = NotificationRouter.shared.mood { mood = m; NotificationRouter.shared.mood = nil }
         guard let name = NotificationRouter.shared.mustUse else { return }
         NotificationRouter.shared.mustUse = nil
         if let item = items.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
