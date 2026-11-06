@@ -442,3 +442,16 @@ import Foundation
         #expect(ShelfLife.needsFridgeAfterOpening(name: "Mayonnaise", category: .condiments))
     }
 }
+
+struct NewCategoryTests {
+    @Test func sortsSweetsCandyCoffeeBaking() {
+        #expect(ShoppingBrain.guessCategory("Starbucks Hot Cocoa Mix") == .coffee)
+        #expect(ShoppingBrain.guessCategory("Ghirardelli Triple Chocolate brownie mix") == .baking)
+        #expect(ShoppingBrain.guessCategory("Watkins Pure Vanilla Extract") == .baking)
+        #expect(ShoppingBrain.guessCategory("Reese's peanut butter cups candy") == .candy)
+        #expect(ShoppingBrain.guessCategory("Chocolate chip cookies") == .baking || ShoppingBrain.guessCategory("Chocolate chip cookies") == .sweets)
+        #expect(ShoppingBrain.guessCategory("Tiramisu") == .sweets)
+        #expect(ShoppingBrain.guessCategory("So Delicious Dairy Free coconut milk") == .beverages)
+        #expect(ShoppingBrain.guessCategory("English muffins") == .bakery)
+    }
+}

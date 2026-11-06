@@ -5,6 +5,7 @@ struct InventoryView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }, sort: \PantryItem.name) private var items: [PantryItem]
     @State private var filter: StorageLocation?
+    @State private var kind: FoodCategory?
     @State private var search = ""
     @State private var editing: PantryItem?
     @State private var adding = false
@@ -16,7 +17,7 @@ struct InventoryView: View {
     @Query private var logs: [CookLog]
 
     private var visible: [PantryItem] {
-        items.filter { (filter == nil || $0.location == filter) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+        items.filter { (filter == nil || $0.location == filter) && (kind == nil || $0.category == kind) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
             .sorted { ($0.daysLeft ?? 9999) < ($1.daysLeft ?? 9999) }
     }
     private var expiringSoon: [PantryItem] { items.filter { ($0.daysLeft ?? 99) <= 2 } }
@@ -32,10 +33,10 @@ struct InventoryView: View {
                 if GardeStore.storeIsTemporary {
                     Section { Label("Garde couldn't open your saved kitchen this time, so nothing you add will be kept. Close Garde fully and reopen it.", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red) }
                 }
-                if search.isEmpty && filter == nil, let problem = daily.problem {
+                if search.isEmpty && filter == nil && kind == nil, let problem = daily.problem {
                     Section { Label(problem, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(.orange) }
                 }
-                if search.isEmpty && filter == nil {
+                if search.isEmpty && filter == nil && kind == nil {
                     Section {
                         if let p = daily.pick, daily.isFresh,
                            AllergenGuard.violations(in: [p.title] + p.ingredients + p.steps, allergies: profiles.first?.allergies ?? []).isEmpty {
@@ -130,6 +131,15 @@ struct InventoryView: View {
                         Text("All").tag(StorageLocation?.none)
                         ForEach(StorageLocation.allCases) { Text($0.label).tag(StorageLocation?.some($0)) }
                     }.pickerStyle(.segmented)
+                    let kinds = ShoppingBrain.aisleOrder.filter { k in items.contains { $0.category == k && (filter == nil || $0.location == filter) } }
+                    if kinds.count > 1 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                chip("All", nil, symbol: "square.grid.2x2")
+                                ForEach(kinds) { k in chip(k.label, k, symbol: k.symbol) }
+                            }.padding(.vertical, 2)
+                        }
+                    }
                 }
 
                 Section("\(Plural.items(visible.count))") {
@@ -178,6 +188,18 @@ struct InventoryView: View {
             .sheet(item: $editing) { ItemEditView(item: $0) }
             .sheet(isPresented: $adding) { ItemEditView(item: nil) }
         }
+    }
+
+    private func chip(_ title: String, _ k: FoodCategory?, symbol: String) -> some View {
+        let on = kind == k
+        let n = k.map { c in items.filter { $0.category == c && (filter == nil || $0.location == filter) }.count }
+        return Button { withAnimation(.snappy) { kind = k } } label: {
+            Label(n.map { "\(title) \($0)" } ?? title, systemImage: symbol)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(on ? Theme.copper.opacity(0.35) : Color.white.opacity(0.08), in: .capsule)
+                .overlay(Capsule().strokeBorder(on ? Theme.copper : .clear, lineWidth: 1))
+        }.buttonStyle(.plain)
     }
 }
 

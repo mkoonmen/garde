@@ -20,9 +20,26 @@ enum StorageLocation: String, Codable, CaseIterable, Identifiable {
 
 enum FoodCategory: String, Codable, CaseIterable, Identifiable {
     case meat, seafood, poultry, dairy, cheese, eggs, produce, fruit, bakery,
-         grains, canned, condiments, frozen, beverages, snacks, deli, other
+         grains, canned, condiments, frozen, beverages, snacks, deli, other,
+         sweets, candy, coffee, baking
     var id: String { rawValue }
-    var label: String { rawValue.capitalized }
+    var label: String {
+        switch self {
+        case .sweets: "Desserts & sweets"
+        case .coffee: "Coffee & tea"
+        default: rawValue.capitalized
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .meat: "fork.knife"; case .seafood: "fish"; case .poultry: "bird"; case .dairy: "drop"
+        case .cheese: "triangle.lefthalf.filled"; case .eggs: "oval.portrait"; case .produce: "carrot"; case .fruit: "apple.logo"
+        case .bakery: "birthday.cake"; case .grains: "takeoutbag.and.cup.and.straw"; case .canned: "cylinder"; case .condiments: "flask"
+        case .frozen: "snowflake"; case .beverages: "waterbottle"; case .snacks: "popcorn"; case .deli: "rectangle.stack"
+        case .sweets: "birthday.cake.fill"; case .candy: "heart.circle"; case .coffee: "cup.and.saucer"; case .baking: "frying.pan"
+        case .other: "square.grid.2x2"
+        }
+    }
 }
 
 enum SpiceLevel: String, Codable, CaseIterable, Identifiable {
@@ -113,7 +130,7 @@ final class PantryItem {
     var canFreeze: Bool {
         guard location != .freezer else { return false }
         if let r = ShelfLife.rule(for: name) { return r.freezer != nil }
-        return ![.produce, .canned, .grains, .snacks, .beverages, .condiments].contains(category)
+        return ![.produce, .canned, .grains, .snacks, .beverages, .condiments, .candy, .coffee, .baking].contains(category)
     }
 
     /// Moves it to the freezer and restarts the clock with freezer shelf life.

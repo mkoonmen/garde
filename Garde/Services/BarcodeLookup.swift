@@ -40,7 +40,8 @@ enum BarcodeLookup {
 
     static func category(from tags: [String], name: String) -> FoodCategory {
         let t = tags.joined(separator: " ")
-        let pairs: [(String, FoodCategory)] = [("cheeses", .cheese), ("seafood", .seafood), ("fishes", .seafood), ("poultr", .poultry),
+        let pairs: [(String, FoodCategory)] = [("coffees", .coffee), ("teas", .coffee), ("hot-chocolate", .coffee), ("candies", .candy), ("confectioneries", .candy),
+                                               ("desserts", .sweets), ("biscuits-and-cakes", .sweets), ("cookies", .sweets), ("baking", .baking), ("cheeses", .cheese), ("seafood", .seafood), ("fishes", .seafood), ("poultr", .poultry),
                                                ("meats", .meat), ("eggs", .eggs), ("dairies", .dairy), ("milks", .dairy), ("yogurts", .dairy),
                                                ("frozen", .frozen), ("breads", .bakery), ("fruits", .fruit), ("vegetables", .produce),
                                                ("cereals", .grains), ("pastas", .grains), ("rices", .grains), ("canned", .canned),

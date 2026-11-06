@@ -8,7 +8,7 @@ import SwiftData
 struct ScannedItem {
     @Guide(description: "Plain grocery name a person would say, e.g. 'Chicken thighs', 'Whole milk'. Expand receipt abbreviations.")
     var name: String
-    @Guide(description: "One of: meat, seafood, poultry, dairy, cheese, eggs, produce, fruit, bakery, grains, canned, condiments, frozen, beverages, snacks, deli, other")
+    @Guide(description: "One of: meat, seafood, poultry, dairy, cheese, eggs, produce, fruit, bakery, grains, canned, condiments, frozen, beverages, snacks, deli, sweets (desserts), candy, coffee (coffee, tea, cocoa), baking, other")
     var category: String
     @Guide(description: "Count or amount, default 1")
     var quantity: Double

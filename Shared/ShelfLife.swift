@@ -136,6 +136,11 @@ enum ShelfLife {
         case (.grains, _), (.canned, _), (.snacks, _): return 365
         case (.beverages, _): return 30
         case (.frozen, _): return 3
+        case (.sweets, .fridge): return 5
+        case (.sweets, _): return 30
+        case (.candy, _): return 270
+        case (.coffee, _): return 270
+        case (.baking, _): return 365
         case (.other, _): return 14
         }
     }

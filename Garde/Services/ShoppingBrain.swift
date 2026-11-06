@@ -5,7 +5,7 @@ import SwiftData
 enum ShoppingBrain {
     /// Store-walk order so the list reads like an aisle path.
     static let aisleOrder: [FoodCategory] = [.produce, .fruit, .bakery, .deli, .meat, .poultry, .seafood, .cheese, .dairy, .eggs,
-                                             .grains, .canned, .condiments, .snacks, .beverages, .frozen, .other]
+                                             .grains, .baking, .canned, .condiments, .snacks, .candy, .sweets, .coffee, .beverages, .frozen, .other]
 
     static func key(_ name: String) -> String {
         name.lowercased().trimmingCharacters(in: .whitespaces)
@@ -136,7 +136,13 @@ enum ShoppingBrain {
             // packaged look-alikes first ("chicken broth" is canned, not poultry)
             (.canned, ["broth", "stock", "canned", "beans", "chickpea", "tomato paste", "crushed tomato"]),
             (.condiments, ["sauce", "vinegar", "mustard", "mayo", "dressing", "peanut butter", "ketchup", "salsa", "honey"]),
-            (.frozen, ["frozen", "ice cream"]),
+            (.frozen, ["frozen", "ice cream", "gelato", "sorbet", "popsicle"]),
+            (.coffee, ["coffee", "espresso", "k-cup", "kcup", "nespresso", "cold brew", "hot cocoa", "cocoa mix", "hot chocolate", "matcha", " tea", "tea bags", "chai"]),
+            (.baking, ["baking", "vanilla extract", "pure vanilla", "baking vanilla", "chocolate chip", "cocoa powder", "brownie mix", "cake mix", "muffin mix", "cookie mix", "frosting", "sprinkles", "yeast", "brown sugar", "powdered sugar", "confectioner", "granulated sugar", "cane sugar", "flour", "cornstarch", "triple chocolate", "baking chocolate", "pie crust"]),
+            (.candy, ["candy", "gummy", "gummies", "lollipop", "licorice", "jelly bean", "m&m", "skittles", "reese", "hershey", "kit kat", "snickers", "twix", "sour patch", "starburst", "chocolate bar", "truffle", "caramels", "marshmallow", "peeps", "mints"]),
+            (.bakery, ["english muffin", "bagel", "croissant"]),
+            (.sweets, ["cookie", "brownie", "cake", "cupcake", "apple pie", "pumpkin pie", "cream pie", "pastry", "donut", "doughnut", "muffin", "pudding", "cannoli", "tiramisu", "cheesecake", "macaron", "dessert", "churro"]),
+            (.beverages, ["almond milk", "oat milk", "coconut milk beverage", "dairy free", "dairy-free", "soy milk"]),
             (.beverages, ["juice", "wine", "soda", "seltzer", "coffee", "tea", "beer"]),
             (.seafood, ["shrimp", "salmon", "fish", "cod", "tuna", "scallop", "clam", "mussel", "crab", "lobster"]),
             (.poultry, ["chicken", "turkey", "duck"]),
