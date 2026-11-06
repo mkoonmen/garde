@@ -29,7 +29,7 @@ struct PriceBookView: View {
                         }
                     } header: { Text("Going up") } footer: { Text("Last price compared with your average.") }
                 }
-                Section("\(shown.count) items") {
+                Section("\(Plural.items(shown.count))") {
                     ForEach(shown) { e in
                         NavigationLink { PriceHistoryView(entry: e) } label: {
                             VStack(alignment: .leading, spacing: 3) {

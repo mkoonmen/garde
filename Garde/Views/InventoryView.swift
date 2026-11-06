@@ -93,7 +93,7 @@ struct InventoryView: View {
                     }.pickerStyle(.segmented)
                 }
 
-                Section("\(visible.count) items") {
+                Section("\(Plural.items(visible.count))") {
                     if visible.isEmpty {
                         ContentUnavailableView("Nothing here yet", systemImage: "cart",
                                                description: Text("Scan a receipt or snap your groceries in the Scan tab, or tap + to add by hand."))

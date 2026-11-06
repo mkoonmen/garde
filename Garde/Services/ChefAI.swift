@@ -126,6 +126,14 @@ struct Cocktail {
 }
 
 @Generable
+struct Plating {
+    @Guide(description: "Three to five short steps to plate the dish like a fine-dining restaurant: plate choice, sauce, placement, height, finishing")
+    var steps: [String]
+    @Guide(description: "One finishing touch using something likely already in the kitchen (herb, oil, flaky salt, citrus zest)")
+    var garnish: String
+}
+
+@Generable
 struct Swaps {
     @Guide(description: "Two to four substitutes, each a short ingredient line with an amount, e.g. '1/2 cup Greek yogurt + 1 tbsp milk'")
     var options: [String]
@@ -422,6 +430,17 @@ final class ChefAI {
         """
         let list = try await session.respond(to: prompt, generating: CocktailList.self).content
         return list.drinks.filter { AllergenGuard.violations(in: [$0.name, $0.method] + $0.spec + $0.missing, allergies: profile.allergies).isEmpty }
+    }
+
+    /// How to plate a dish like a restaurant. Allergen-checked in code.
+    func plating(dish: String, ingredients: [String], profile: KitchenProfile) async throws -> Plating? {
+        guard state == .available else { return nil }
+        let session = ChefEngine.shared.session(instructions: """
+        You are a fine-dining chef teaching a home cook to plate beautifully with normal home dishes.
+        Never add these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
+        """)
+        let p = try await session.respond(to: "Dish: \(dish)\nIngredients: \(ingredients.prefix(15).joined(separator: ", "))", generating: Plating.self).content
+        return AllergenGuard.violations(in: p.steps + [p.garnish], allergies: profile.allergies).isEmpty ? p : nil
     }
 
     /// Substitutes for one ingredient, preferring things already in the kitchen. Allergen-checked in code.

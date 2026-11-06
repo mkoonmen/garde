@@ -100,7 +100,7 @@ struct MealPlanView: View {
                 bought += d.needToBuy.count
             }
             Notifier.scheduleThawReminders(plan: (try? context.fetch(FetchDescriptor<MealPlanEntry>())) ?? [], items: items)
-            message = "Planned \(out.dinners.count) dinners. \(bought) items added to your List."
+            message = "Planned \(out.dinners.count) dinners. \(Plural.items(bought)) added to your List."
                 + (out.blocked > 0 ? " \(out.blocked) dropped for allergens." : "")
         } catch {
             message = "The planner got stuck: \(error.localizedDescription)"

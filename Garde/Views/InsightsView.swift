@@ -71,7 +71,7 @@ struct InsightsView: View {
             }
 
             Section {
-                LabeledContent("Thrown out", value: "\(waste.tossedCount) items")
+                LabeledContent("Thrown out", value: "\(Plural.items(waste.tossedCount))")
                 LabeledContent("Value wasted", value: waste.tossedValue, format: .currency(code: "USD"))
                 LabeledContent("Waste rate", value: waste.wasteRate, format: .percent.precision(.fractionLength(0)))
                 if !waste.topTossed.isEmpty {

@@ -139,7 +139,7 @@ struct ReceiptsView: View {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(r.store.isEmpty ? "Receipt" : r.store).font(.body.weight(.medium))
-                                Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(r.items?.count ?? 0) items").font(.caption).foregroundStyle(.secondary)
+                                Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(Plural.items(r.items?.count ?? 0))").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             if let t = r.total { Text(t, format: .currency(code: "USD")) }
@@ -237,7 +237,7 @@ struct GmailSettingsView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(r.store).font(.body.weight(.medium))
-                                    Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(r.items?.count ?? 0) items").font(.caption).foregroundStyle(.secondary)
+                                    Text("\(r.date.formatted(date: .abbreviated, time: .omitted)) · \(Plural.items(r.items?.count ?? 0))").font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 if let t = r.total { Text(t, format: .currency(code: "USD")) }
@@ -273,7 +273,7 @@ struct GmailSettingsView: View {
                 let r = reimport ? try await GmailImporter.shared.reimport(context: context, progress: update)
                                  : try await GmailImporter.shared.importNew(context: context, progress: update)
                 message = r.emails == 0 ? "No new grocery emails."
-                    : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) grocery receipt\(r.receipts == 1 ? "" : "s") (\(r.items) items)\(r.takeout > 0 ? ", \(r.takeout) takeout orders" : "")\(r.skipped > 0 ? ", \(r.skipped) skipped" : "")."
+                    : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) grocery receipt\(r.receipts == 1 ? "" : "s") (\(Plural.items(r.items)))\(r.takeout > 0 ? ", \(r.takeout) takeout orders" : "")\(r.skipped > 0 ? ", \(r.skipped) skipped" : "")."
             } catch { message = error.localizedDescription }
             working = false
         }

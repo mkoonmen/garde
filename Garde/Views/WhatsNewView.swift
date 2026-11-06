@@ -8,6 +8,7 @@ enum WhatsNew {
         ("bag", "Takeout favorites", "Your DoorDash, Uber Eats and restaurant receipts from Gmail become a list of favorite dishes. Tap Cook it for a homemade version. Chef → Takeout favorites."),
         ("tag", "Price book", "Every price you've paid, the lowest, and which store is cheapest. Your shopping list shows last price too. More → Price book."),
         ("person.2", "Scale & swap", "Change servings on any recipe and every amount rescales. Tap ⇄ next to an ingredient for an allergy-safe substitute."),
+        ("fork.knife", "Plate it like a restaurant", "Every recipe can show you fine-dining plating: sauce, height, placement and a finishing touch."),
         ("party.popper", "Host a dinner", "Guests, occasion and their allergies → a make-ahead menu, prep timeline and shopping list. Chef → Host a dinner."),
         ("wineglass", "Mix tonight", "Cocktails from the bottles in your bar and the citrus and herbs in your kitchen. More → Bar & cellar."),
         ("leaf", "In season & cook again", "Local produce for this month, and dishes you loved but haven't made in a while, on the Chef tab."),

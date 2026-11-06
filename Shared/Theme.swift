@@ -175,3 +175,8 @@ struct GlassCard<Content: View>: View {
 extension Theme {
     static let copper = Color(red: 0.86, green: 0.50, blue: 0.27)
 }
+
+enum Plural {
+    /// "1 item", "3 items"
+    static func items(_ n: Int) -> String { n == 1 ? "1 item" : "\(n) items" }
+}

@@ -241,6 +241,8 @@ struct RecipeDetailView: View {
     @State private var swaps: [Int: Swaps] = [:]
     @State private var swapping: Int?
     @State private var swapError: String?
+    @State private var plating: Plating?
+    @State private var platingLoading = false
 
     private var serves: Int { people == 0 ? servings : people }
     private var factor: Double { servings > 0 ? Double(serves) / Double(servings) : 1 }
@@ -321,6 +323,23 @@ struct RecipeDetailView: View {
                 if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
             } header: { Text("Ingredients") } footer: {
                 Text(factor == 1 ? "Tap ⇄ next to an ingredient for a substitute." : "Amounts scaled from \(servings) to \(serves) servings.")
+            }
+            Section("Plate it like a restaurant") {
+                if let plating {
+                    ForEach(Array(plating.steps.enumerated()), id: \.offset) { i, s in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "\(i + 1).circle").foregroundStyle(Theme.copper)
+                            Text(s)
+                        }
+                    }
+                    if !plating.garnish.isEmpty { Label(plating.garnish, systemImage: "leaf").font(.subheadline).foregroundStyle(.secondary) }
+                } else {
+                    Button(platingLoading ? "Thinking…" : "Show me how to plate it", systemImage: "fork.knife") {
+                        guard let profile = profiles.first else { return }
+                        platingLoading = true
+                        Task { plating = try? await chef.plating(dish: title, ingredients: ingredients, profile: profile); platingLoading = false }
+                    }.disabled(platingLoading)
+                }
             }
             if let saved {
                 Section("My notes") {
