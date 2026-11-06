@@ -62,7 +62,11 @@ struct GardeSettingsView: View {
         .gardePage()
         .navigationTitle("Settings")
         .task {
+            #if targetEnvironment(simulator)
+            let status: CKAccountStatus? = nil   // unsigned simulator builds have no iCloud entitlement (CKContainer would trap)
+            #else
             let status = try? await CKContainer(identifier: GardeStore.cloudContainer).accountStatus()
+            #endif
             iCloudStatus = switch status {
             case .available: "Signed in"
             case .noAccount: "Not signed in"
