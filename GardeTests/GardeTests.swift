@@ -259,3 +259,14 @@ import Foundation
         }
     }
 }
+
+@Suite("Taste profile") struct TasteProfileTests {
+    @Test func wholeWords() {
+        let logs = [CookLog(title: "Roasted eggplant parmesan", rating: 5), CookLog(title: "Smash burger", rating: 4), CookLog(title: "Shrimp pad thai", rating: 4)]
+        let proteins = TasteProfile.rank(TasteProfile.proteins, home: logs, takeout: []).map(\.0)
+        #expect(!proteins.contains("Eggs"))
+        #expect(proteins.contains("Beef"))
+        #expect(proteins.contains("Seafood"))
+        #expect(TasteProfile.rank(TasteProfile.styles, home: logs, takeout: []).map(\.0).contains("Asian"))
+    }
+}
