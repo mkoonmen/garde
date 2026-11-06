@@ -12,6 +12,7 @@ enum WhatsNew {
         ("party.popper", "Thanksgiving ready", "Host a dinner has occasion presets and a turkey thaw calculator."),
         ("books.vertical", "Recipe book", "Search all your saved recipes and see which ones you can make right now."),
         ("doc.text.viewfinder", "Scan a recipe page", "Scan → Recipe reads a cookbook page or recipe card into your recipes. Or paste a link in Shared recipes."),
+        ("wand.and.stars", "Remix it", "Any recipe: make it lighter, spicier, vegetarian, faster, for the grill, or dinner-party fancy. Cook mode now shows technique tips."),
         ("arrow.left.arrow.right", "Instant swaps", "Classic substitutions (buttermilk, cream, eggs, wine…) answer instantly, even offline."),
         ("leaf.fill", "No-waste streak", "The Kitchen shows how long since you last threw food away, and how much food you have on hand."),
         ("person.text.rectangle", "Allergy card", "A full-screen card to show your server, translated on the phone for trips. More → Allergy card for restaurants."),
