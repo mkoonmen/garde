@@ -20,6 +20,8 @@ final class DailyPick {
         return try? JSONDecoder().decode(Pick.self, from: d)
     }()
     private(set) var working = false
+    private(set) var problem: String?
+    private var seenToday: [String] = []   // titles already shown today, so Refresh brings something new
 
     private static var today: String { GardeStore.dayKey }
     var isFresh: Bool { pick?.day == Self.today }
@@ -28,9 +30,13 @@ final class DailyPick {
         let tried = UserDefaults.standard.string(forKey: "dailyPick.tried")
         guard force || (!isFresh && tried != Self.today), !working, let profile else { return }
         let fresh = items.filter { ($0.daysLeft ?? 99) >= 0 }
-        guard fresh.count >= 3 else { return }
+        problem = nil
+        guard fresh.count >= 3 else { if force { problem = "Add a few more things to your kitchen first." }; return }
         let chef = ChefAI()
-        guard chef.state == .available else { return }
+        guard chef.state == .available else {
+            if force, case .unavailable(let why) = chef.state { problem = why }
+            return
+        }
         working = true; defer { working = false }
         if !force {   // let launch finish first, and only try once a day if it fails
             try? await Task.sleep(for: .seconds(3))
@@ -38,9 +44,17 @@ final class DailyPick {
             UserDefaults.standard.set(Self.today, forKey: "dailyPick.tried")
         }
         let soon = fresh.filter { ($0.daysLeft ?? 99) <= 3 }.sorted { ($0.daysLeft ?? 99) < ($1.daysLeft ?? 99) }.prefix(3).map(\.name)
-        let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, weeknight easy", maxMinutes: 45, mustUse: Array(soon))
-        guard let out = try? await chef.suggestRecipes(items: fresh, spices: spices, profile: profile, logs: logs, request: req),
-              let r = out.recipes.first else { return }
+        if let t = pick?.title, !seenToday.contains(t) { seenToday.append(t) }
+        let styles = ["weeknight easy", "something different from usual", "cozy", "bright and fresh", "restaurant-style", "one-pan"]
+        let avoid = seenToday.isEmpty ? "" : " Not any of these: \(seenToday.joined(separator: ", "))."
+        let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, \(force ? styles.randomElement()! : styles[0]).\(avoid)", maxMinutes: 45, mustUse: Array(soon))
+        let out: (recipes: [RecipeIdea], blocked: Int)
+        do { out = try await chef.suggestRecipes(items: fresh, spices: spices, profile: profile, logs: logs, request: req) }
+        catch { problem = "The chef couldn't come up with one just now. Try again."; return }
+        guard let r = out.recipes.first(where: { !seenToday.contains($0.title) }) ?? out.recipes.first else {
+            problem = out.blocked > 0 ? "Those ideas used one of your allergens, so they were skipped. Try again." : "No idea came back. Try again."
+            return
+        }
         let p = Pick(day: Self.today, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                      ingredients: r.ingredients, steps: r.steps)
         pick = p
