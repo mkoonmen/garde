@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Basic-method ingredient lists include the cooking water called for in their directions, including pasta water and the measured additions to the chickpea and chicken skillets. Water remains an assumed kitchen staple for shopping.
 - 2026-11-06 — Updated the feature guide and privacy description for the connected kitchen release. Simulator tests passed twice (81 tests), the updated Kitchen rendered successfully, and the production CloudKit schema deployment was confirmed.
 - 2026-11-06 — Finished and discarded items also open their item history from More → Used up, alongside the existing Restore button. History can be reviewed without restoring stock first.
 - 2026-11-06 — v3.0 verification: 81 tests in 31 suites passed using the revised simulator script, which completed and shut the simulator down. Direct Cook this choices also pass their measured ingredient-cost estimate into the cooking log.
