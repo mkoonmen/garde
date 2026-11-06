@@ -50,6 +50,22 @@ struct InventoryView: View {
                     } header: { Text("Use these first") }
                 }
 
+                let longFrozen = items.filter { ($0.frozenDate ?? .now) < Date.now.addingTimeInterval(-90 * 86_400) }
+                    .sorted { ($0.frozenDate ?? .now) < ($1.frozenDate ?? .now) }
+                if !longFrozen.isEmpty {
+                    Section {
+                        ForEach(longFrozen.prefix(5)) { item in
+                            HStack {
+                                Image(systemName: "snowflake").foregroundStyle(.cyan)
+                                Text(item.name)
+                                Spacer()
+                                let months = Calendar.current.dateComponents([.month], from: item.frozenDate ?? .now, to: .now).month ?? 0
+                                Text("\(months) mo").font(.caption.weight(.semibold)).foregroundStyle(months >= 6 ? .orange : .secondary)
+                            }
+                        }
+                    } header: { Text("Deep in the freezer") } footer: { Text("Still safe, but best quality fades after about 3–6 months. Plan these soon.") }
+                }
+
                 Section {
                     Picker("Where", selection: $filter) {
                         Text("All").tag(StorageLocation?.none)

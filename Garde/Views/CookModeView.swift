@@ -30,7 +30,45 @@ struct CookModeView: View {
     private var step: String { steps.indices.contains(index) ? steps[index] : "" }
     private var stepSeconds: Int? { CookVoice.duration(in: step) }
 
+    @State private var mise = true
+    @State private var gathered: Set<String> = []
+
     var body: some View {
+        if mise && !ingredients.isEmpty { miseView } else { cookBody }
+    }
+
+    /// Mise en place: get everything out before the first step.
+    private var miseView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly).font(.title2)
+                Spacer()
+                Text("Mise en place").font(.headline).fontDesign(.serif)
+                Spacer()
+                Button("Skip") { withAnimation { mise = false } }
+            }.padding()
+            List(ingredients, id: \.self) { line in
+                Button {
+                    if gathered.contains(line) { gathered.remove(line) } else { gathered.insert(line) }
+                } label: {
+                    HStack {
+                        Image(systemName: gathered.contains(line) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(gathered.contains(line) ? .green : Theme.accent).font(.title2)
+                        Text(line).font(.title3).strikethrough(gathered.contains(line))
+                    }.contentShape(.rect)
+                }.buttonStyle(.plain).listRowBackground(RowGlass())
+            }
+            .scrollContentBackground(.hidden)
+            .sensoryFeedback(.selection, trigger: gathered.count)
+            Button { withAnimation { mise = false } } label: {
+                Text(gathered.count == ingredients.count ? "Everything's out. Start cooking" : "Start cooking (\(gathered.count)/\(ingredients.count) out)")
+                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
+            }.buttonStyle(.borderedProminent).controlSize(.large).padding()
+        }
+        .background { GardeBackground() }
+    }
+
+    private var cookBody: some View {
         VStack(spacing: 0) {
             HStack {
                 Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly).font(.title2)

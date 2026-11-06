@@ -311,6 +311,11 @@ struct RecipeDetailView: View {
             } header: { Text("Ingredients") } footer: {
                 Text(factor == 1 ? "Tap ⇄ next to an ingredient for a substitute." : "Amounts scaled from \(servings) to \(serves) servings.")
             }
+            if let saved {
+                Section("My notes") {
+                    TextField("Your tweaks: \"less salt, add chili flakes\"", text: Binding(get: { saved.notes }, set: { saved.notes = $0 }), axis: .vertical)
+                }
+            }
             Section("Steps") {
                 ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
                     HStack(alignment: .top, spacing: 10) {

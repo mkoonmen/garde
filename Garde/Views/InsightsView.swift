@@ -8,6 +8,11 @@ struct InsightsView: View {
     @Query(sort: \CookLog.date, order: .reverse) private var logs: [CookLog]
     @Query private var receipts: [Receipt]
     @State private var range = 30
+    @Query private var profiles: [KitchenProfile]
+    private var monthSpent: Double {
+        let start = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+        return receipts.filter { $0.date >= start }.compactMap(\.total).reduce(0, +)
+    }
 
     private var since: Date { Calendar.current.date(byAdding: .day, value: -range, to: .now)! }
     private var waste: CostCalculator.WasteReport { CostCalculator.waste(items: items, since: since) }
@@ -24,6 +29,29 @@ struct InsightsView: View {
             Picker("Range", selection: $range) {
                 Text("30 days").tag(30); Text("90 days").tag(90); Text("Year").tag(365)
             }.pickerStyle(.segmented).listRowBackground(Color.clear)
+
+            if let profile = profiles.first {
+                Section {
+                    LabeledContent("Monthly budget") {
+                        TextField("Off", value: Binding(get: { profile.monthlyBudget }, set: { profile.monthlyBudget = max(0, $0) }),
+                                  format: .currency(code: "USD").precision(.fractionLength(0)))
+                            .multilineTextAlignment(.trailing).keyboardType(.decimalPad).frame(maxWidth: 120)
+                    }
+                    if profile.monthlyBudget > 0 {
+                        let used = monthSpent / profile.monthlyBudget
+                        ProgressView(value: min(used, 1)) {
+                            Text("\(monthSpent.formatted(.currency(code: "USD").precision(.fractionLength(0)))) of \(profile.monthlyBudget.formatted(.currency(code: "USD").precision(.fractionLength(0)))) this month")
+                        }.tint(used > 1 ? .red : used > 0.85 ? .orange : .green)
+                        let day = Double(Calendar.current.component(.day, from: .now))
+                        let days = Double(Calendar.current.range(of: .day, in: .month, for: .now)?.count ?? 30)
+                        let pace = monthSpent / day * days
+                        Text(pace > profile.monthlyBudget
+                             ? "On pace for \(pace.formatted(.currency(code: "USD").precision(.fractionLength(0)))), over budget."
+                             : "On pace to stay under budget.")
+                            .font(.caption).foregroundStyle(pace > profile.monthlyBudget ? .orange : .secondary)
+                    }
+                } header: { Text("Budget") }
+            }
 
             Section("Spending") {
                 LabeledContent("Groceries", value: spent, format: .currency(code: "USD"))

@@ -192,6 +192,7 @@ final class SavedRecipe {
     var createdAt: Date = Date()
     var isFavorite: Bool = false
     var timesCooked: Int = 0
+    var notes: String = ""          // your own tweaks ("less salt, add chili flakes")
 
     init(title: String, summary: String, minutes: Int, servings: Int, ingredients: [String], steps: [String]) {
         self.title = title
@@ -214,6 +215,7 @@ final class KitchenProfile {
     var householdSize: Int = 1
     var skillLevel: String = "Confident home cook"
     var expirationWarningDays: Int = 2
+    var monthlyBudget: Double = 0       // grocery budget per month, 0 = off
 
     init() {}
 }
