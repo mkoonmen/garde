@@ -140,13 +140,17 @@ struct BottleEditView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.disabled(name.isEmpty) }
             }
             .onAppear {
-                if let p = prefill {
-                    name = p.name; kind = p.kind; category = p.kind.category; vintage = p.vintage; region = p.region; notes = p.notes; photo = p.photo
-                    if let existing = existingMatch(p.name) { name = existing.name; count = existing.count + 1 }
-                    return
+                if let existing = bottle ?? prefill.flatMap({ existingMatch($0.name) }) {
+                    name = existing.name
+                    kind = existing.kind; category = existing.kind.category
+                    style = existing.style; format = existing.format
+                    vintage = existing.vintage; region = existing.region; notes = existing.notes
+                    photo = existing.photo ?? prefill?.photo
+                    count = existing.count + (bottle == nil ? 1 : 0)
+                } else if let p = prefill {
+                    name = p.name; kind = p.kind; category = p.kind.category
+                    vintage = p.vintage; region = p.region; notes = p.notes; photo = p.photo
                 }
-                guard let b = bottle else { return }
-                name = b.name; kind = b.kind; category = b.kind.category; style = b.style; format = b.format; vintage = b.vintage; region = b.region; count = b.count; notes = b.notes; photo = b.photo
             }
         }
     }
@@ -158,7 +162,8 @@ struct BottleEditView: View {
     private func save() {
         // Scanning a bottle you already have adds to its count instead of making a duplicate.
         let b = bottle ?? (prefill != nil ? existingMatch(name) : nil) ?? { let n = BarBottle(name: name, kind: kind); context.insert(n); return n }()
-        b.name = name; b.kind = kind; b.style = style; b.format = format; b.vintage = vintage; b.region = region; b.count = count; b.notes = notes; b.photo = photo
+        b.name = name; b.kind = kind; b.style = style; b.format = kind.hasFormat ? format : ""
+        b.vintage = vintage; b.region = region; b.count = count; b.notes = notes; b.photo = photo
         dismiss()
     }
 }

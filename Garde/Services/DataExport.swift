@@ -29,7 +29,11 @@ struct KitchenExport: Codable {
     struct ShoppingRow: Codable { var name, category, quantityNote, reason: String; var isChecked: Bool }
     struct PlanRow: Codable { var day: Date; var title, summary: String; var minutes, servings: Int; var ingredients, steps, needToBuy: [String]; var isCooked: Bool }
     struct CookRow: Codable { var title: String; var date: Date; var rating: Int; var wouldChange: String; var neverAgain: Bool; var cost: Double? }
-    struct BottleRow: Codable { var name, kind, vintage, region, notes: String; var count: Int }
+    struct BottleRow: Codable {
+        var name, kind, vintage, region, notes: String
+        var count: Int
+        var style, format: String?
+    }
     struct TakeoutRow: Codable { var restaurant, cuisine, service: String; var date: Date; var dishes: [String]; var total: Double?; var sourceID: String? }
 
     var format = "garde/v2"
@@ -82,7 +86,7 @@ enum DataExport {
         export.takeout = try context.fetch(FetchDescriptor<TakeoutOrder>()).map { .init(restaurant: $0.restaurant, cuisine: $0.cuisine, service: $0.service, date: $0.date, dishes: $0.dishes, total: $0.total, sourceID: $0.sourceID) }
         export.recipeNotes = Dictionary(recipes.filter { !$0.notes.isEmpty }.map { ($0.title, $0.notes) }, uniquingKeysWith: { a, _ in a })
         export.monthlyBudget = profile?.monthlyBudget
-        export.bar = try context.fetch(FetchDescriptor<BarBottle>()).map { .init(name: $0.name, kind: $0.kindRaw, vintage: $0.vintage, region: $0.region, notes: $0.notes, count: $0.count) }
+        export.bar = try context.fetch(FetchDescriptor<BarBottle>()).map { .init(name: $0.name, kind: $0.kindRaw, vintage: $0.vintage, region: $0.region, notes: $0.notes, count: $0.count, style: $0.style, format: $0.format) }
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("garde-\(Date.now.formatted(.iso8601.year().month().day())).json")
         try encoder.encode(export).write(to: url)
@@ -134,7 +138,8 @@ enum DataExport {
         }
         for r in data.bar ?? [] {
             let b = BarBottle(name: r.name, kind: BottleKind(rawValue: r.kind) ?? .other, vintage: r.vintage, region: r.region, count: r.count)
-            b.notes = r.notes; context.insert(b)
+            b.notes = r.notes; b.style = r.style ?? ""; b.format = r.format ?? ""
+            context.insert(b)
         }
         for r in data.takeout ?? [] {
             let o = TakeoutOrder(restaurant: r.restaurant, cuisine: r.cuisine, date: r.date, dishes: r.dishes, total: r.total, service: r.service)
