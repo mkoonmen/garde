@@ -73,7 +73,7 @@ extension PantryItem {
     }
 
     func setRemaining(_ fraction: Double) {
-        recordChange("Amount checked", explanation: "You checked how much remains.") {
+        recordChange("Amount checked", explanation: "You estimated \(Int(min(1, max(0, fraction)) * 100))% remaining.") {
             remainingFraction = min(1, max(0, fraction))
             remainingAmount = originalAmount.map { $0.value * remainingFraction }
             isUsedUp = remainingFraction == 0
