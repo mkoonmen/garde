@@ -264,7 +264,7 @@ struct GmailSettingsView: View {
                     } label: { Label("Connect Gmail", systemImage: "envelope.badge").font(.headline) }
                 }
             } footer: {
-                Text("Sign in with any Google account. Garde asks for read-only access and reads your order and receipt emails from the past year (Target, Walmart, Costco, BJ's, King Kullen, Stop & Shop, Fine Fare, Whole Foods, Sprouts, Trader Joe's, Wegmans, Instacart, Amazon and more) and keeps the food. The first import of a full year can take several minutes; keep Garde open, and it picks up where it left off if interrupted. Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen.")
+                Text("Sign in with any Google account. Garde asks for read-only access and reads your order and receipt emails from the past year (Target, Walmart, Costco, BJ's, King Kullen, Stop & Shop, Fine Fare, Whole Foods, Sprouts, Trader Joe's, Wegmans, Instacart, Amazon and more) and keeps the food. The first import of a full year can take several minutes; keep Garde open, and it picks up where it left off if interrupted. Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen. DoorDash, Uber Eats and restaurant receipts become Takeout favorites.\n\nTesting Garde? Google only lets approved test accounts sign in for now, so send the developer the Gmail address you want to use first (through TestFlight feedback).")
             }
 
             if let message { Section { Text(message) } }
