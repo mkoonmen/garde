@@ -27,6 +27,17 @@ struct ShoppingListView: View {
                         TextField("Add item", text: $draft).focused($typing).submitLabel(.done).onSubmit(add)
                         Button("Add", systemImage: "plus.circle.fill", action: add).labelStyle(.iconOnly).font(.title2).disabled(draft.isEmpty)
                     }
+                    let usuals = missingUsuals
+                    if !usuals.isEmpty {
+                        Button {
+                            withAnimation {
+                                for n in usuals { context.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), reason: "One of your usuals")) }
+                            }
+                        } label: {
+                            Label("Add my usuals (\(usuals.count)): \(usuals.prefix(3).joined(separator: ", "))\(usuals.count > 3 ? "…" : "")",
+                                  systemImage: "arrow.triangle.2.circlepath").font(.subheadline).lineLimit(2)
+                        }
+                    }
                 }
                 if deals.enabled && !deals.visible.isEmpty {
                     Section {
@@ -87,6 +98,15 @@ struct ShoppingListView: View {
     private func forceRefreshDeals() async {
         let soon = pantry.filter { ($0.daysLeft ?? 99) <= 3 }.map(\.name)
         await deals.refresh(terms: open.map(\.name) + soon, force: true)
+    }
+
+    /// Things you buy again and again (3+ times in the last 2 months) that aren't in the kitchen or on the list.
+    private var missingUsuals: [String] {
+        let since = Date.now.addingTimeInterval(-60 * 86_400)
+        let onList = Set(open.map { PriceBook.key($0.name) })
+        let have = Set(pantry.map { PriceBook.key($0.name) })
+        return prices.filter { e in e.paid.filter { $0.date >= since }.count >= 3 && !onList.contains(e.key) && !have.contains(e.key) }
+            .prefix(8).map(\.name)
     }
 
     private func row(_ item: ShoppingItem) -> some View {
