@@ -289,7 +289,7 @@ final class ChefAI {
         let backup = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: request)
         guard state == .available else { return (Array(backup.prefix(3)), 0) }
 
-        let active = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 0) >= 0 }
+        let active = KitchenInventory.available(items)
             .sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
         let inventory = inventoryText(active, limit: 30)
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ")
@@ -331,11 +331,7 @@ final class ChefAI {
     // MARK: Shared prompt pieces
 
     func inventoryText(_ active: [PantryItem], limit: Int = 60) -> String {
-        active.prefix(limit).map { item -> String in
-            let d = item.daysLeft.map { $0 < 0 ? "EXPIRED" : "\($0)d left" } ?? "no date"
-            let tag = item.isLeftover ? " [LEFTOVER, already cooked]" : ""
-            return "- \(item.name)\(tag) (\(item.availableLabel), recipe ingredient \(item.ingredientName), \(item.location.label), \(d))"
-        }.joined(separator: "\n")
+        KitchenInventory.text(active, limit: limit)
     }
 
     /// Turns cook ratings into taste guidance.
@@ -385,7 +381,7 @@ final class ChefAI {
             let recipes = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: RecipeRequest())
             return (recipes.prefix(days).enumerated().map { PlanResult(dayIndex: $0.offset, recipe: $0.element, needToBuy: RecipeScaler.missing($0.element.ingredients, have: items)) }, 0)
         }
-        let active = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 0) >= 0 }.sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
+        let active = KitchenInventory.available(items).sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
         let inventory = inventoryText(active, limit: 25).ifEmpty("(empty)")
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).prefix(20).joined(separator: ", ").ifEmpty("basic only")
         let start = Date.now.formatted(.dateTime.weekday(.wide).month().day())
@@ -463,7 +459,7 @@ final class ChefAI {
         let prompt = """
         Occasion: \(occasion.ifEmpty("dinner with friends"))
         Guests (including host): \(guests)
-        Already in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        Already in the kitchen: \(inventoryText(items, limit: 30))
         """
         let menu = try await session.reply(to: prompt, generating: HostMenu.self)
         let text = menu.courses.flatMap { [$0.dish, $0.note] } + menu.shoppingList + menu.timeline
@@ -481,7 +477,7 @@ final class ChefAI {
         """)
         let prompt = """
         Bottles: \(spirits.joined(separator: ", ").ifEmpty("none"))
-        Kitchen: \(items.prefix(40).map(\.name).joined(separator: ", "))
+        Kitchen: \(inventoryText(items, limit: 40))
         Mood: \(mood.ifEmpty("bartender's choice"))
         Prefer drinks that need nothing extra.
         """
@@ -499,8 +495,8 @@ final class ChefAI {
         let prompt = """
         Cover \(meals) meals for \(people) \(people == 1 ? "person" : "people").
         Focus: \(focus.ifEmpty("balanced, high protein"))
-        Use first (expires soon): \(items.filter { ($0.daysLeft ?? 99) <= 5 }.prefix(12).map(\.name).joined(separator: ", ").ifEmpty("nothing urgent"))
-        Also in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        Use first (expires soon): \(KitchenInventory.available(items).filter { ($0.daysLeft ?? 99) <= 5 }.prefix(12).map(\.name).joined(separator: ", ").ifEmpty("nothing urgent"))
+        Also in the kitchen: \(inventoryText(items, limit: 30))
         """
         let plan = try await session.reply(to: prompt, generating: MealPrep.self)
         let text = plan.dishes.flatMap { [$0.name, $0.storage] + $0.ingredients } + plan.session + plan.shoppingList
@@ -559,7 +555,7 @@ final class ChefAI {
         let prompt = """
         Dish: \(dish)
         Replace: \(ingredient)
-        In the kitchen now: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        In the kitchen now: \(inventoryText(items, limit: 30))
         Prefer substitutes from the kitchen list first.
         """
         var out = try await session.reply(to: prompt, generating: Swaps.self)

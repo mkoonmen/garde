@@ -6,3 +6,6 @@ DerivedData/
 build/
 setup-log.txt
 build-log.txt
+
+.build/
+.swiftpm/

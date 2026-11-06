@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Final chef consistency check: all cooking prompts use the same measured inventory, excluding expired, finished and zero-stock items. Hosting, meal prep, cocktails, substitutions and chat now share those rules. Added lightweight Swift Testing checks for the shared core that run on this Mac without starting a simulator.
 - 2026-11-06 — Amount-check history includes the estimated percentage remaining, so Full, Half, Almost gone and Finished checks can be distinguished later.
 - 2026-11-06 — Basic-method ingredient lists include the cooking water called for in their directions, including pasta water and the measured additions to the chickpea and chicken skillets. Water remains an assumed kitchen staple for shopping.
 - 2026-11-06 — Updated the feature guide and privacy description for the connected kitchen release. Simulator tests passed twice (81 tests), the updated Kitchen rendered successfully, and the production CloudKit schema deployment was confirmed.
