@@ -2,22 +2,15 @@ import SwiftUI
 
 /// Highlights of the latest version, shown once after an update (and any time from More).
 enum WhatsNew {
-    static let version = "2.9"
+    static let version = "3.0"
     static let items: [(icon: String, title: String, text: String)] = [
-        ("text.badge.plus", "Quick add", "Type or say everything you bought at once: \"eggs, 2 lb chicken thighs, a gallon of milk and spinach\". Kitchen → + → Quick add."),
-        ("cart", "Shopping mode", "Big aisle-ordered list for the store. Tap to check off, screen stays on, and an estimate of what's left."),
-        ("storefront", "Where to shop", "The list tells you which store is cheapest for most of it, from your own receipts, and deals show what you usually pay."),
-        ("takeoutbag.and.cup.and.straw", "Meal prep", "A couple of batch dishes that cover the week, one efficient prep session, and the shopping list. Chef → Plan & host."),
-        ("clock.badge.checkmark", "Dinner timeline", "Pick dishes and a serving time; Garde tells you when to start each, with reminders."),
-        ("party.popper", "Thanksgiving ready", "Host a dinner has occasion presets and a turkey thaw calculator."),
-        ("books.vertical", "Recipe book", "Search all your saved recipes and see which ones you can make right now."),
-        ("doc.text.viewfinder", "Scan a recipe page", "Scan → Recipe reads a cookbook page or recipe card into your recipes. Or paste a link in Shared recipes."),
-        ("wand.and.stars", "Remix it", "Any recipe: make it lighter, spicier, vegetarian, faster, for the grill, or dinner-party fancy. Cook mode now shows technique tips."),
-        ("arrow.left.arrow.right", "Instant swaps", "Classic substitutions (buttermilk, cream, eggs, wine…) answer instantly, even offline."),
-        ("leaf.fill", "No-waste streak", "The Kitchen shows how long since you last threw food away, and how much food you have on hand."),
-        ("person.text.rectangle", "Allergy card", "A full-screen card to show your server, translated on the phone for trips. More → Allergy card for restaurants."),
-        ("graduationcap", "Report card", "A monthly A–F for waste, home cooking and budget in Insights, plus a cooking journal of everything you've made."),
-        ("checkmark.shield", "Safer allergies", "Photo scans warn about allergens, more hidden tree-nut dishes are caught, and onboarding asks which nuts you can eat."),
+        ("scalemass", "Know what remains", "Keep product names and recipe ingredients separate. Set a package size, use measured amounts while cooking, or choose Full, Half, Almost gone and Finished."),
+        ("clock.arrow.circlepath", "Kitchen history", "See when food was added, opened, frozen or used. Undo a change while its inventory state is still current."),
+        ("fork.knife", "Three dinner choices", "Use what's here, choose something quick, or revisit flavors you love. Start cooking, plan it for tomorrow, or ask for something easier from the Kitchen."),
+        ("book.closed", "A cooking foundation", "Original basic recipes provide an immediate fallback. Recipe checks flag missing amounts and inconsistent instructions, and cooking pages show equipment and timing notes."),
+        ("checklist", "A more useful list", "Planned dinners share the stock at home before adding combined shortages. Your usual products stay recognizable, with reasons for restocking and store preferences."),
+        ("person.text.rectangle", "Your household, remembered", "More → Household memory keeps weeknight effort, spice, leftovers and favorite brands editable. Review cooking feedback and stop using a note whenever you like."),
+        ("camera.viewfinder", "Less kitchen upkeep", "Receipt review flags likely existing items. An optional kitchen check helps confirm older stock, and backups include the new amounts, history and household memory."),
     ]
     /// Opens TestFlight, where testers can send feedback straight to the developer (no personal email shown in the app).
     static let feedbackURL = URL(string: "itms-beta://")!

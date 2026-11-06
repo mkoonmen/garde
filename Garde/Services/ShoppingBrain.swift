@@ -46,7 +46,7 @@ enum ShoppingBrain {
               let list = try? context.fetch(FetchDescriptor<ShoppingItem>()),
               let spices = try? context.fetch(FetchDescriptor<Spice>()) else { return }
         var onList = Set(list.filter { !$0.isChecked && !$0.isDismissed }.map { key($0.name) })
-        let inStock = Set(items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover && $0.remainingFraction > 0.15 }.map { key($0.name) })
+        let inStock = Set(items.filter { $0.hasStock && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover && $0.remainingFraction > 0.15 }.map { key($0.name) })
 
         // Keep a deleted restock off the list, including when the same product also qualifies as a habitual purchase.
         let expired = items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) < 0 }
@@ -75,11 +75,11 @@ enum ShoppingBrain {
 
         let finished = items.filter { $0.isUsedUp && !$0.wasTossed && !$0.isLeftover }
         let finishedNames = Set(finished.map { key($0.name) })
-        let remaining = Set(items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 }.map { key($0.name) })
+        let remaining = Set(items.filter { $0.hasStock && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 }.map { key($0.name) })
         for item in finished where !item.didRestockUsedUp {
             let name = key(item.name)
             guard !name.isEmpty, !remaining.contains(name), !items.contains(where: {
-                !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 && $0.remainingFraction > 0.15 && FoodIdentity.matches(item.ingredientName, $0.ingredientName)
+                $0.hasStock && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 && $0.remainingFraction > 0.15 && FoodIdentity.matches(item.ingredientName, $0.ingredientName)
             }) else { continue }
             if onList.insert(name).inserted {
                 let entry = ShoppingItem(name: item.name, category: item.category, reason: "Ran out")

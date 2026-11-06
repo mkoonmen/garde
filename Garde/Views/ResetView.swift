@@ -71,10 +71,18 @@ struct ResetView: View {
         items.forEach(context.delete)
     }
 
+    private func wipeStock(usedUp: Bool) {
+        let items = (try? context.fetch(FetchDescriptor<PantryItem>())) ?? []
+        let ids = Set(items.filter { $0.isUsedUp == usedUp }.map(\.id))
+        let events = (try? context.fetch(FetchDescriptor<KitchenEvent>())) ?? []
+        events.filter { ids.contains($0.itemID) }.forEach(context.delete)
+        items.filter { ids.contains($0.id) }.forEach(context.delete)
+    }
+
     private func reset(_ c: Category) {
         switch c {
-        case .kitchen: wipe(PantryItem.self, where: #Predicate { !$0.isUsedUp })
-        case .history: wipe(PantryItem.self, where: #Predicate { $0.isUsedUp })
+        case .kitchen: wipeStock(usedUp: false)
+        case .history: wipeStock(usedUp: true)
         case .receipts: wipe(Receipt.self)
         case .spices: wipe(Spice.self)
         case .list: wipe(ShoppingItem.self)
@@ -96,6 +104,7 @@ struct ResetView: View {
         case .everything:
             for cat in Category.allCases where cat != .everything && cat != .profile { reset(cat) }
             wipe(KitchenProfile.self)
+            wipe(KitchenEvent.self)
             ["fridgeCheck.last"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
             try? context.save()
             onboarded = false   // shows first-run setup again

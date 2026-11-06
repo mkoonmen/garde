@@ -47,6 +47,9 @@ enum MealShopping {
             let reason = "For " + Array(Set(demand.titles)).sorted().joined(separator: "; ")
             if let usual = list.first(where: { $0.isSpecificProduct && !$0.isChecked && !$0.isDismissed && FoodIdentity.matches(demand.food, $0.name) }) {
                 usual.mealNote = amount + " needed · " + reason
+                for duplicate in list where duplicate.planDemandKey == key && !duplicate.isChecked && !duplicate.isDismissed {
+                    context.delete(duplicate)
+                }
                 continue
             }
             let sources = demand.sources.sorted().joined(separator: "|")

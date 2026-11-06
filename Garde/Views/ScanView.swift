@@ -122,6 +122,8 @@ struct ScanReviewView: View {
     let image: UIImage?
     var onDone: () -> Void
     @State private var date = Date()
+    @State private var didSave = false
+    @State private var saveProblem: String?
     @Query private var existingItems: [PantryItem]
     @Query private var existingReceipts: [Receipt]
     @Query private var profiles: [KitchenProfile]
@@ -137,6 +139,7 @@ struct ScanReviewView: View {
                         if let total = scan.total { LabeledContent("Total", value: total, format: .currency(code: "USD")) }
                     }
                 }
+                if let saveProblem { Section { Text(saveProblem).foregroundStyle(.red) } }
                 if alreadyImported {
                     Section { Label("This receipt is already in your Kitchen.", systemImage: "checkmark.circle") }
                 }
@@ -165,8 +168,9 @@ struct ScanReviewView: View {
                                         .background(item.opened ? Theme.copper.opacity(0.3) : Color.secondary.opacity(0.15), in: .capsule)
                                 }.buttonStyle(.plain)
                             }
-                            if existingItems.contains(where: { !$0.isUsedUp && FoodIdentity.productKey($0.name) == FoodIdentity.productKey(item.name) }) {
-                                Text("A matching product is already in your Kitchen.").font(.caption).foregroundStyle(.orange)
+                            if existingItems.contains(where: { $0.hasStock && (FoodIdentity.productKey($0.name) == FoodIdentity.productKey(item.name) || FoodIdentity.matches(item.name, $0.ingredientName)) }) {
+                                Text("Possible existing stock in your Kitchen. Add another package, or skip if it is already counted.").font(.caption).foregroundStyle(.orange)
+                                Button("Additional purchase") { item.include = true }.font(.caption)
                                 Button("Already counted — skip this item") { item.include = false }.font(.caption)
                             }
                             let hits = AllergenGuard.violations(in: [item.name], allergies: allergies)
@@ -195,7 +199,7 @@ struct ScanReviewView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss(); onDone() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add \(scan.items.filter(\.include).count)") { save() }
-                        .disabled(alreadyImported || (scan.items.filter(\.include).isEmpty && !isReceipt))
+                        .disabled(didSave || alreadyImported || (scan.items.filter(\.include).isEmpty && !isReceipt))
                 }
             }
         }
@@ -206,7 +210,7 @@ struct ScanReviewView: View {
     }
 
     private func save() {
-        guard !alreadyImported else { return }
+        guard !didSave && !alreadyImported else { return }
         var receipt: Receipt?
         if isReceipt {
             let r = Receipt(store: scan.store, date: date, total: scan.total, rawText: rawText, image: image?.storageJPEG())
@@ -226,7 +230,8 @@ struct ScanReviewView: View {
             if p.opened { item.open() }
         }
         ShoppingBrain.checkOff(names: scan.items.filter { $0.include && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }.map(\.name), context: context)
-        dismiss(); onDone()
+        do { try context.save(); didSave = true; dismiss(); onDone() }
+        catch { context.rollback(); saveProblem = error.localizedDescription }
     }
 }
 

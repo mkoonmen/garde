@@ -83,6 +83,7 @@ extension PantryItem {
         amount.value = isUsedUp ? 0 : max(0, remainingAmount ?? (amount.value * remainingFraction))
         return amount
     }
+    var hasStock: Bool { !isUsedUp && remainingFraction > 0 && (availableAmount?.value ?? remainingFraction) > 0.001 }
     var availableLabel: String {
         if let amount = availableAmount { return amount.label + " left" }
         return "About \(Int(remainingFraction * 100))% left"

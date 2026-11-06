@@ -73,6 +73,22 @@ struct KitchenUpgradeTests {
         #expect(list[0].isDismissed)
     }
 
+    @Test func usualProductRestockAbsorbsAnExistingMealShortage() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(MealPlanEntry(day: Date.now, title: "Dinner", summary: "", minutes: 20, servings: 2,
+                                     ingredients: ["150 ml milk"], steps: ["Warm gently."], needToBuy: []))
+        try MealShopping.reconcile(context: context)
+        let usual = ShoppingItem(name: "Kirkland Homogenized Milk", category: .dairy, reason: "Used up, restock")
+        usual.isSpecificProduct = true
+        context.insert(usual)
+        try MealShopping.reconcile(context: context)
+        let list = try context.fetch(FetchDescriptor<ShoppingItem>())
+        #expect(list.count == 1)
+        #expect(list.first?.id == usual.id)
+        #expect(usual.mealNote.contains("150 ml"))
+    }
+
     @Test func partialAmountCostUsesThePurchasedPackagePrice() {
         let cream = PantryItem(name: "Heavy cream", category: .dairy, quantity: 500, unit: "ml", price: 5)
         let cost = CostCalculator.estimate(ingredients: ["100 ml heavy cream"], items: [cream])
