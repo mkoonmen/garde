@@ -507,6 +507,9 @@ enum GardeStore {
     static let container: ModelContainer = makeContainer(cloud: syncEnabled && !isExtension)
     static var isExtension: Bool { Bundle.main.bundlePath.hasSuffix(".appex") }
 
+    /// True if the saved kitchen couldn't be opened this launch (shown as a warning, so data loss is never silent).
+    nonisolated(unsafe) static var storeIsTemporary = false
+
     static func makeContainer(cloud: Bool) -> ModelContainer {
         // Automated tests: throwaway in-memory store (and no App Group entitlement in unsigned test builds).
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
@@ -527,6 +530,7 @@ enum GardeStore {
         if let c = try? ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, cloudKitDatabase: .none)) { return c }
         // Last resort so the app still opens (data won't persist this launch).
         print("Garde: persistent store unavailable, using in-memory store")
+        storeIsTemporary = true
         return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
     }
 }

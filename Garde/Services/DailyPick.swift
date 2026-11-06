@@ -28,10 +28,12 @@ final class DailyPick {
 
     func refreshIfNeeded(items: [PantryItem], spices: [Spice], profile: KitchenProfile?, logs: [CookLog], force: Bool = false) async {
         let tried = UserDefaults.standard.string(forKey: "dailyPick.tried")
-        guard force || (!isFresh && tried != Self.today), !working, let profile else { return }
+        guard force || (!isFresh && tried != Self.today), !working else { return }
+        guard let profile else { if force { problem = "Set up your kitchen profile in More first." }; return }
         let fresh = items.filter { ($0.daysLeft ?? 99) >= 0 }
         problem = nil
-        guard fresh.count >= 3 else { if force { problem = "Add a few more things to your kitchen first." }; return }
+        // A near-empty kitchen still gets an idea: one built on common staples you'd pick up.
+        let sparse = fresh.count < 3
         let chef = ChefAI()
         guard chef.state == .available else {
             if force, case .unavailable(let why) = chef.state { problem = why }
@@ -47,7 +49,7 @@ final class DailyPick {
         if let t = pick?.title, !seenToday.contains(t) { seenToday.append(t) }
         let styles = ["weeknight easy", "something different from usual", "cozy", "bright and fresh", "restaurant-style", "one-pan"]
         let avoid = seenToday.isEmpty ? "" : " Not any of these: \(seenToday.joined(separator: ", "))."
-        let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, \(force ? styles.randomElement()! : styles[0]).\(avoid)", maxMinutes: 45, mustUse: Array(soon))
+        let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, \(force ? styles.randomElement()! : styles[0]).\(sparse ? " The kitchen is nearly empty, so use a short list of everyday groceries." : "")\(avoid)", maxMinutes: 45, mustUse: Array(soon))
         let out: (recipes: [RecipeIdea], blocked: Int)
         do { out = try await chef.suggestRecipes(items: fresh, spices: spices, profile: profile, logs: logs, request: req) }
         catch { problem = "The chef couldn't come up with one just now. Try again."; return }

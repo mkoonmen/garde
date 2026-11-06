@@ -29,16 +29,27 @@ struct InventoryView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
+                if GardeStore.storeIsTemporary {
+                    Section { Label("Garde couldn't open your saved kitchen this time, so nothing you add will be kept. Close Garde fully and reopen it.", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red) }
+                }
                 if search.isEmpty && filter == nil, let problem = daily.problem {
                     Section { Label(problem, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(.orange) }
                 }
-                if search.isEmpty && filter == nil, let p = daily.pick, daily.isFresh,
-                   AllergenGuard.violations(in: [p.title] + p.ingredients + p.steps, allergies: profiles.first?.allergies ?? []).isEmpty {
+                if search.isEmpty && filter == nil {
                     Section {
-                        NavigationLink {
-                            RecipeDetailView(title: p.title, summary: p.summary, minutes: p.minutes, servings: p.servings,
-                                             ingredients: p.ingredients, steps: p.steps)
-                        } label: { RecipeRow(title: p.title, summary: p.summary, minutes: p.minutes) }
+                        if let p = daily.pick, daily.isFresh,
+                           AllergenGuard.violations(in: [p.title] + p.ingredients + p.steps, allergies: profiles.first?.allergies ?? []).isEmpty {
+                            NavigationLink {
+                                RecipeDetailView(title: p.title, summary: p.summary, minutes: p.minutes, servings: p.servings,
+                                                 ingredients: p.ingredients, steps: p.steps)
+                            } label: { RecipeRow(title: p.title, summary: p.summary, minutes: p.minutes) }
+                        } else if daily.working {
+                            Label("Thinking up tonight's dinner…", systemImage: "sparkles").foregroundStyle(.secondary)
+                        } else {
+                            Button { Task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs, force: true) } } label: {
+                                Label("Get an idea for tonight", systemImage: "sparkles")
+                            }
+                        }
                     } header: {
                         HStack {
                             Text("Tonight's idea")
@@ -349,8 +360,9 @@ struct KitchenHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(greeting).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).padding(.bottom, 2)
                 Text(expiring == 0 ? "Everything's fresh." : "\(expiring) thing\(expiring == 1 ? "" : "s") to use soon")
                     .font(.system(.title2, design: .serif).weight(.bold))
                     .contentTransition(.numericText())
