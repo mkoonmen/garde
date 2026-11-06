@@ -22,6 +22,7 @@ struct MoreView: View {
                     NavigationLink { ProfileView() } label: { Label("Allergies & tastes", systemImage: "heart.text.square") }
                     NavigationLink { ReceiptsView() } label: { Label("Receipts", systemImage: "receipt") }
                     NavigationLink { GmailSettingsView() } label: { Label("Gmail receipts", systemImage: "envelope") }
+                    NavigationLink { CookJournalView() } label: { Label("Cooking journal", systemImage: "book.closed") }
                     NavigationLink { UsedUpView() } label: { Label("Used-up history", systemImage: "clock.arrow.circlepath") }
                 }
                 Section {
