@@ -29,6 +29,18 @@ struct InsightsView: View {
 
     var body: some View {
         List { Group {
+            if let card = ReportCard.make(items: items, logs: logs, takeout: takeout, spent: monthSpent, budget: profiles.first?.monthlyBudget ?? 0) {
+                Section {
+                    HStack(spacing: 16) {
+                        Text(card.grade).font(.system(size: 54, weight: .heavy, design: .serif))
+                            .foregroundStyle(card.points >= 80 ? Color.green : card.points >= 60 ? Color.orange : Color.red)
+                            .frame(width: 70)
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(card.notes, id: \.self) { Text($0).font(.subheadline) }
+                        }
+                    }.padding(.vertical, 4)
+                } header: { Text("This month's report card") } footer: { Text("Waste, home cooking vs. takeout, and budget pace.") }
+            }
             Picker("Range", selection: $range) {
                 Text("30 days").tag(30); Text("90 days").tag(90); Text("Year").tag(365)
             }.pickerStyle(.segmented).listRowBackground(Color.clear)

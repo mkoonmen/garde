@@ -37,3 +37,36 @@ enum TasteProfile {
         return rated.isEmpty ? nil : Double(rated.map(\.rating).reduce(0, +)) / Double(rated.count)
     }
 }
+
+/// A simple monthly grade for how the kitchen is going: waste, cooking at home, and budget.
+enum ReportCard {
+    struct Card { let grade: String; let points: Int; let notes: [String] }
+
+    static func make(items: [PantryItem], logs: [CookLog], takeout: [TakeoutOrder], spent: Double, budget: Double, now: Date = .now) -> Card? {
+        let start = Calendar.current.dateInterval(of: .month, for: now)?.start ?? now
+        let finished = items.filter { $0.isUsedUp && ($0.usedUpDate ?? .distantPast) >= start }
+        let cooked = logs.filter { $0.date >= start }.count
+        let ordered = takeout.filter { $0.date >= start }.count
+        guard finished.count + cooked + ordered >= 3 else { return nil }
+        var points = 0, notes: [String] = []
+        // Waste: up to 40 points
+        let tossed = finished.filter(\.wasTossed).count
+        let wasteRate = finished.isEmpty ? 0 : Double(tossed) / Double(finished.count)
+        points += Int((40 * (1 - min(wasteRate / 0.3, 1))).rounded())
+        notes.append(tossed == 0 ? "Nothing thrown away" : "\(tossed) of \(finished.count) items tossed (\(Int((wasteRate * 100).rounded()))%)")
+        // Home cooking: up to 35 points
+        let homeShare = cooked + ordered == 0 ? 0.5 : Double(cooked) / Double(cooked + ordered)
+        points += Int((35 * min(homeShare / 0.75, 1)).rounded())
+        notes.append("\(cooked) cooked at home, \(ordered) takeout")
+        // Budget: 25 points (full marks with no budget set but some spending tracked)
+        if budget > 0 {
+            let day = Double(Calendar.current.component(.day, from: now))
+            let days = Double(Calendar.current.range(of: .day, in: .month, for: now)?.count ?? 30)
+            let pace = day < 7 ? spent + budget / days * (days - day) : spent / day * days
+            points += pace <= budget ? 25 : max(0, 25 - Int(((pace - budget) / budget * 100).rounded()))
+            notes.append(pace <= budget ? "On pace for your budget" : "On pace to go over budget")
+        } else { points += 20 }
+        let grade = points >= 90 ? "A" : points >= 80 ? "B" : points >= 70 ? "C" : points >= 60 ? "D" : "F"
+        return Card(grade: grade, points: points, notes: notes)
+    }
+}

@@ -40,6 +40,20 @@ enum Notifier {
         }
     }
 
+    /// "Leftover piccata for lunch?" at 11:30 the next day.
+    static func leftoverLunch(title: String) {
+        guard UserDefaults.standard.object(forKey: "leftoverNudge") as? Bool ?? true else { return }
+        let c = UNMutableNotificationContent()
+        c.title = "Leftovers for lunch?"
+        c.body = "You've got \(title) in the fridge. It's best within 3–4 days."
+        c.sound = .default
+        c.userInfo = ["mustUse": "\(title) (leftovers)"]
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now) else { return }
+        var when = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow); when.hour = 11; when.minute = 30
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "leftover-" + UUID().uuidString, content: c,
+                                                                     trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)))
+    }
+
     /// Sunday 5 PM nudge to plan the week, with how much is expiring. Off when the setting is off.
     static func scheduleWeeklyNudge(items: [PantryItem]) {
         let center = UNUserNotificationCenter.current()

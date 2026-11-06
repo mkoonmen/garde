@@ -3,6 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct MoreView: View {
+    @State private var showAllergyCard = false
     @Environment(\.modelContext) private var context
     @State private var exportURL: URL?
     @State private var importing = false
@@ -20,6 +21,7 @@ struct MoreView: View {
                 }
                 Section {
                     NavigationLink { ProfileView() } label: { Label("Allergies & tastes", systemImage: "heart.text.square") }
+                    Button { showAllergyCard = true } label: { Label("Allergy card for restaurants", systemImage: "person.text.rectangle") }
                     NavigationLink { ReceiptsView() } label: { Label("Receipts", systemImage: "receipt") }
                     NavigationLink { GmailSettingsView() } label: { Label("Gmail receipts", systemImage: "envelope") }
                     NavigationLink { CookJournalView() } label: { Label("Cooking journal", systemImage: "book.closed") }
@@ -46,6 +48,7 @@ struct MoreView: View {
             }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("More")
+            .fullScreenCover(isPresented: $showAllergyCard) { AllergyCardView() }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
                 switch result {
                 case .success(let url):

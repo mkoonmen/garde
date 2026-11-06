@@ -353,3 +353,13 @@ import Foundation
         #expect(opts.contains { AllergenGuard.violations(in: [$0], allergies: ["Tree nuts except almonds, hazelnuts"]).isEmpty })
     }
 }
+
+@Suite("Report card") struct ReportCardTests {
+    @Test func perfectMonth() {
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20))!
+        let logs = (0..<6).map { i -> CookLog in let l = CookLog(title: "Dish \(i)", rating: 5); l.date = now.addingTimeInterval(-Double(i) * 86_400); return l }
+        let eaten = (0..<4).map { _ -> PantryItem in let p = PantryItem(name: "Milk"); p.isUsedUp = true; p.usedUpDate = now; return p }
+        let card = ReportCard.make(items: eaten, logs: logs, takeout: [], spent: 200, budget: 600, now: now)
+        #expect(card?.grade == "A")
+    }
+}
