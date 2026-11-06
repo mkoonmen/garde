@@ -74,6 +74,13 @@ struct MealPlanView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Week plan")
+        .toolbar {
+            if !plan.isEmpty {
+                ShareLink(item: "This week's dinners\n\n" + plan.map { "\($0.day.formatted(.dateTime.weekday(.wide))): \($0.title)" }.joined(separator: "\n") + "\n\nFrom Garde") {
+                    Label("Share plan", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
     }
 
     private func makePlan() async {

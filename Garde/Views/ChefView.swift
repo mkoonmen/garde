@@ -20,6 +20,9 @@ struct ChefView: View {
     @State private var error: String?
 
     private let moods = ["Quick weeknight", "Comfort food", "Date night", "High protein", "Light & fresh", "Impress guests"]
+    private let surprises = ["A dish from a cuisine I rarely cook", "A steakhouse-style dinner at home", "Something smoky and charred",
+                             "A cozy one-pot dinner", "A bright, citrusy seafood dish", "A fancy brunch-for-dinner", "Something with a crispy crust",
+                             "A slow Sunday braise", "Street-food style", "A dish a French bistro would serve"]
     private var expiring: [PantryItem] { items.filter { ($0.daysLeft ?? 99) <= 3 }.sorted { ($0.daysLeft ?? 0) < ($1.daysLeft ?? 0) } }
 
     var body: some View {
@@ -88,6 +91,10 @@ struct ChefView: View {
                     TextField("Or describe it: \"something Italian with the chicken\"", text: $mood, axis: .vertical)
                     Stepper("Up to \(maxMinutes) minutes", value: $maxMinutes, in: 10...180, step: 5)
                     Toggle("Only what I have (no shopping)", isOn: $noShopping)
+                    Button("Surprise me", systemImage: "dice") {
+                        mood = surprises.randomElement() ?? ""
+                        Task { await cook() }
+                    }.disabled(working)
                 }
 
                 let leftovers = items.filter(\.isLeftover)
