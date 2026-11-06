@@ -46,8 +46,12 @@ struct WhatsNewView: View {
             }
             if let onDone {
                 Section {
-                    Button { onDone() } label: { Text("Let's cook").font(.headline).frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
+                    // Drawn by hand: a tinted system button rendered cream-on-cream inside this sheet.
+                    Button { onDone() } label: {
+                        Text("Let's cook").font(.headline).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 16)
+                            .background(Theme.copper, in: .capsule)
+                    }.buttonStyle(.plain)
                 }.listRowBackground(Color.clear)
             }
         }.listRowBackground(RowGlass()) }

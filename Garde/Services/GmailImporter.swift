@@ -18,7 +18,55 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         if let o = UserDefaults.standard.string(forKey: "gmail.clientID"), !o.isEmpty { return o }
         return Bundle.main.object(forInfoDictionaryKey: "GardeGoogleClientID") as? String ?? ""
     }
-    var isSignedIn: Bool { Keychain.get("gmail.refresh") != nil }
+    // MARK: Accounts (several Gmail accounts, plus iCloud Mail or other IMAP mailboxes)
+
+    struct MailAccount: Codable, Identifiable, Hashable {
+        enum Kind: String, Codable { case gmail, imap }
+        var id: String = UUID().uuidString
+        var kind: Kind
+        var email: String
+        var host: String = ""          // IMAP server, e.g. imap.mail.me.com
+        var secretKey: String { "mail.secret." + id }   // Keychain: Gmail refresh token or IMAP app-specific password
+        var label: String { kind == .gmail ? "Gmail" : host.contains("me.com") ? "iCloud Mail" : host.contains("yahoo") ? "Yahoo Mail" : "Email" }
+    }
+
+    var accounts: [MailAccount] {
+        get {
+            var list = (UserDefaults.standard.data(forKey: "mail.accounts")).flatMap { try? JSONDecoder().decode([MailAccount].self, from: $0) } ?? []
+            // Move the single Gmail connection from older versions into the list.
+            if list.isEmpty, let old = Keychain.get("gmail.refresh") {
+                let a = MailAccount(kind: .gmail, email: UserDefaults.standard.string(forKey: "gmail.email") ?? "Gmail")
+                Keychain.set(old, for: a.secretKey); Keychain.delete("gmail.refresh")
+                list = [a]
+                UserDefaults.standard.set(try? JSONEncoder().encode(list), forKey: "mail.accounts")
+            }
+            return list
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "mail.accounts") }
+    }
+    var isSignedIn: Bool { !accounts.isEmpty }
+
+    func remove(_ account: MailAccount) {
+        Keychain.delete(account.secretKey)
+        accounts.removeAll { $0.id == account.id }
+    }
+
+    /// Adds an iCloud (or other IMAP) mailbox after checking the password works.
+    func addIMAP(email: String, password: String, host: String) async throws {
+        let e = email.trimmingCharacters(in: .whitespaces).lowercased()
+        let pw = password.trimmingCharacters(in: .whitespaces)
+        let client = IMAPClient(host: host)
+        try await client.connect()
+        // iCloud accepts the full address or just the name before the @.
+        do { try await client.login(user: e, password: pw) }
+        catch { if host.contains("me.com"), let short = e.split(separator: "@").first { try await client.login(user: String(short), password: pw) } else { throw error } }
+        await client.logout()
+        var list = accounts.filter { !($0.kind == .imap && $0.email == e) }
+        let a = MailAccount(kind: .imap, email: e, host: host)
+        Keychain.set(pw, for: a.secretKey)
+        list.append(a)
+        accounts = list
+    }
     private var authSession: ASWebAuthenticationSession?   // must be retained while the sheet is up
     private var isImporting = false
 
@@ -98,10 +146,21 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         }
         let tokens = try await tokenRequest(["code": code, "code_verifier": verifier, "redirect_uri": redirect, "grant_type": "authorization_code"])
         guard let refresh = tokens["refresh_token"] as? String else { throw GmailError.auth("no refresh token") }
-        Keychain.set(refresh, for: "gmail.refresh")
+        // Which Gmail is this? (So a second account is added, not mixed up with the first.)
+        var email = "Gmail"
+        if let access = tokens["access_token"] as? String,
+           let profile = try? await get(URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/profile")!, token: access),
+           let address = profile["emailAddress"] as? String { email = address.lowercased() }
+        var list = accounts
+        if let old = list.first(where: { $0.kind == .gmail && $0.email == email }) { Keychain.delete(old.secretKey); list.removeAll { $0.id == old.id } }
+        let a = MailAccount(kind: .gmail, email: email)
+        Keychain.set(refresh, for: a.secretKey)
+        list.append(a)
+        accounts = list
     }
 
-    func signOut() { Keychain.delete("gmail.refresh") }
+    /// Disconnects every mailbox.
+    func signOut() { accounts.forEach { Keychain.delete($0.secretKey) }; accounts = []; Keychain.delete("gmail.refresh") }
 
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
@@ -111,21 +170,48 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
 
     // MARK: Import
 
-    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0, takeout = 0, waiting = 0 }
+    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0, takeout = 0, waiting = 0; var problems: [String] = [] }
 
-    /// Imports grocery receipt emails not seen before. `progress(done, total)` is called as each email is read.
+    /// Imports receipt emails not seen before from every connected mailbox. `progress(done, total)` is called as each email is read.
     @discardableResult
     func importNew(context: ModelContext, progress: ((Int, Int) -> Void)? = nil) async throws -> ImportReport {
         var report = ImportReport()
         if isImporting { throw GmailError.api("An import is already running. Try again in a moment.") }
-        guard isSignedIn, !clientID.isEmpty, let refresh = Keychain.get("gmail.refresh") else { return report }
+        let mailboxes = accounts
+        guard !mailboxes.isEmpty else { return report }
         isImporting = true
         defer { isImporting = false; processed.save() }
         processed = ProcessedIDs()   // pick up any reset done elsewhere
-        let tokens = try await tokenRequest(["refresh_token": refresh, "grant_type": "refresh_token"])
-        guard let access = tokens["access_token"] as? String else { throw GmailError.auth("Please reconnect Gmail (Google sign-ins in testing expire weekly).") }
 
-        // All matching message ids (paged), newest first.
+        let known = Set(((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).compactMap(\.sourceID))
+            .union(((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).compactMap(\.sourceID))
+        var run = Run(brainReady: ChefAI().state == .available,
+                      existingTakeout: (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? [])
+        var problems: [String] = []
+        for account in mailboxes {
+            do {
+                switch account.kind {
+                case .gmail: try await importGmail(account, known: known, context: context, run: &run, report: &report, progress: progress)
+                case .imap: try await importIMAP(account, known: known, context: context, run: &run, report: &report, progress: progress)
+                }
+            } catch {
+                problems.append("\(account.email): \(error.localizedDescription)")
+            }
+        }
+        UserDefaults.standard.set(Date.now, forKey: "gmail.lastSync")
+        // One mailbox failing shouldn't hide what the others imported; only throw if nothing worked.
+        if !problems.isEmpty && report.emails == 0 { throw GmailError.api(problems.joined(separator: "\n")) }
+        report.problems = problems
+        return report
+    }
+
+    @MainActor private struct Run { var brainReady: Bool; var existingTakeout: [TakeoutOrder]; let chef = ChefAI() }
+
+    private func importGmail(_ account: MailAccount, known: Set<String>, context: ModelContext, run: inout Run,
+                             report: inout ImportReport, progress: ((Int, Int) -> Void)?) async throws {
+        guard !clientID.isEmpty, let refresh = Keychain.get(account.secretKey) else { return }
+        let tokens = try await tokenRequest(["refresh_token": refresh, "grant_type": "refresh_token"])
+        guard let access = tokens["access_token"] as? String else { throw GmailError.auth("Please reconnect this Gmail (Google sign-ins in testing expire weekly).") }
         let query = UserDefaults.standard.string(forKey: "gmail.query").flatMap { $0.isEmpty ? nil : $0 } ?? Self.defaultQuery
         var ids: [String] = []
         var page: String?
@@ -136,92 +222,125 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             ids += ((json["messages"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String }
             page = json["nextPageToken"] as? String
         } while page != nil && ids.count < 1500
-
-        let known = Set(((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).compactMap(\.sourceID))
-            .union(((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).compactMap(\.sourceID))
         let fresh = ids.filter { !processed.contains($0) && !known.contains("gmail:" + $0) }
-        let brainReady = ChefAI().state == .available
-        var existingTakeout = (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []
-        report.emails = fresh.count
-
-        let chef = ChefAI()
+        report.emails += fresh.count
         for (n, id) in fresh.enumerated() {
             progress?(n + 1, fresh.count)
             guard let msg = try? await get(URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)?format=full")!, token: access) else { continue }
             let (subject, from, date, body) = Self.extract(msg)
-            // Restaurant delivery receipts become takeout history (for cooking inspiration), not groceries.
-            if let service = Takeout.service(from: from, subject: subject) {
-                // Status emails ("delivered", "rate your order") would duplicate the same meal.
-                if EmailReceipt.isNotice(subject) { report.skipped += 1; processed.insert(id); continue }
-                // Without the AI, leave it unread so it's picked up once the model is ready.
-                guard brainReady else { report.waiting += 1; continue }
-                if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
-                    // The same meal often arrives as a confirmation and a receipt: keep one.
-                    let day = Calendar.current.startOfDay(for: date)
-                    let dupes = !order.dishes.isEmpty && existingTakeout.contains {
-                        Calendar.current.startOfDay(for: $0.date) == day && $0.restaurant.caseInsensitiveCompare(order.restaurant) == .orderedSame
-                            && Set($0.dishes.map { $0.lowercased() }) == Set(order.dishes.map { $0.lowercased() })
-                            && ($0.total == nil || order.total == nil || abs(($0.total ?? 0) - (order.total ?? 0)) < 0.01)
-                    }
-                    if dupes { report.skipped += 1; processed.insert(id); continue }
-                    order.sourceID = "gmail:" + id
-                    context.insert(order)
-                    existingTakeout.append(order)
-                    report.takeout += 1
-                } else { report.skipped += 1 }
-                processed.insert(id); try? context.save()
-                continue
-            }
-            // Only real grocery stores become grocery receipts; everything else (software, subscriptions, shipping notices) is ignored.
-            guard let knownStore = EmailReceipt.groceryStore(from: from, subject: subject),
-                  !EmailReceipt.isNotice(subject) else { report.skipped += 1; processed.insert(id); continue }
-            let focus = EmailReceipt.focus(body)
-            guard focus.priceLines >= 1 else { report.skipped += 1; processed.insert(id); continue }   // no prices = not a receipt
-
-            // Read in chunks so long receipts fit the on-device model, then merge.
-            var items: [ParsedItem] = []
-            var aiStore = "", aiTotal: Double?
-            for chunk in EmailReceipt.chunks(focus.text, size: 2200) {
-                let parsed = await chef.parseScan(text: "From: \(from)\nSubject: \(subject)\n\n" + chunk, labels: [])
-                items += parsed.items
-                if aiStore.isEmpty { aiStore = parsed.store }
-                if aiTotal == nil { aiTotal = parsed.total }
-            }
-            items = EmailReceipt.dedupe(items).filter { EmailReceipt.isFood($0) }
-            // A real receipt has a total, or at least a few food lines. "1 item, no total" is an order update.
-            guard !items.isEmpty, (focus.total ?? aiTotal) != nil || items.count >= 3 else { report.skipped += 1; processed.insert(id); continue }
-
-            let store = knownStore; _ = aiStore
-            let receipt = Receipt(store: store, date: date, total: focus.total ?? aiTotal, rawText: "From: \(from)\nSubject: \(subject)\n\n" + focus.text)
-            receipt.sourceID = "gmail:" + id
-            context.insert(receipt)
-            for p in items {
-                let loc = ShelfLife.defaultLocation(for: p.category, name: p.name)
-                let item = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
-                                      purchaseDate: date, expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(name: p.name, category: p.category, in: loc, from: date),
-                                      expirationIsEstimated: p.printedExpiration == nil, price: p.price, store: store)
-                // Old orders: food bought weeks ago is probably gone; count it as history, not current stock.
-                if date < .now.addingTimeInterval(-21 * 86_400) { item.isUsedUp = true; item.usedUpDate = date }
-                item.receipt = receipt
-                context.insert(item)
-            }
-            if date >= .now.addingTimeInterval(-21 * 86_400) { ShoppingBrain.checkOff(names: items.map(\.name), context: context) }
-            report.receipts += 1; report.items += items.count
-            processed.insert(id)
-            try? context.save()
+            await handle(processedKey: id, sourceID: "gmail:" + id, subject: subject, from: from, date: date, body: body,
+                         context: context, run: &run, report: &report)
         }
-        UserDefaults.standard.set(Date.now, forKey: "gmail.lastSync")
-        return report
+    }
+
+    /// iCloud Mail / IMAP: read headers for the past year, keep only store and delivery senders, then read those bodies.
+    private func importIMAP(_ account: MailAccount, known: Set<String>, context: ModelContext, run: inout Run,
+                            report: inout ImportReport, progress: ((Int, Int) -> Void)?) async throws {
+        guard let password = Keychain.get(account.secretKey) else { return }
+        let client = IMAPClient(host: account.host)
+        try await client.connect()
+        do { try await client.login(user: account.email, password: password) }
+        catch {
+            guard account.host.contains("me.com"), let short = account.email.split(separator: "@").first else { throw error }
+            try await client.login(user: String(short), password: password)
+        }
+        try await client.select("INBOX")
+        let since = Calendar.current.date(byAdding: .year, value: -1, to: .now) ?? .now
+        let all = try await client.uids(since: since).suffix(4000)
+        let prefix = "imap:\(account.id):"
+        let unseen = all.filter { !processed.contains(prefix + String($0)) && !known.contains(prefix + String($0)) }
+        // Headers in batches; only receipts from stores and delivery apps are worth opening.
+        var wanted: [(uid: Int, from: String, subject: String, date: Date)] = []
+        for start in stride(from: 0, to: unseen.count, by: 150) {
+            let batch = Array(unseen[unseen.index(unseen.startIndex, offsetBy: start)..<unseen.index(unseen.startIndex, offsetBy: min(start + 150, unseen.count))])
+            for h in try await client.headers(batch) {
+                let relevant = Takeout.service(from: h.from, subject: h.subject) != nil || EmailReceipt.groceryStore(from: h.from, subject: h.subject) != nil
+                if relevant && !EmailReceipt.isNotice(h.subject) { wanted.append(h) } else { processed.insert(prefix + String(h.uid)) }
+            }
+        }
+        report.emails += wanted.count
+        for (n, h) in wanted.enumerated() {
+            progress?(n + 1, wanted.count)
+            guard let raw = try? await client.message(h.uid) else { continue }
+            await handle(processedKey: prefix + String(h.uid), sourceID: prefix + String(h.uid), subject: h.subject, from: h.from,
+                         date: h.date, body: MIMEParser.bodyText(raw), context: context, run: &run, report: &report)
+        }
+        await client.logout()
+    }
+
+    /// Turns one email into a grocery receipt, a takeout order, or nothing.
+    private func handle(processedKey id: String, sourceID: String, subject: String, from: String, date: Date, body: String,
+                        context: ModelContext, run: inout Run, report: inout ImportReport) async {
+        // Restaurant delivery receipts become takeout history (for cooking inspiration), not groceries.
+        if let service = Takeout.service(from: from, subject: subject) {
+            // Status emails ("delivered", "rate your order") would duplicate the same meal.
+            if EmailReceipt.isNotice(subject) { report.skipped += 1; processed.insert(id); return }
+            // Without the AI, leave it unread so it's picked up once the model is ready.
+            guard run.brainReady else { report.waiting += 1; return }
+            if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
+                // The same meal often arrives as a confirmation and a receipt: keep one.
+                let day = Calendar.current.startOfDay(for: date)
+                let dupes = !order.dishes.isEmpty && run.existingTakeout.contains {
+                    Calendar.current.startOfDay(for: $0.date) == day && $0.restaurant.caseInsensitiveCompare(order.restaurant) == .orderedSame
+                        && Set($0.dishes.map { $0.lowercased() }) == Set(order.dishes.map { $0.lowercased() })
+                        && ($0.total == nil || order.total == nil || abs(($0.total ?? 0) - (order.total ?? 0)) < 0.01)
+                }
+                if dupes { report.skipped += 1; processed.insert(id); return }
+                order.sourceID = sourceID
+                context.insert(order)
+                run.existingTakeout.append(order)
+                report.takeout += 1
+            } else { report.skipped += 1 }
+            processed.insert(id); try? context.save()
+            return
+        }
+        // Only real grocery stores become grocery receipts; everything else (software, subscriptions, shipping notices) is ignored.
+        guard let knownStore = EmailReceipt.groceryStore(from: from, subject: subject),
+              !EmailReceipt.isNotice(subject) else { report.skipped += 1; processed.insert(id); return }
+        let focus = EmailReceipt.focus(body)
+        guard focus.priceLines >= 1 else { report.skipped += 1; processed.insert(id); return }   // no prices = not a receipt
+
+        // Read in chunks so long receipts fit the on-device model, then merge.
+        var items: [ParsedItem] = []
+        var aiTotal: Double?
+        for chunk in EmailReceipt.chunks(focus.text, size: 2200) {
+            let parsed = await run.chef.parseScan(text: "From: \(from)\nSubject: \(subject)\n\n" + chunk, labels: [])
+            items += parsed.items
+            if aiTotal == nil { aiTotal = parsed.total }
+        }
+        items = EmailReceipt.dedupe(items).filter { EmailReceipt.isFood($0) }
+        // A real receipt has a total, or at least a few food lines. "1 item, no total" is an order update.
+        guard !items.isEmpty, (focus.total ?? aiTotal) != nil || items.count >= 3 else { report.skipped += 1; processed.insert(id); return }
+
+        let store = knownStore
+        let receipt = Receipt(store: store, date: date, total: focus.total ?? aiTotal, rawText: "From: \(from)\nSubject: \(subject)\n\n" + focus.text)
+        receipt.sourceID = sourceID
+        context.insert(receipt)
+        for p in items {
+            let loc = ShelfLife.defaultLocation(for: p.category, name: p.name)
+            let item = PantryItem(name: p.name, category: p.category, location: loc, quantity: p.quantity, unit: p.unit,
+                                  purchaseDate: date, expirationDate: p.printedExpiration ?? ShelfLife.estimatedExpiration(name: p.name, category: p.category, in: loc, from: date),
+                                  expirationIsEstimated: p.printedExpiration == nil, price: p.price, store: store)
+            // Old orders: food bought weeks ago is probably gone; count it as history, not current stock.
+            if date < .now.addingTimeInterval(-21 * 86_400) { item.isUsedUp = true; item.usedUpDate = date }
+            item.receipt = receipt
+            context.insert(item)
+        }
+        if date >= .now.addingTimeInterval(-21 * 86_400) { ShoppingBrain.checkOff(names: items.map(\.name), context: context) }
+        report.receipts += 1; report.items += items.count
+        processed.insert(id)
+        try? context.save()
     }
 
     /// Deletes everything imported from Gmail and reads the past year again with the current reader.
     func reimport(context: ModelContext, progress: ((Int, Int) -> Void)? = nil) async throws -> ImportReport {
         if isImporting { throw GmailError.api("An import is already running. Try again in a moment.") }
-        for r in (try? context.fetch(FetchDescriptor<Receipt>())) ?? [] where r.sourceID?.hasPrefix("gmail:") == true {
+        let fromMail: (String?) -> Bool = { $0?.hasPrefix("gmail:") == true || $0?.hasPrefix("imap:") == true }
+        for r in (try? context.fetch(FetchDescriptor<Receipt>())) ?? [] where fromMail(r.sourceID) {
             (r.items ?? []).forEach(context.delete)
             context.delete(r)
         }
-        for t in (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? [] where t.sourceID?.hasPrefix("gmail:") == true { context.delete(t) }
+        for t in (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? [] where fromMail(t.sourceID) { context.delete(t) }
         processed.reset()
         try? context.save()
         return try await importNew(context: context, progress: progress)
@@ -274,7 +393,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         return Data(base64Encoded: b).map { String(data: $0, encoding: .utf8) ?? String(data: $0, encoding: .isoLatin1) ?? String(decoding: $0, as: UTF8.self) }
     }
 
-    static func stripHTML(_ html: String) -> String {
+    nonisolated static func stripHTML(_ html: String) -> String {
         html.replacing(/<style[^>]*>[\s\S]*?<\/style>/.ignoresCase(), with: "")
             .replacing(/<script[^>]*>[\s\S]*?<\/script>/.ignoresCase(), with: "")
             .replacing(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table)>/.ignoresCase(), with: "\n")

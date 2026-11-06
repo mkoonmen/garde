@@ -21,7 +21,7 @@ struct TakeoutView: View {
                         description: Text(connected
                             ? "Garde reads DoorDash, Uber Eats, Grubhub, Seamless and Caviar receipts from your Gmail. Tap Check Gmail, or Re-read all receipts to pull in the past year."
                             : "Connect Gmail and Garde will read your DoorDash, Uber Eats and Grubhub receipts to learn what you like."))
-                    NavigationLink("Gmail receipts") { GmailSettingsView() }
+                    NavigationLink("Email receipts") { GmailSettingsView() }
                 }
             } else {
                 Section {

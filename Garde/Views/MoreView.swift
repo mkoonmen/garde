@@ -23,7 +23,7 @@ struct MoreView: View {
                     NavigationLink { ProfileView() } label: { Label("Allergies & tastes", systemImage: "heart.text.square") }
                     Button { showAllergyCard = true } label: { Label("Allergy card for restaurants", systemImage: "person.text.rectangle") }
                     NavigationLink { ReceiptsView() } label: { Label("Receipts", systemImage: "receipt") }
-                    NavigationLink { GmailSettingsView() } label: { Label("Gmail receipts", systemImage: "envelope") }
+                    NavigationLink { GmailSettingsView() } label: { Label("Email receipts (Gmail, iCloud)", systemImage: "envelope") }
                     NavigationLink { CookJournalView() } label: { Label("Cooking journal", systemImage: "book.closed") }
                     NavigationLink { UsedUpView() } label: { Label("Used-up history", systemImage: "clock.arrow.circlepath") }
                 }
@@ -233,19 +233,37 @@ struct GmailSettingsView: View {
     @Environment(\.modelContext) private var context
     @AppStorage("gmail.autoImport") private var auto = false
     @Query(sort: \Receipt.date, order: .reverse) private var receipts: [Receipt]
-    @State private var signedIn = GmailImporter.shared.isSignedIn
+    @State private var accounts = GmailImporter.shared.accounts
+    @State private var addingIMAP = false
+    private var signedIn: Bool { !accounts.isEmpty }
     @State private var working = false
     @State private var progress: (Int, Int)?
     @State private var message: String?
     @State private var confirmReimport = false
 
-    private var gmailReceipts: [Receipt] { receipts.filter { $0.sourceID?.hasPrefix("gmail:") == true } }
+    private var gmailReceipts: [Receipt] { receipts.filter { $0.sourceID?.hasPrefix("gmail:") == true || $0.sourceID?.hasPrefix("imap:") == true } }
 
     var body: some View {
         Form { Group {
             Section {
+                ForEach(accounts) { a in
+                    HStack {
+                        Image(systemName: a.kind == .gmail ? "envelope.fill" : "icloud.fill").foregroundStyle(Theme.copper)
+                        VStack(alignment: .leading) {
+                            Text(a.email).font(.body.weight(.medium)).lineLimit(1)
+                            Text(a.label).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .swipeActions { Button("Remove", role: .destructive) { GmailImporter.shared.remove(a); accounts = GmailImporter.shared.accounts } }
+                }
+                Button {
+                    Task {
+                        do { try await GmailImporter.shared.signIn(); accounts = GmailImporter.shared.accounts; auto = true; message = nil; run(reimport: false) }
+                        catch { message = error.localizedDescription }
+                    }
+                } label: { Label(signedIn ? "Add another Gmail" : "Connect Gmail", systemImage: "envelope.badge") }
+                Button { addingIMAP = true } label: { Label("Add iCloud Mail (or Yahoo)", systemImage: "icloud") }
                 if signedIn {
-                    Label("Gmail connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     Toggle("Import new receipts automatically", isOn: $auto)
                     Button { run(reimport: false) } label: { Label(working ? "Reading emails…" : "Check for new receipts", systemImage: "arrow.down.circle") }
                         .disabled(working)
@@ -255,22 +273,15 @@ struct GmailSettingsView: View {
                     if let last = UserDefaults.standard.object(forKey: "gmail.lastSync") as? Date {
                         LabeledContent("Last checked", value: last.formatted(.relative(presentation: .named)))
                     }
-                } else {
-                    Button {
-                        Task {
-                            do { try await GmailImporter.shared.signIn(); signedIn = true; auto = true; message = nil; run(reimport: false) }
-                            catch { message = error.localizedDescription }
-                        }
-                    } label: { Label("Connect Gmail", systemImage: "envelope.badge").font(.headline) }
                 }
             } footer: {
-                Text("Sign in with any Google account. Garde asks for read-only access and reads your order and receipt emails from the past year (Target, Walmart, Costco, BJ's, King Kullen, Stop & Shop, Fine Fare, Whole Foods, Sprouts, Trader Joe's, Wegmans, Instacart, Amazon and more) and keeps the food. The first import of a full year can take several minutes; keep Garde open, and it picks up where it left off if interrupted. Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen. DoorDash, Uber Eats and restaurant receipts become Takeout favorites.\n\nTesting Garde? Google only lets approved test accounts sign in for now, so send the developer the Gmail address you want to use first (through TestFlight feedback).")
+                Text("Connect as many mailboxes as you like: several Gmail accounts, plus iCloud Mail (with an app-specific password) or Yahoo. Sign in with any Google account. Garde asks for read-only access and reads your order and receipt emails from the past year (Target, Walmart, Costco, BJ's, King Kullen, Stop & Shop, Fine Fare, Whole Foods, Sprouts, Trader Joe's, Wegmans, Instacart, Amazon and more) and keeps the food. The first import of a full year can take several minutes; keep Garde open, and it picks up where it left off if interrupted. Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen. DoorDash, Uber Eats and restaurant receipts become Takeout favorites.\n\nTesting Garde? Google only lets approved test accounts sign in for now, so send the developer the Gmail address you want to use first (through TestFlight feedback).")
             }
 
             if let message { Section { Text(message) } }
 
             if !gmailReceipts.isEmpty {
-                Section("Imported from Gmail · \(gmailReceipts.count)") {
+                Section("Imported from email · \(gmailReceipts.count)") {
                     ForEach(gmailReceipts.prefix(30)) { r in
                         NavigationLink { ReceiptDetailView(receipt: r) } label: {
                             HStack {
@@ -288,9 +299,9 @@ struct GmailSettingsView: View {
 
             if signedIn {
                 Section {
-                    Button("Re-read all Gmail receipts", systemImage: "arrow.clockwise") { confirmReimport = true }.disabled(working)
-                    Button("Disconnect Gmail", role: .destructive) { GmailImporter.shared.signOut(); signedIn = false; auto = false }
-                } footer: { Text("Re-reading deletes what was imported from Gmail and reads the past year again with the latest reader.") }
+                    Button("Re-read all email receipts", systemImage: "arrow.clockwise") { confirmReimport = true }.disabled(working)
+                    Button("Disconnect all mailboxes", role: .destructive) { GmailImporter.shared.signOut(); accounts = []; auto = false }
+                } footer: { Text("Re-reading deletes what was imported from email and reads the past year again with the latest reader. Swipe a mailbox to remove just that one.") }
             }
             Section {
                 Label("No Gmail? Share a receipt email from the Mail app to Garde, or snap a paper receipt in Scan.", systemImage: "square.and.arrow.up")
@@ -298,8 +309,9 @@ struct GmailSettingsView: View {
             }
         }.listRowBackground(RowGlass()) }
         .gardePage()
-        .navigationTitle("Gmail receipts")
-        .confirmationDialog("Re-read all Gmail receipts?", isPresented: $confirmReimport, titleVisibility: .visible) {
+        .navigationTitle("Email receipts")
+        .sheet(isPresented: $addingIMAP, onDismiss: { accounts = GmailImporter.shared.accounts }) { AddMailboxView { auto = true; run(reimport: false) } }
+        .confirmationDialog("Re-read all email receipts?", isPresented: $confirmReimport, titleVisibility: .visible) {
             Button("Re-read", role: .destructive) { run(reimport: true) }
         } message: { Text("Removes \(gmailReceipts.count) imported receipts and their items, then imports them again.") }
     }
@@ -314,6 +326,7 @@ struct GmailSettingsView: View {
                 message = r.emails == 0 ? "No new grocery emails."
                     : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) grocery receipt\(r.receipts == 1 ? "" : "s") (\(Plural.items(r.items)))\(r.takeout > 0 ? ", \(r.takeout) takeout orders" : "")\(r.skipped > 0 ? ", \(r.skipped) skipped" : "")."
                         + (r.waiting > 0 ? " \(r.waiting) takeout orders will be read once Apple Intelligence is ready." : "")
+                        + (r.problems.isEmpty ? "" : "\n\nCouldn't read: " + r.problems.joined(separator: "; "))
             } catch { message = error.localizedDescription }
             working = false
         }
@@ -380,5 +393,66 @@ struct NutAllergyView: View {
         profile.allergies.removeAll { let l = $0.lowercased(); return l.hasPrefix("tree nut") || l == "nuts" || l == "nut" || l.contains("peanut") }
         profile.allergies.append(summary)
         if peanutAllergy { profile.allergies.append("Peanuts") }
+    }
+}
+
+/// Connect iCloud Mail (or Yahoo / another IMAP mailbox) with an app-specific password.
+struct AddMailboxView: View {
+    @Environment(\.dismiss) private var dismiss
+    var onAdded: () -> Void
+    @State private var provider = "iCloud"
+    @State private var email = ""
+    @State private var password = ""
+    @State private var host = ""
+    @State private var working = false
+    @State private var error: String?
+
+    private var server: String {
+        switch provider { case "iCloud": "imap.mail.me.com"; case "Yahoo": "imap.mail.yahoo.com"; default: host.trimmingCharacters(in: .whitespaces) }
+    }
+    private var passwordHelp: URL {
+        URL(string: provider == "Yahoo" ? "https://login.yahoo.com/account/security" : "https://account.apple.com/account/manage")!
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form { Group {
+                Section {
+                    Picker("Mailbox", selection: $provider) { ForEach(["iCloud", "Yahoo", "Other"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
+                    TextField(provider == "iCloud" ? "you@icloud.com" : "Email address", text: $email)
+                        .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("App-specific password", text: $password)
+                    if provider == "Other" {
+                        TextField("IMAP server (e.g. imap.example.com)", text: $host).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    }
+                } footer: {
+                    Text(provider == "Yahoo"
+                         ? "Yahoo needs an app password: Account Security → Generate app password. Your normal password won't work."
+                         : "Apple needs an app-specific password, not your Apple Account password: Sign-In and Security → App-Specific Passwords → +. Garde only reads mail, on this iPhone, and keeps the password in the Keychain.")
+                }
+                Section { Link(provider == "Yahoo" ? "Open Yahoo Account Security" : "Make an app-specific password", destination: passwordHelp) }
+                if let error { Section { Text(error).foregroundStyle(.orange) } }
+            }.listRowBackground(RowGlass()) }
+            .gardePage()
+            .navigationTitle("Add mailbox")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    if working { ProgressView() } else {
+                        Button("Add") { Task { await add() } }.disabled(!email.contains("@") || password.count < 8 || server.isEmpty)
+                    }
+                }
+            }
+        }
+    }
+
+    private func add() async {
+        working = true; error = nil
+        defer { working = false }
+        do {
+            try await GmailImporter.shared.addIMAP(email: email, password: password, host: server)
+            dismiss(); onAdded()
+        } catch { self.error = error.localizedDescription }
     }
 }
