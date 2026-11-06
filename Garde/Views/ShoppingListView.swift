@@ -104,14 +104,14 @@ struct ShoppingListView: View {
                 prices = PriceBook.entries(everything)
                 await refreshDeals()
             }
-            .onChange(of: everything.filter { $0.isUsedUp && !$0.wasTossed && !$0.isLeftover }.map(\.id)) { _, _ in
-                ShoppingBrain.refreshRunningLow(context: context)
-            }
-            .onChange(of: pantry.map(\.id)) { _, _ in
-                ShoppingBrain.refreshRunningLow(context: context)
-            }
             .onChange(of: open.map(\.name)) { _, _ in deals.match(DealsService.terms(list: open, pantry: pantry)) }
         }
+        .onChange(of: finishedItemIDs) { _, _ in ShoppingBrain.refreshRunningLow(context: context) }
+        .onChange(of: pantry.map(\.id)) { _, _ in ShoppingBrain.refreshRunningLow(context: context) }
+    }
+
+    private var finishedItemIDs: [UUID] {
+        everything.filter { $0.isUsedUp && !$0.wasTossed && !$0.isLeftover }.map(\.id)
     }
 
     /// What to look for: everything on the list, then staples that are close to running out.
