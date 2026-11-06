@@ -22,15 +22,25 @@ enum QuickAdd {
     static let numberWords: [String: Double] = ["a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "half": 0.5, "a couple": 2, "couple": 2]
 
     static func parse(_ text: String) -> [Line] {
-        let parts = text.replacingOccurrences(of: "\n", with: ",")
+        // Keep dish names whole ("mac and cheese", "salt & pepper chips"): only split on "and" between list items.
+        var t = text.replacingOccurrences(of: "\n", with: ",")
+        for keep in ["mac and cheese", "salt and pepper", "salt & pepper", "half and half", "half & half", "peanut butter and jelly", "rock and roll"] {
+            t = t.replacingOccurrences(of: keep, with: keep.replacingOccurrences(of: " and ", with: "_and_").replacingOccurrences(of: " & ", with: "_amp_"), options: .caseInsensitive)
+        }
+        let parts = t
             .replacingOccurrences(of: #"\s+(and|plus|&)\s+"#, with: ",", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "_and_", with: " and ").replacingOccurrences(of: "_amp_", with: " & ")
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) }
             .filter { !$0.isEmpty }
         return parts.compactMap(line)
     }
 
-    static func line(_ raw: String) -> Line? {
+    static func line(_ input: String) -> Line? {
+        var raw = input
+        for (phrase, n) in [("half a dozen", "6"), ("a couple of", "2"), ("a couple", "2"), ("a few", "3")] where raw.lowercased().hasPrefix(phrase) {
+            raw = n + raw.dropFirst(phrase.count)
+        }
         var words = raw.split(separator: " ").map(String.init)
         var qty = 1.0, unit = "each"
         if let (v, end) = RecipeScaler.leadingAmount(raw) {

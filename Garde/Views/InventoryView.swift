@@ -230,9 +230,9 @@ struct ItemEditView: View {
                 if let item, !item.isUsedUp {
                     Section {
                         Button("Cook something with \(item.name)", systemImage: "frying.pan") {
+                            save()   // keep any edits, then go cook (save() closes the sheet)
                             NotificationRouter.shared.mustUse = item.name
                             NotificationRouter.shared.tab = 2
-                            dismiss()
                         }
                     }
                 }

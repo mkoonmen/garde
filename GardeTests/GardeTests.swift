@@ -279,7 +279,11 @@ import Foundation
         #expect(l[2].unit == "gal")
         #expect(l[1].category == .poultry)
     }
-    @Test func dozen() { #expect(QuickAdd.parse("a dozen eggs").first?.quantity == 12) }
+    @Test func dozen() {
+        #expect(QuickAdd.parse("a dozen eggs").first?.quantity == 12)
+        #expect(QuickAdd.parse("half a dozen eggs").first?.quantity == 6)
+        #expect(QuickAdd.parse("mac and cheese, milk").map(\.name) == ["Mac and cheese", "Milk"])
+    }
 }
 
 @Suite("Where to shop") struct BestStoreTests {
@@ -323,6 +327,8 @@ import Foundation
         #expect(ShoppingBrain.sameFood("whole milk", "milk"))
         #expect(!ShoppingBrain.sameFood("egg", "eggplant"))
         #expect(!ShoppingBrain.sameFood("oil", "foil"))
+        #expect(!ShoppingBrain.words("peanut butter").isSubset(of: ShoppingBrain.words("butter")))
+        #expect(ShoppingBrain.words("eggs").isSubset(of: ShoppingBrain.words("large brown eggs")))
     }
 }
 
@@ -339,6 +345,8 @@ import Foundation
         #expect(Substitutions.offline(for: "1 cup buttermilk") != nil)
         #expect(Substitutions.offline(for: "2 large eggs") != nil)
         #expect(Substitutions.offline(for: "1 eggplant") == nil)
+        #expect(Substitutions.offline(for: "2 tbsp peanut butter") == nil)
+        #expect(Substitutions.offline(for: "8 oz egg noodles") == nil)
     }
     @Test func nutSwapIsSafeForMichael() {
         let opts = Substitutions.offline(for: "1/2 cup walnuts")?.options ?? []

@@ -29,8 +29,15 @@ enum Substitutions {
 
     static func offline(for line: String) -> (options: [String], note: String)? {
         let food = RecipeScaler.foodName(line).lowercased()
-        let words = Set(food.split { !$0.isLetter }.map(String.init))
-        guard let hit = table.first(where: { e in e.keys.contains { k in k.contains(" ") ? food.contains(k) : words.contains(k) } }) else { return nil }
+        let words = food.split { !$0.isLetter }.map(String.init)
+        // Single-word keys must be the food itself ("butter"), not part of another food ("peanut butter", "egg noodles").
+        let modifiers: Set<String> = ["peanut", "almond", "apple", "cocoa", "nut", "cashew", "sunflower", "shea", "seed", "coconut", "oat", "soy"]
+        func matchesKey(_ k: String) -> Bool {
+            if k.contains(" ") { return food.contains(k) }
+            guard let last = words.last, last == k || last == k + "s" else { return false }
+            return !words.dropLast().contains(where: modifiers.contains)
+        }
+        guard let hit = table.first(where: { e in e.keys.contains(where: matchesKey) }) else { return nil }
         return (hit.options, hit.note)
     }
 }

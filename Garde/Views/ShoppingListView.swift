@@ -55,7 +55,9 @@ struct ShoppingListView: View {
                             Text("Nothing on your list is on sale this week.").font(.subheadline).foregroundStyle(.secondary)
                         }
                         ForEach(deals.matchedDeals.prefix(8)) { d in
-                            DealRow(deal: d, usual: prices.first { ShoppingBrain.sameFood($0.key, d.name) }?.average)
+                            // Only compare like with like: every word you buy it as must be in the deal, and not per-pound deals.
+                            let perLb = d.name.lowercased().contains("/lb") || d.name.lowercased().contains("per lb") || d.priceText.lowercased().contains("lb")
+                            DealRow(deal: d, usual: perLb ? nil : prices.first { !$0.key.isEmpty && ShoppingBrain.words($0.key).isSubset(of: ShoppingBrain.words(d.name)) }?.average)
                         }
                         NavigationLink("Browse all \(deals.visible.count) sale items") { DealsView() }
                     } header: {

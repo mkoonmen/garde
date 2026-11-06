@@ -15,7 +15,7 @@ enum AllergenGuard {
         "peanut": ["peanut", "groundnut", "satay"],
         "tree nut": ["almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia", "brazil nut", "pine nut",
                      "praline", "marzipan", "nutella", "pesto", "frangipane", "gianduja", "nut butter", "amaretto",
-                     "nut", "nuts", "chestnut", "nut oil", "nocino", "nocello", "noix", "pignoli", "pili nut", "piñon", "pinon", "hickory nut", "mortadella", "korma", "pasanda", "waldorf", "mole", "panforte", "torrone", "kulfi", "baklava", "gianduja", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
+                     "nut", "nuts", "chestnut", "nut oil", "nocino", "nocello", "noix", "pignoli", "pili nut", "piñon", "pinon", "hickory nut", "mortadella", "korma", "pasanda", "waldorf", "mole", "panforte", "torrone", "kulfi", "kaju", "malai kofta", "shahi", "fesenjan", "satsivi", "tarator", "marron", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
         "dairy": ["milk", "butter", "cream", "creme", "crème", "cheese", "yogurt", "yoghurt", "ghee", "whey", "casein", "mozzarella",
                   "parmesan", "parmigiano", "pecorino", "brie", "cheddar", "gouda", "ricotta", "boursin", "mascarpone", "burrata",
                   "feta", "stracciatella", "half-and-half", "custard", "queso", "paneer", "kefir", "alfredo"],

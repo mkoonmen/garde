@@ -40,8 +40,11 @@ struct MealPrepView: View {
                         }
                         ForEach(d.ingredients, id: \.self) { Text("• \($0)").font(.subheadline) }
                         Button(saved.contains(d.name) ? "Saved" : "Save recipe", systemImage: saved.contains(d.name) ? "checkmark" : "bookmark") {
-                            context.insert(SavedRecipe(title: d.name, summary: "Meal prep · \(d.portions) portions · \(d.storage)", minutes: 0,
-                                                       servings: d.portions, ingredients: d.ingredients, steps: plan.session))
+                            // Keep only the session steps that are about this dish (fall back to all of them).
+                            let words = ShoppingBrain.words(d.name).filter { $0.count > 3 }
+                            let own = plan.session.filter { step in words.contains { step.lowercased().contains($0) } }
+                            context.insert(SavedRecipe(title: d.name, summary: "Meal prep · \(d.portions) portions · \(d.storage)", minutes: 60,
+                                                       servings: d.portions, ingredients: d.ingredients, steps: own.count >= 2 ? own : plan.session))
                             saved.insert(d.name)
                         }.disabled(saved.contains(d.name))
                     }
@@ -54,7 +57,7 @@ struct MealPrepView: View {
                 Section("To buy") {
                     ForEach(plan.shoppingList, id: \.self) { Text("• \($0)") }
                     Button(added ? "Added to your list" : "Add all to shopping list", systemImage: added ? "checkmark" : "cart.badge.plus") {
-                        ShoppingBrain.add(needToBuy: plan.shoppingList, for: "Meal prep", day: .now, context: context)
+                        ShoppingBrain.add(needToBuy: plan.shoppingList.map { RecipeScaler.foodName($0).capitalized }, for: "Meal prep", day: .now, context: context)
                         added = true
                     }.disabled(added || plan.shoppingList.isEmpty)
                 }

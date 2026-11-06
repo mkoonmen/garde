@@ -17,6 +17,7 @@ struct InboxView: View {
     @State private var working: Set<UUID> = []
     @State private var receiptNote: String?
     @State private var pasted = ""
+    @State private var declinedReceipts: Set<UUID> = []
 
     var body: some View {
         List { Group {
@@ -44,7 +45,10 @@ struct InboxView: View {
         .gardePage()
         .navigationTitle("Shared recipes")
         .task { await processAll() }
-        .sheet(item: $pendingReceipt) { p in
+        .sheet(item: $pendingReceipt, onDismiss: {
+            // Closed without adding: don't keep popping it up; it stays in the list to read or remove.
+            for i in items where RecipeInbox.load().contains(where: { $0.id == i.id }) { declinedReceipts.insert(i.id) }
+        }) { p in
             ScanReviewView(scan: p.scan, isReceipt: true, rawText: p.text, image: nil) {
                 RecipeInbox.remove(p.item.id)
                 items.removeAll { $0.id == p.item.id }
@@ -61,8 +65,10 @@ struct InboxView: View {
             switch result {
             case .success(let imp):
                 let r = imp.recipe
-                if !imp.allergens.isEmpty {
-                    Label("Contains \(imp.allergens.joined(separator: ", ")), which you're allergic to.", systemImage: "exclamationmark.triangle.fill")
+                // Re-checked every time, so a changed allergy list applies to recipes read earlier too.
+                let allergens = Array(Set(imp.allergens + AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: profiles.flatMap(\.allergies)))).sorted()
+                if !allergens.isEmpty {
+                    Label("Contains \(allergens.joined(separator: ", ")), which you're allergic to.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red).font(.subheadline.weight(.semibold))
                 }
                 NavigationLink {
@@ -79,9 +85,9 @@ struct InboxView: View {
                         context.insert(SavedRecipe(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                                                    ingredients: r.ingredients, steps: r.steps))
                         done(item)
-                    }.disabled(!imp.allergens.isEmpty)
+                    }.disabled(!allergens.isEmpty)
                     Spacer()
-                    if !imp.missing.isEmpty && imp.allergens.isEmpty {
+                    if !imp.missing.isEmpty && allergens.isEmpty {
                         Button("Add missing to List", systemImage: "cart.badge.plus") {
                             let safe = imp.missing.filter { AllergenGuard.violations(in: [$0], allergies: profiles.flatMap(\.allergies)).isEmpty }
                             ShoppingBrain.add(needToBuy: safe.map(shortName), for: r.title, day: .now, context: context)
@@ -97,6 +103,12 @@ struct InboxView: View {
                     Button("Remove", role: .destructive) { done(item) }
                 }.buttonStyle(.borderless)
             }
+        } else if looksLikeReceipt(item) {
+            HStack {
+                Button("Review this receipt") { Task { declinedReceipts.remove(item.id); _ = await importIfReceipt(item) } }
+                Spacer()
+                Button("Remove", role: .destructive) { done(item) }
+            }.buttonStyle(.borderless)
         } else {
             Button("Read this recipe") { Task { await process(item) } }
         }
@@ -121,18 +133,25 @@ struct InboxView: View {
     }
 
     private func processAll() async {
-        for item in items where results[item.id] == nil {
-            if pendingReceipt == nil, await importIfReceipt(item) { continue }
+        for item in items where results[item.id] == nil && !declinedReceipts.contains(item.id) {
+            if looksLikeReceipt(item) {
+                if pendingReceipt == nil { _ = await importIfReceipt(item) }
+                continue   // a receipt is never read as a recipe
+            }
             await process(item)
         }
     }
 
     /// A shared receipt email (from Mail) goes straight into the kitchen instead of being read as a recipe.
-    private func importIfReceipt(_ item: InboxItem) async -> Bool {
+    private func looksLikeReceipt(_ item: InboxItem) -> Bool {
         guard let text = item.text else { return false }
         let lower = text.lowercased()
         let priceLines = text.split(separator: "\n").filter { $0.contains(/\d+\.\d{2}\s*$/) }.count
-        guard priceLines >= 3, lower.contains("total") || lower.contains("order") || lower.contains("receipt") else { return false }
+        return priceLines >= 3 && (lower.contains("total") || lower.contains("order") || lower.contains("receipt"))
+    }
+
+    private func importIfReceipt(_ item: InboxItem) async -> Bool {
+        guard looksLikeReceipt(item), let text = item.text else { return false }
         let scan = await ChefAI().parseScan(text: String(text.prefix(6000)), labels: [])
         guard !scan.items.isEmpty else { return false }
         // Show it for review first: a recipe post with prices shouldn't silently become groceries.

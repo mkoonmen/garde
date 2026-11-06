@@ -224,9 +224,17 @@ final class KitchenProfile {
     @MainActor static func merge(context: ModelContext) {
         let all = (try? context.fetch(FetchDescriptor<KitchenProfile>())) ?? []
         guard all.count > 1 else { return }
-        let keep = all.max { ($0.allergies.count + $0.loves.count + $0.dislikes.count) < ($1.allergies.count + $1.loves.count + $1.dislikes.count) }!
+        // Choose by content only, so every synced device picks the same one (picking by fetch order could make two
+        // devices each delete a different copy and lose both).
+        func sig(_ p: KitchenProfile) -> String {
+            [p.allergies, p.loves, p.dislikes].map { $0.map { $0.lowercased() }.sorted().joined(separator: "|") }.joined(separator: "#") + "#" + p.dietNotes
+        }
+        func score(_ p: KitchenProfile) -> Int { p.allergies.count * 100 + p.loves.count + p.dislikes.count + (p.dietNotes.isEmpty ? 0 : 1) }
+        let ordered = all.sorted { score($0) != score($1) ? score($0) > score($1) : sig($0) < sig($1) }
+        let keep = ordered[0]
         func union(_ a: [String], _ b: [String]) -> [String] { a + b.filter { x in !a.contains { $0.caseInsensitiveCompare(x) == .orderedSame } } }
-        for p in all where p !== keep {
+        for p in ordered.dropFirst() {
+            if sig(p) == sig(keep) && score(p) == score(keep) { continue }   // identical copies are harmless; deleting one risks both
             keep.allergies = union(keep.allergies, p.allergies)
             keep.loves = union(keep.loves, p.loves)
             keep.dislikes = union(keep.dislikes, p.dislikes)

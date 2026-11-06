@@ -34,7 +34,15 @@ final class CookVoice {
     init() {
         synth.delegate = speechDelegate
         speechDelegate.onFinish = { [weak self] in
-            Task { @MainActor in self?.quietUntil = .now.addingTimeInterval(0.8) }
+            Task { @MainActor in
+                guard let self else { return }
+                self.quietUntil = .now.addingTimeInterval(0.8)
+                // Start a fresh transcript so words heard while Garde was talking can't fire a command late.
+                if self.isListening, let r = self.recognizer {
+                    self.engine.stop()
+                    do { try self.beginRecognition(r) } catch { self.stop(); self.problem = "Listening stopped. Tap Voice to start again." }
+                }
+            }
         }
     }
 

@@ -29,10 +29,18 @@ struct HostView: View {
         return now
     }
 
+    static func nextChristmas(from now: Date = .now) -> Date {
+        let cal = Calendar.current
+        let y = cal.component(.year, from: now)
+        let d = cal.date(from: DateComponents(year: y, month: 12, day: 25, hour: 16)) ?? now
+        return d > now ? d : cal.date(from: DateComponents(year: y + 1, month: 12, day: 25, hour: 16)) ?? now
+    }
+
     /// Fridge thawing: about 1 day per 4–5 lb (USDA). Returns when it must go in the fridge.
     static func thawStart(pounds: Double, serving: Date) -> Date {
         let days = Int((pounds / 4.5).rounded(.up))
-        return Calendar.current.startOfDay(for: serving).addingTimeInterval(-Double(days) * 86_400)
+        let cal = Calendar.current
+        return cal.date(byAdding: .day, value: -days, to: cal.startOfDay(for: serving)) ?? serving
     }
 
     var body: some View {
@@ -79,7 +87,7 @@ struct HostView: View {
                 Section("To buy") {
                     ForEach(menu.shoppingList, id: \.self) { Text("• \($0)") }
                     Button(added ? "Added to your list" : "Add all to shopping list", systemImage: added ? "checkmark" : "cart.badge.plus") {
-                        ShoppingBrain.add(needToBuy: menu.shoppingList, for: occasion.ifEmpty("the party"), day: .now, context: context)
+                        ShoppingBrain.add(needToBuy: menu.shoppingList.map { RecipeScaler.foodName($0).capitalized }, for: occasion.ifEmpty("the party"), day: .now, context: context)
                         added = true
                     }.disabled(added || menu.shoppingList.isEmpty)
                 }
@@ -87,6 +95,10 @@ struct HostView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Host a dinner")
+        .onChange(of: occasion) { _, o in
+            if o.localizedCaseInsensitiveContains("christmas") { dinnerDay = Self.nextChristmas() }
+            else if o.localizedCaseInsensitiveContains("giving") { dinnerDay = Self.nextThanksgiving() }
+        }
     }
 
     private func plan() async {

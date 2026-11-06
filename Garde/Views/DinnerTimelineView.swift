@@ -6,11 +6,15 @@ import UserNotifications
 struct DinnerTimelineView: View {
     @Query(sort: \SavedRecipe.title) private var saved: [SavedRecipe]
     @State private var picked: Set<UUID> = []
-    @State private var serveAt = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
+    @State private var serveAt: Date = {
+        let seven = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
+        return seven > .now.addingTimeInterval(30 * 60) ? seven : Calendar.current.date(byAdding: .day, value: 1, to: seven) ?? seven
+    }()
     @State private var extra: [(name: String, minutes: Int)] = []
     @State private var newName = ""
     @State private var newMinutes = 20
     @State private var reminders = false
+    @State private var earlier = 0      // reminders still pending from a timeline set up before
 
     struct Step: Identifiable { let id = UUID(); let name: String; let minutes: Int; let start: Date }
 
@@ -26,8 +30,16 @@ struct DinnerTimelineView: View {
 
     var body: some View {
         List { Group {
+            if earlier > 0 && !reminders {
+                Section {
+                    Button("Cancel \(earlier) reminder\(earlier == 1 ? "" : "s") from an earlier timeline", systemImage: "bell.slash", role: .destructive) {
+                        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: (0..<30).map { "timeline-\($0)" })
+                        earlier = 0
+                    }
+                }
+            }
             Section {
-                DatePicker("Serve at", selection: $serveAt, displayedComponents: .hourAndMinute)
+                DatePicker("Serve at", selection: $serveAt, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
             }
             Section("Dishes") {
                 if saved.isEmpty && extra.isEmpty { Text("Save some recipes, or add a dish below.").foregroundStyle(.secondary) }
@@ -78,6 +90,11 @@ struct DinnerTimelineView: View {
         .gardePage()
         .navigationTitle("Dinner timeline")
         .onChange(of: serveAt) { _, _ in if reminders { schedule(true) } }
+        .onChange(of: steps.map(\.start)) { _, _ in if reminders { schedule(true) } }
+        .task {
+            let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
+            earlier = pending.filter { $0.identifier.hasPrefix("timeline-") }.count
+        }
     }
 
     private func schedule(_ on: Bool) {

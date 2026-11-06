@@ -89,15 +89,17 @@ enum ShoppingBrain {
         for item in (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? [] where !item.isChecked {
             let k = key(item.name)
             guard k.count >= 3 else { continue }
-            if keys.contains(k) || keys.contains(where: { sameFood(k, $0) }) { item.isChecked = true }
+            // Only when every word of the list item is in what was bought: "Butter" bought never ticks off "Peanut butter".
+            if keys.contains(k) || keys.contains(where: { words(k).isSubset(of: words($0)) }) { item.isChecked = true }
         }
     }
 
     /// Whole-word match either way: "eggs" ~ "large brown eggs", "milk" ~ "whole milk"; never "egg" ~ "eggplant".
+    static func words(_ s: String) -> Set<String> {
+        Set(s.lowercased().split { !$0.isLetter }.map { w in let w = String(w); return w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") ? String(w.dropLast()) : w })
+    }
+
     static func sameFood(_ a: String, _ b: String) -> Bool {
-        func words(_ s: String) -> Set<String> {
-            Set(s.split { !$0.isLetter }.map { w in let w = String(w); return w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") ? String(w.dropLast()) : w })
-        }
         let x = words(a), y = words(b)
         guard !x.isEmpty, !y.isEmpty else { return false }
         return x.isSubset(of: y) || y.isSubset(of: x)

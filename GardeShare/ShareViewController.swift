@@ -36,7 +36,7 @@ final class ShareViewController: UIViewController {
             }
             if image == nil, p.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 let item = try? await p.loadItem(forTypeIdentifier: UTType.image.identifier)
-                if let u = item as? URL { image = smallJPEG(CGImageSourceCreateWithURL(u as CFURL, nil)) }
+                if let u = item as? URL { image = smallJPEG(CGImageSourceCreateWithURL(u as CFURL, nil)) ?? (try? Data(contentsOf: u)) }
                 else if let d = item as? Data { image = smallJPEG(CGImageSourceCreateWithData(d as CFData, nil)) ?? d }
                 else if let img = item as? UIImage { image = img.jpegData(compressionQuality: 0.8) }
             }
