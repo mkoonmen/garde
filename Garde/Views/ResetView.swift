@@ -86,8 +86,8 @@ struct ResetView: View {
             context.insert(KitchenProfile())
         case .shared: RecipeInbox.load().forEach { RecipeInbox.remove($0.id) }
         case .deals:
-            ["deals.zip", "deals.stores", "deals.enabled", "deals.last"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
-            DealsService.shared.deals = []
+            ["deals.zip", "deals.hidden", "deals.enabled", "deals.last"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+            DealsService.shared.all = []; DealsService.shared.matches = [:]; DealsService.shared.flyers = []
         case .gmail:
             GmailImporter.shared.signOut()
             ["gmail.processed", "gmail.lastSync", "gmail.autoImport", "gmail.query"].forEach { UserDefaults.standard.removeObject(forKey: $0) }

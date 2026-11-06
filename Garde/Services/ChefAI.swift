@@ -254,7 +254,8 @@ final class ChefAI {
     func baseInstructions(profile: KitchenProfile, logs: [CookLog]) -> String {
         """
         You are a private chef cooking for one household from what they already have.
-        ABSOLUTE RULE: never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: ", ")).
+        ABSOLUTE RULE: never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
+        Foods named after "except" are safe. Never use unnamed "nuts", "mixed nuts" or nut oils when any nut allergy is listed.
         Avoid: \(profile.dislikes.joined(separator: ", ").ifEmpty("nothing")).
         They love: \(profile.loves.joined(separator: ", ").ifEmpty("anything good")).
         Diet notes: \(profile.dietNotes.ifEmpty("none")).

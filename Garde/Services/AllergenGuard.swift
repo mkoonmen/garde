@@ -14,7 +14,8 @@ enum AllergenGuard {
                  "dashi", "worcestershire", "caesar", "lox"],
         "peanut": ["peanut", "groundnut", "satay"],
         "tree nut": ["almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia", "brazil nut", "pine nut",
-                     "praline", "marzipan", "nutella", "pesto", "frangipane", "gianduja", "nut butter", "amaretto"],
+                     "praline", "marzipan", "nutella", "pesto", "frangipane", "gianduja", "nut butter", "amaretto",
+                     "nut", "nuts", "chestnut", "nut oil", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
         "dairy": ["milk", "butter", "cream", "creme", "crème", "cheese", "yogurt", "yoghurt", "ghee", "whey", "casein", "mozzarella",
                   "parmesan", "parmigiano", "pecorino", "brie", "cheddar", "gouda", "ricotta", "boursin", "mascarpone", "burrata",
                   "feta", "stracciatella", "half-and-half", "custard", "queso", "paneer", "kefir", "alfredo"],
@@ -40,11 +41,43 @@ enum AllergenGuard {
         "soya": ["soy"],
     ]
 
+    /// Foods made from a specific nut, so an exception covers them too ("almonds" also allows marzipan).
+    static let madeFrom: [String: [String]] = [
+        "almond": ["almond", "marzipan", "frangipane", "amaretto"],
+        "hazelnut": ["hazelnut", "nutella", "gianduja", "filbert"],
+        "peanut": ["peanut", "groundnut", "satay"],
+        "coconut": ["coconut"],
+        "pistachio": ["pistachio"], "cashew": ["cashew"], "walnut": ["walnut"], "pecan": ["pecan", "praline"],
+        "macadamia": ["macadamia"], "pine nut": ["pine nut", "pignoli", "pesto"], "brazil nut": ["brazil nut"], "chestnut": ["chestnut"],
+    ]
+
+    /// Splits "Tree nuts except almonds, hazelnuts" into ("tree nuts", ["almond", "hazelnut"]).
+    static func parse(_ raw: String) -> (allergy: String, safe: [String]) {
+        let lower = raw.lowercased()
+        guard let r = lower.range(of: " except") else { return (lower.trimmingCharacters(in: .whitespaces), []) }
+        let allergy = String(lower[..<r.lowerBound]).trimmingCharacters(in: .whitespaces)
+        let rest = lower[r.upperBound...].replacingOccurrences(of: ":", with: "").replacingOccurrences(of: " and ", with: ",")
+        let safe = rest.split(separator: ",").map { w -> String in
+            var t = w.trimmingCharacters(in: .whitespaces)
+            if t.hasSuffix("s") { t.removeLast() }
+            return t
+        }.filter { !$0.isEmpty }
+        return (allergy, safe)
+    }
+
+    /// Every word that is safe because of an exception (plus what's made from it).
+    static func safeWords(for allergies: [String]) -> Set<String> {
+        var out: Set<String> = []
+        for raw in allergies { for s in parse(raw).safe { out.insert(s); madeFrom[s]?.forEach { out.insert($0) } } }
+        return out
+    }
+
     /// Expands the user's allergy list into every word to look for.
     static func terms(for allergies: [String]) -> [String] {
         var out: Set<String> = []
+        let safe = safeWords(for: allergies)
         for raw in allergies {
-            let a = raw.lowercased().trimmingCharacters(in: .whitespaces)
+            let a = parse(raw).allergy
             guard !a.isEmpty else { continue }
             let singular = a.hasSuffix("s") ? String(a.dropLast()) : a
             out.insert(a)
@@ -56,7 +89,7 @@ enum AllergenGuard {
             aliases[singular].map { famNames.formUnion($0) }
             for f in famNames { families[f]?.forEach { out.insert($0) } }
         }
-        return Array(out)
+        return Array(out.subtracting(safe))
     }
 
     /// Words that contain an allergen word but aren't that allergen.
@@ -74,9 +107,19 @@ enum AllergenGuard {
     /// Returns the allergen words found in the text (empty = safe).
     static func violations(in texts: [String], allergies: [String]) -> [String] {
         let haystack = texts.joined(separator: " ").lowercased()
+        let safe = safeWords(for: allergies)
+        // Peanuts and coconut aren't tree nuts: unless listed as allergies, "peanut"/"coconut" never count as "nut".
+        let listed = Set(allergies.map { parse($0).allergy })
+        var notNut = safe
+        if !listed.contains(where: { $0.contains("peanut") }) { notNut.formUnion(["peanut", "groundnut"]) }
+        notNut.insert("coconut")
         return terms(for: allergies).filter { term in
             var h = haystack
             for ex in harmless[term] ?? [] { h = h.replacingOccurrences(of: ex, with: " ") }
+            // Remove safe nut names first so "hazelnut" or "almond" doesn't trip "nut".
+            if term == "nut" || term == "nuts" || term.hasSuffix(" nut") || term == "nut butter" || term == "nut oil" {
+                for w in notNut.sorted(by: { $0.count > $1.count }) { h = h.replacingOccurrences(of: w, with: " ") }
+            }
             return h.contains(term)
         }.sorted()
     }

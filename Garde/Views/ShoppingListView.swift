@@ -26,10 +26,13 @@ struct ShoppingListView: View {
                         Button("Add", systemImage: "plus.circle.fill", action: add).labelStyle(.iconOnly).font(.title2).disabled(draft.isEmpty)
                     }
                 }
-                if deals.enabled && !deals.deals.isEmpty {
+                if deals.enabled && !deals.visible.isEmpty {
                     Section {
-                        ForEach(deals.deals.prefix(8)) { d in DealRow(deal: d) }
-                        NavigationLink("All \(deals.deals.count) deals") { DealsView() }
+                        if deals.matchedDeals.isEmpty {
+                            Text("Nothing on your list is on sale this week.").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        ForEach(deals.matchedDeals.prefix(8)) { d in DealRow(deal: d) }
+                        NavigationLink("Browse all \(deals.visible.count) sale items") { DealsView() }
                     } header: {
                         HStack { Text("On sale near you"); Spacer(); if deals.refreshing { ProgressView().controlSize(.mini) } }
                     } footer: {
@@ -38,7 +41,10 @@ struct ShoppingListView: View {
                 } else if deals.enabled && deals.refreshing {
                     Section { HStack { ProgressView(); Text("Checking this week's ads…").foregroundStyle(.secondary) } }
                 } else if let e = deals.error {
-                    Section { Label(e, systemImage: "wifi.exclamationmark").foregroundStyle(.secondary).font(.footnote) }
+                    Section {
+                        Label(e, systemImage: "tag.slash").foregroundStyle(.secondary).font(.footnote)
+                        NavigationLink("Deals settings") { DealsView() }
+                    }
                 }
                 if open.isEmpty {
                     ContentUnavailableView("List is clear", systemImage: "checklist",
@@ -63,9 +69,9 @@ struct ShoppingListView: View {
                     ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             }
-            .refreshable { ShoppingBrain.refreshRunningLow(context: context); await refreshDeals() }
+            .refreshable { ShoppingBrain.refreshRunningLow(context: context); await forceRefreshDeals() }
             .task {
-                if (deals.lastRefresh ?? .distantPast) < .now.addingTimeInterval(-6 * 3600) { await refreshDeals() }
+                await refreshDeals()
             }
         }
     }
@@ -74,6 +80,10 @@ struct ShoppingListView: View {
     private func refreshDeals() async {
         let soon = pantry.filter { ($0.daysLeft ?? 99) <= 3 }.map(\.name)
         await deals.refresh(terms: open.map(\.name) + soon)
+    }
+    private func forceRefreshDeals() async {
+        let soon = pantry.filter { ($0.daysLeft ?? 99) <= 3 }.map(\.name)
+        await deals.refresh(terms: open.map(\.name) + soon, force: true)
     }
 
     private func row(_ item: ShoppingItem) -> some View {
@@ -108,16 +118,15 @@ struct ShoppingListView: View {
 struct DealRow: View {
     let deal: DealsService.Deal
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(deal.name).font(.subheadline.weight(.medium)).lineLimit(2)
-                Text(deal.store).font(.caption).foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(deal.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                Text([deal.brand, deal.store].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(deal.priceText).font(.subheadline.weight(.bold)).foregroundStyle(.green).multilineTextAlignment(.trailing)
-                if let s = deal.savings, s > 0 { Text("save \(s.formatted(.currency(code: "USD")))").font(.caption2).foregroundStyle(.secondary) }
-                if let to = deal.validTo { Text("until \(to.formatted(.dateTime.weekday(.abbreviated)))").font(.caption2).foregroundStyle(.tertiary) }
+                if let to = deal.validTo { Text("thru \(to.formatted(.dateTime.weekday(.abbreviated)))").font(.caption2).foregroundStyle(.tertiary) }
             }
         }
     }
@@ -125,27 +134,52 @@ struct DealRow: View {
 
 struct DealsView: View {
     @State private var deals = DealsService.shared
-    @State private var newStore = ""
+    @State private var query = ""
+    @State private var zipDraft = DealsService.shared.zip
+    @Query(filter: #Predicate<ShoppingItem> { !$0.isChecked }) private var list: [ShoppingItem]
+
     var body: some View {
         List { Group {
-            let grouped = Dictionary(grouping: deals.deals, by: \.store).sorted { $0.key < $1.key }
-            ForEach(grouped, id: \.key) { store, items in
-                Section(store) { ForEach(items) { DealRow(deal: $0) } }
-            }
             Section {
-                Toggle("Check weekly ads", isOn: Binding(get: { deals.enabled }, set: { deals.enabled = $0 }))
-                TextField("ZIP code", text: Binding(get: { deals.zip }, set: { deals.zip = $0 })).keyboardType(.numberPad)
-                ForEach(deals.stores, id: \.self) { Text($0) }
-                    .onDelete { deals.stores.remove(atOffsets: $0) }
                 HStack {
-                    TextField("Add a store", text: $newStore)
-                    Button("Add") { if !newStore.isEmpty { deals.stores.append(newStore); newStore = "" } }
+                    TextField("ZIP code", text: $zipDraft).keyboardType(.numberPad).font(.headline)
+                    Button("Update") { applyZip() }.buttonStyle(.borderedProminent).disabled(zipDraft.filter(\.isNumber).count != 5)
                 }
-            } header: { Text("Settings") } footer: {
-                Text("Garde searches this week's grocery circulars for what's on your list and what's running low. Only the item word and ZIP code are sent; prices come from the stores' weekly ads and can change.")
+                if deals.refreshing { HStack { ProgressView(); Text("Downloading this week's ads…").foregroundStyle(.secondary) } }
+                if let e = deals.error { Text(e).font(.footnote).foregroundStyle(.orange) }
+                if !deals.flyers.isEmpty {
+                    Text("\(deals.flyers.count) grocery ads · \(deals.all.count) sale items").font(.caption).foregroundStyle(.secondary)
+                }
+            } header: { Text("Your area") }
+
+            if !deals.all.isEmpty {
+                let results = deals.search(query)
+                let grouped = Dictionary(grouping: results, by: \.store).sorted { $0.key < $1.key }
+                ForEach(grouped, id: \.key) { store, items in
+                    Section("\(store) · \(items.count)") { ForEach(items.prefix(query.isEmpty ? 40 : 200)) { DealRow(deal: $0) } }
+                }
+                Section {
+                    ForEach(deals.stores, id: \.self) { store in
+                        Toggle(store, isOn: Binding(get: { !deals.hiddenStores.contains(store) },
+                                                    set: { on in
+                                                        if on { deals.hiddenStores.removeAll { $0 == store } } else { deals.hiddenStores.append(store) }
+                                                    }))
+                    }
+                } header: { Text("Stores") } footer: {
+                    Text("Weekly ads near your ZIP. Turn off stores you don't shop at. Prices come from each store's circular and can change.")
+                }
             }
+            Section { Toggle("Show deals", isOn: Binding(get: { deals.enabled }, set: { deals.enabled = $0 })) }
         }.listRowBackground(RowGlass()) }
+        .searchable(text: $query, prompt: "Search sale items")
         .gardePage()
         .navigationTitle("Deals")
+        .task { await deals.refresh(terms: list.map(\.name)) }
+        .refreshable { await deals.refresh(terms: list.map(\.name), force: true) }
+    }
+
+    private func applyZip() {
+        deals.zip = zipDraft
+        Task { await deals.refresh(terms: list.map(\.name), force: true) }
     }
 }

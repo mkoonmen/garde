@@ -134,6 +134,7 @@ final class Receipt {
     var date: Date = Date()
     var total: Double?
     var rawText: String = ""
+    var sourceID: String?          // "gmail:<message id>" for imported emails (prevents duplicates, allows re-import)
     @Attribute(.externalStorage) var image: Data?
     @Relationship(deleteRule: .nullify, inverse: \PantryItem.receipt) var items: [PantryItem]? = []   // optional for iCloud sync
 

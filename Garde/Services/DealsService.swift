@@ -1,9 +1,12 @@
 import Foundation
 
-/// Weekly sale prices near you, matched to your shopping list and what's running low.
-/// Source: Flipp's public weekly-circular search (the data behind most US grocery flyers).
-/// It's an unofficial endpoint, so it's isolated here behind one function and can be swapped for another source.
-/// Only the search word and ZIP code are sent; nothing about your kitchen leaves the phone.
+/// This week's grocery-store circulars near your ZIP (Stop & Shop, ALDI, Lidl, Wegmans, Target, Costco…),
+/// read from Flipp, the service behind most US weekly ads. Steps:
+///   1. list the flyers for the ZIP, keep the grocery ones that are running now
+///   2. download each flyer's items (name, brand, price, dates)
+///   3. match them on the phone against your list and what's running low; browse/search the rest
+/// Flipp isn't an official public API, so all network code is in this file and easy to swap.
+/// Only the ZIP code is sent; nothing about your kitchen leaves the phone.
 @MainActor
 @Observable
 final class DealsService {
@@ -12,16 +15,25 @@ final class DealsService {
     struct Deal: Identifiable, Hashable, Codable {
         var id: String
         var name: String
+        var brand: String
         var store: String
         var price: Double?
-        var wasPrice: Double?
-        var priceText: String     // "2 for $5", "$3.99/lb" etc.
+        var discountPercent: Int?
         var validTo: Date?
-        var matchedTerm: String   // what on your list/pantry it matched
-        var savings: Double? { (wasPrice != nil && price != nil) ? max(0, wasPrice! - price!) : nil }
+        var priceText: String {
+            guard let price else { return discountPercent.map { "\($0)% off" } ?? "On sale" }
+            let p = price.formatted(.currency(code: "USD"))
+            return discountPercent.map { "\(p) (\($0)% off)" } ?? p
+        }
     }
 
-    var deals: [Deal] = []
+    struct Flyer: Hashable, Codable { var id: Int; var store: String; var validTo: Date? }
+
+    /// Every item in this week's grocery ads.
+    var all: [Deal] = []
+    /// The subset matching your list / running-low items, keyed by the matched name.
+    var matches: [String: [Deal]] = [:]
+    var flyers: [Flyer] = []
     var lastRefresh: Date? = UserDefaults.standard.object(forKey: "deals.last") as? Date
     var refreshing = false
     var error: String?
@@ -29,97 +41,143 @@ final class DealsService {
     var zip: String {
         // No default ZIP for testers; the owner's (developer options unlocked) defaults to Remsenburg.
         get { UserDefaults.standard.string(forKey: "deals.zip") ?? (DeveloperMode.unlocked ? "11960" : "") }
-        set { UserDefaults.standard.set(newValue, forKey: "deals.zip") }
+        set {
+            UserDefaults.standard.set(newValue.filter(\.isNumber), forKey: "deals.zip")
+            UserDefaults.standard.removeObject(forKey: "deals.last")
+            lastRefresh = nil
+        }
     }
-    /// Stores to include (empty = any grocery store found).
-    var stores: [String] {
-        get { UserDefaults.standard.stringArray(forKey: "deals.stores") ?? ["Stop & Shop", "King Kullen", "ShopRite", "Costco", "BJ's", "Whole Foods", "Trader Joe's", "Target", "Walmart", "Wegmans", "Aldi"] }
-        set { UserDefaults.standard.set(newValue, forKey: "deals.stores") }
+    /// Stores to hide (everything else in the grocery category is shown).
+    var hiddenStores: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "deals.hidden") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "deals.hidden") }
     }
     var enabled: Bool {
         get { UserDefaults.standard.object(forKey: "deals.enabled") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "deals.enabled") }
     }
 
+    var stores: [String] { Array(Set(flyers.map(\.store))).sorted() }
+    var visible: [Deal] { all.filter { !hiddenStores.contains($0.store) } }
+    var matchedDeals: [Deal] {
+        matches.values.flatMap { $0 }.filter { !hiddenStores.contains($0.store) }
+            .sorted { ($0.discountPercent ?? 0, -($0.price ?? 999)) > ($1.discountPercent ?? 0, -($1.price ?? 999)) }
+    }
+
     private init() { loadCache() }
 
-    /// Looks up each term (list items first, then things running low), keeps the best deal per term.
-    func refresh(terms rawTerms: [String]) async {
+    /// Downloads this week's ads (if stale or ZIP changed) and re-matches against `terms`.
+    func refresh(terms: [String], force: Bool = false) async {
         guard enabled else { return }
-        guard !zip.isEmpty else { error = "Add your ZIP code (List → All deals → Settings) to see sales near you."; return }
-        let terms = Array(NSOrderedSet(array: rawTerms.map(ShoppingBrain.key).filter { $0.count >= 3 })).compactMap { $0 as? String }.prefix(25)
-        guard !terms.isEmpty else { deals = []; return }
-        refreshing = true; error = nil
-        defer { refreshing = false }
-        var found: [Deal] = []
-        var failures = 0
-        let z = zip
-        await withTaskGroup(of: [Deal]?.self) { group in
-            for term in terms { group.addTask { await Self.search(term: term, zip: z) } }
-            for await r in group { if let r { found += r } else { failures += 1 } }
+        guard zip.count == 5 else { error = "Add your 5-digit ZIP code in Deals settings to see sales near you."; return }
+        error = nil
+        let stale = force || all.isEmpty || (lastRefresh ?? .distantPast) < .now.addingTimeInterval(-6 * 3600)
+        if stale {
+            refreshing = true
+            defer { refreshing = false }
+            let z = zip
+            guard let list = await Self.groceryFlyers(zip: z) else { error = "Couldn't reach the weekly ads. Try again in a bit."; return }
+            guard !list.isEmpty else { error = "No grocery ads found for \(z)."; all = []; flyers = []; return }
+            var items: [Deal] = []
+            await withTaskGroup(of: [Deal].self) { group in
+                for f in list.prefix(12) { group.addTask { await Self.items(in: f) } }
+                for await chunk in group { items += chunk }
+            }
+            flyers = list
+            all = items.sorted { $0.name < $1.name }
+            lastRefresh = .now
+            UserDefaults.standard.set(lastRefresh, forKey: "deals.last")
+            saveCache()
         }
-        if failures == terms.count { error = "Couldn't reach the weekly ads right now."; return }
-        let allowed = stores.map { $0.lowercased() }
-        let filtered = found.filter { d in allowed.isEmpty || allowed.contains { d.store.lowercased().contains($0) || $0.contains(d.store.lowercased()) } }
-        // Best (cheapest) per term + store.
-        var best: [String: Deal] = [:]
-        for d in filtered {
-            let k = d.matchedTerm + "|" + d.store
-            if let cur = best[k], (cur.price ?? .infinity) <= (d.price ?? .infinity) { continue }
-            best[k] = d
-        }
-        deals = best.values.sorted { ($0.savings ?? 0) > ($1.savings ?? 0) }
-        lastRefresh = .now
-        UserDefaults.standard.set(lastRefresh, forKey: "deals.last")
-        saveCache()
+        match(terms)
     }
 
-    /// Deals for one shopping-list or pantry name.
-    func deals(for name: String) -> [Deal] {
-        let k = ShoppingBrain.key(name)
-        return deals.filter { $0.matchedTerm == k }
-    }
-
-    // MARK: Source
-
-    nonisolated static func search(term: String, zip: String) async -> [Deal]? {
-        var c = URLComponents(string: "https://backflipp.wishabi.com/flipp/items/search")!
-        c.queryItems = [.init(name: "locale", value: "en-us"), .init(name: "postal_code", value: zip), .init(name: "q", value: term)]
-        var req = URLRequest(url: c.url!, timeoutInterval: 10)
-        req.setValue("Garde-iOS/2.0 (personal app)", forHTTPHeaderField: "User-Agent")
-        guard let (data, resp) = try? await URLSession.shared.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        let iso = ISO8601DateFormatter()
-        let flyer = (json["items"] as? [[String: Any]]) ?? []
-        let words = term.split(separator: " ").map(String.init)
-        return flyer.compactMap { i -> Deal? in
-            let name = (i["name"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-            let store = i["merchant_name"] as? String ?? i["merchant"] as? String ?? ""
-            guard !name.isEmpty, !store.isEmpty else { return nil }
-            // The product name must actually contain the thing we searched for.
-            let lname = name.lowercased()
-            guard words.allSatisfy({ lname.contains($0) || ($0.hasSuffix("s") && lname.contains(String($0.dropLast()))) }) else { return nil }
-            let price = (i["current_price"] as? Double) ?? (i["current_price"] as? String).flatMap(Double.init)
-            let was = (i["original_price"] as? Double) ?? (i["original_price"] as? String).flatMap(Double.init)
-            let text = [i["pre_price_text"] as? String, price.map { String(format: "$%.2f", $0) }, i["post_price_text"] as? String, i["sale_story"] as? String]
-                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
-            let id = "\(i["flyer_item_id"] ?? i["id"] ?? UUID().uuidString)"
-            return Deal(id: id, name: name, store: store, price: price, wasPrice: was, priceText: text.isEmpty ? "On sale" : text,
-                        validTo: (i["valid_to"] as? String).flatMap { iso.date(from: $0) }, matchedTerm: term)
+    /// Matches deals to names (list items, running-low items). Runs on the phone, no network.
+    func match(_ terms: [String]) {
+        var out: [String: [Deal]] = [:]
+        for t in Set(terms.map(ShoppingBrain.key)) where t.count >= 3 {
+            let hits = all.filter { ShoppingBrain.appears(t, in: $0.name + " " + $0.brand) }
+            if !hits.isEmpty { out[t] = Array(hits.sorted { ($0.price ?? 999) < ($1.price ?? 999) }.prefix(4)) }
         }
+        matches = out
     }
 
-    // MARK: Cache (so deals show instantly and offline)
+    func deals(for name: String) -> [Deal] { (matches[ShoppingBrain.key(name)] ?? []).filter { !hiddenStores.contains($0.store) } }
 
-    private var cacheURL: URL { FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("deals.json") }
-    private func saveCache() { try? JSONEncoder().encode(deals).write(to: cacheURL) }
-    private func loadCache() {
-        guard let d = try? Data(contentsOf: cacheURL), let saved = try? JSONDecoder().decode([Deal].self, from: d) else { return }
-        deals = saved.filter { ($0.validTo ?? .distantFuture) > .now }
+    func search(_ q: String) -> [Deal] {
+        let k = q.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !k.isEmpty else { return visible }
+        return visible.filter { ($0.name + " " + $0.brand + " " + $0.store).lowercased().contains(k) }
     }
 
     /// Short text for the AI planner: what's on sale right now.
     var plannerHint: String {
-        deals.prefix(15).map { "\($0.name) at \($0.store) (\($0.priceText))" }.joined(separator: "; ")
+        let pool = matchedDeals.isEmpty ? Array(visible.filter { $0.price != nil }.prefix(15)) : Array(matchedDeals.prefix(15))
+        return pool.map { "\($0.name) at \($0.store) (\($0.priceText))" }.joined(separator: "; ")
+    }
+
+    // MARK: Flipp
+
+    nonisolated static func get(_ url: URL) async -> Any? {
+        var req = URLRequest(url: url, timeoutInterval: 15)
+        req.setValue("Garde-iOS/2.2 (personal app)", forHTTPHeaderField: "User-Agent")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    nonisolated static func date(_ any: Any?) -> Date? {
+        guard let s = any as? String else { return nil }
+        let f = ISO8601DateFormatter()
+        if let d = f.date(from: s) { return d }
+        f.formatOptions = [.withFullDate]
+        return f.date(from: String(s.prefix(10)))
+    }
+
+    nonisolated static func groceryFlyers(zip: String) async -> [Flyer]? {
+        guard let url = URL(string: "https://backflipp.wishabi.com/flipp/flyers?locale=en-us&postal_code=\(zip)"),
+              let json = await get(url) else { return nil }
+        let raw = (json as? [[String: Any]]) ?? ((json as? [String: Any])?["flyers"] as? [[String: Any]]) ?? []
+        let now = Date.now
+        return raw.compactMap { f -> Flyer? in
+            let cats: String = {
+                if let a = f["categories"] as? [String] { return a.joined(separator: ",") }
+                if let s = f["categories"] as? String { return s }
+                if let a = f["categories_csv"] as? String { return a }
+                return ""
+            }().lowercased()
+            guard cats.contains("grocer"), let id = f["id"] as? Int else { return nil }
+            let from = date(f["valid_from"]) ?? .distantPast
+            let to = date(f["valid_to"])
+            guard from <= now.addingTimeInterval(86_400), (to ?? .distantFuture) >= now else { return nil }
+            let store = (f["merchant"] as? String) ?? (f["merchant_name"] as? String) ?? "Store"
+            return Flyer(id: id, store: store, validTo: to)
+        }
+    }
+
+    nonisolated static func items(in flyer: Flyer) async -> [Deal] {
+        guard let url = URL(string: "https://backflipp.wishabi.com/flipp/flyers/\(flyer.id)"),
+              let json = await get(url) as? [String: Any],
+              let items = json["items"] as? [[String: Any]] else { return [] }
+        return items.compactMap { i -> Deal? in
+            let name = (i["name"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            // Skip internal placeholders like "NewItem_ChikFilA_WK4526_SS_Digital".
+            guard !name.isEmpty, !name.contains("_") else { return nil }
+            let price: Double? = (i["price"] as? Double) ?? (i["price"] as? String).flatMap { Double($0.filter { $0.isNumber || $0 == "." }) }
+            let discount = (i["discount"] as? Int) ?? (i["discount"] as? Double).map(Int.init)
+            guard price != nil || discount != nil else { return nil }
+            return Deal(id: "\(i["id"] ?? UUID().uuidString)", name: name, brand: i["brand"] as? String ?? "", store: flyer.store,
+                        price: price, discountPercent: discount, validTo: date(i["valid_to"]) ?? flyer.validTo)
+        }
+    }
+
+    // MARK: Cache (instant + offline)
+
+    private struct Cache: Codable { var all: [Deal]; var flyers: [Flyer]; var zip: String }
+    private var cacheURL: URL { FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("deals-v2.json") }
+    private func saveCache() { try? JSONEncoder().encode(Cache(all: all, flyers: flyers, zip: zip)).write(to: cacheURL) }
+    private func loadCache() {
+        guard let d = try? Data(contentsOf: cacheURL), let c = try? JSONDecoder().decode(Cache.self, from: d), c.zip == zip else { return }
+        all = c.all.filter { ($0.validTo ?? .distantFuture) > .now }
+        flyers = c.flyers
     }
 }

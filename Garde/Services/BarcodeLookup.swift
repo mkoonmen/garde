@@ -16,7 +16,7 @@ enum BarcodeLookup {
     @MainActor
     static func lookup(_ code: String) async -> Product? {
         if let hit = cache[code] { return hit }
-        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(code).json?fields=product_name,brands,quantity,categories_tags,allergens_tags") else { return nil }
+        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(code).json?fields=product_name,brands,quantity,categories_tags,allergens_tags,traces_tags") else { return nil }
         var req = URLRequest(url: url, timeoutInterval: 6)
         req.setValue("Garde-iOS/1.0 (personal app)", forHTTPHeaderField: "User-Agent")
         guard let (data, _) = try? await URLSession.shared.data(for: req),
@@ -30,7 +30,8 @@ enum BarcodeLookup {
                               brand: (p["brands"] as? String ?? "").components(separatedBy: ",").first ?? "",
                               size: p["quantity"] as? String ?? "",
                               category: category(from: tags, name: name),
-                              allergens: ((p["allergens_tags"] as? [String]) ?? []).map { $0.replacingOccurrences(of: "en:", with: "") })
+                              allergens: ((p["allergens_tags"] as? [String]) ?? []).map { $0.replacingOccurrences(of: "en:", with: "") }
+                                + ((p["traces_tags"] as? [String]) ?? []).map { "may contain " + $0.replacingOccurrences(of: "en:", with: "") })
         cache[code] = product
         return product
     }

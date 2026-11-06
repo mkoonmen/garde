@@ -26,6 +26,18 @@ import Foundation
     func noFalseAlarm(text: String, allergy: String) { #expect(!flagged(text, [allergy])) }
 }
 
+@Suite("Nut allergy with exceptions") struct NutExceptionTests {
+    let allergies = ["Tree nuts except almonds, hazelnuts"]
+    @Test(arguments: ["Almond crusted chicken", "Nutella crepes", "Hazelnut coffee", "Peanut butter toast", "Thai coconut curry",
+                      "Marzipan cookies", "Satay skewers", "Butternut squash soup", "Nutmeg spiced apples", "Nutritional yeast popcorn"])
+    func safe(text: String) { #expect(AllergenGuard.violations(in: [text], allergies: allergies).isEmpty) }
+
+    @Test(arguments: ["Basil pesto pasta", "Mixed nuts", "Cashew chicken", "Walnut brownies", "Pistachio gelato", "Pecan pie",
+                      "Contains: nuts", "May contain tree nuts", "Macadamia cookies", "Roasted chestnuts", "Pine nut salad", "Praline",
+                      "Almond and walnut cake"])
+    func blocked(text: String) { #expect(!AllergenGuard.violations(in: [text], allergies: allergies).isEmpty) }
+}
+
 @Suite("Printed dates") struct DateTests {
     func ymd(_ d: Date?) -> String? {
         guard let d else { return nil }
