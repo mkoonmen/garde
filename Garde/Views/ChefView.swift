@@ -12,6 +12,7 @@ struct ChefView: View {
     @State private var chef = ChefAI()
     @State private var mood = ""
     @State private var maxMinutes = 45
+    @State private var noShopping = false
     @State private var mustUse: Set<UUID> = []
     @State private var ideas: [RecipeIdea] = []
     @State private var blocked = 0
@@ -51,6 +52,29 @@ struct ChefView: View {
                     NavigationLink { TakeoutView() } label: { Label("Takeout favorites (DoorDash, Uber Eats)", systemImage: "bag") }
                 } footer: { Text("Share a TikTok, Instagram post, web page or photo to Garde to save the recipe.") }
 
+                let again = cookAgain
+                if !again.isEmpty {
+                    Section {
+                        ForEach(again) { r in
+                            NavigationLink { RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
+                                                              ingredients: r.ingredients, steps: r.steps, saved: r) } label: {
+                                RecipeRow(title: r.title, summary: r.summary, minutes: r.minutes)
+                            }
+                        }
+                    } header: { Text("Cook again") } footer: { Text("Dishes you loved and haven't made in a while.") }
+                }
+
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(Seasonal.now(), id: \.self) { p in
+                                Button(p.capitalized) { mood = "Something that celebrates \(p), in season now" }
+                                    .buttonStyle(.bordered).tint(.green)
+                            }
+                        }
+                    }
+                } header: { Text("In season now") }
+
                 Section("Or pick a mood") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
@@ -62,6 +86,7 @@ struct ChefView: View {
                     }
                     TextField("Or describe it: \"something Italian with the chicken\"", text: $mood, axis: .vertical)
                     Stepper("Up to \(maxMinutes) minutes", value: $maxMinutes, in: 10...180, step: 5)
+                    Toggle("Only what I have (no shopping)", isOn: $noShopping)
                 }
 
                 let leftovers = items.filter(\.isLeftover)
@@ -138,11 +163,23 @@ struct ChefView: View {
         }
     }
 
+    /// Saved recipes rated 4+ that haven't been cooked in three weeks (never "never again").
+    private var cookAgain: [SavedRecipe] {
+        let cutoff = Date.now.addingTimeInterval(-21 * 86_400)
+        let latest = Dictionary(grouping: logs) { $0.title.lowercased() }
+        return saved.filter { r in
+            guard let l = latest[r.title.lowercased()], !l.contains(where: \.neverAgain) else { return false }
+            let best = l.map(\.rating).max() ?? 0
+            let last = l.map(\.date).max() ?? .distantPast
+            return best >= 4 && last < cutoff
+        }.prefix(4).map { $0 }
+    }
+
     private func cook() async {
         guard let profile = profiles.first else { return }
         working = true; error = nil; defer { working = false }
         let req = ChefAI.RecipeRequest(mood: mood, maxMinutes: maxMinutes,
-                                       mustUse: items.filter { mustUse.contains($0.id) }.map(\.name))
+                                       mustUse: items.filter { mustUse.contains($0.id) }.map(\.name), noShopping: noShopping)
         do {
             let out = try await chef.suggestRecipes(items: items, spices: spices, profile: profile, logs: logs, request: req)
             withAnimation(.spring(duration: 0.45)) { ideas = out.recipes }
@@ -186,6 +223,16 @@ struct RecipeDetailView: View {
     @State private var pairing: Pairing?
     @State private var pairingLoading = false
     @State private var chef = ChefAI()
+    @Query private var profiles: [KitchenProfile]
+    @State private var people = 0
+    @State private var swapFor: String?
+    @State private var swaps: [String: Swaps] = [:]
+    @State private var swapping: String?
+    @State private var swapError: String?
+
+    private var serves: Int { people == 0 ? servings : people }
+    private var factor: Double { servings > 0 ? Double(serves) / Double(servings) : 1 }
+    private var shownIngredients: [String] { ingredients.map { RecipeScaler.scale($0, by: factor) } }
 
     private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: ingredients, items: allItems) }
     private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
@@ -204,8 +251,14 @@ struct RecipeDetailView: View {
                     Text(title).font(.title2.weight(.bold)).fontDesign(.serif)
                 }
                 Text(summary)
-                HStack { Label("\(minutes) min", systemImage: "clock"); Spacer(); Label("Serves \(servings)", systemImage: "person.2") }
-                    .font(.subheadline).foregroundStyle(.secondary)
+                HStack {
+                    Label("\(minutes) min", systemImage: "clock")
+                    Spacer()
+                    Stepper(value: Binding(get: { serves }, set: { people = $0 }), in: 1...20) {
+                        Label("Serves \(serves)", systemImage: "person.2")
+                    }.fixedSize()
+                }
+                .font(.subheadline).foregroundStyle(.secondary)
                 if nutrition.isReliable {
                     HStack(spacing: 0) {
                         NutrientTile(value: "\(Int(nutrition.kcal.rounded()))", label: "kcal")
@@ -235,7 +288,28 @@ struct RecipeDetailView: View {
                     }.disabled(pairingLoading)
                 }
             }
-            Section("Ingredients") { ForEach(ingredients, id: \.self) { Text("• \($0)") } }
+            Section {
+                ForEach(shownIngredients, id: \.self) { line in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("• \(line)")
+                            Spacer()
+                            if swapping == line { ProgressView().controlSize(.small) }
+                            else {
+                                Button { Task { await swap(line) } } label: { Image(systemName: "arrow.left.arrow.right.circle") }
+                                    .buttonStyle(.borderless).foregroundStyle(Theme.accent).accessibilityLabel("Substitute")
+                            }
+                        }
+                        if let s = swaps[line] {
+                            ForEach(s.options, id: \.self) { Text("↳ \($0)").font(.subheadline).foregroundStyle(Theme.copper) }
+                            if !s.note.isEmpty { Text(s.note).font(.caption).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+                if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
+            } header: { Text("Ingredients") } footer: {
+                Text(factor == 1 ? "Tap ⇄ next to an ingredient for a substitute." : "Amounts scaled from \(servings) to \(serves) servings.")
+            }
             Section("Steps") {
                 ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
                     HStack(alignment: .top, spacing: 10) {
@@ -262,12 +336,25 @@ struct RecipeDetailView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $cooking) {
-            CookModeView(title: title, steps: steps, ingredients: ingredients, servings: servings, usedItems: usedItems,
+            CookModeView(title: title, steps: steps, ingredients: shownIngredients, servings: serves, usedItems: usedItems,
                          estimatedCost: cost.matched > 0 ? cost.total : nil) { saved?.timesCooked += 1 }
         }
         .confirmationDialog("Mark these as used up?", isPresented: $showUseUp, titleVisibility: .visible) {
             Button("Mark \(usedItems.count) used up") { usedItems.forEach { $0.markUsed() } }
         } message: { Text(usedItems.map(\.name).joined(separator: ", ")) }
+    }
+}
+
+extension RecipeDetailView {
+    fileprivate func swap(_ line: String) async {
+        if swaps[line] != nil { swaps[line] = nil; return }
+        guard let profile = profiles.first else { return }
+        swapping = line; swapError = nil
+        defer { swapping = nil }
+        do {
+            if let s = try await chef.substitute(line, dish: title, items: items, profile: profile) { swaps[line] = s }
+            else { swapError = "No safe substitute for that one." }
+        } catch { swapError = "The chef couldn't think of a swap. Try again." }
     }
 }
 

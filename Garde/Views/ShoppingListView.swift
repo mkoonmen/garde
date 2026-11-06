@@ -9,6 +9,8 @@ struct ShoppingListView: View {
     @State private var deals = DealsService.shared
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
     @FocusState private var typing: Bool
+    @Query private var everything: [PantryItem]
+    @State private var prices: [PriceBook.Entry] = []
 
     private var open: [ShoppingItem] { list.filter { !$0.isChecked } }
     private var done: [ShoppingItem] { list.filter(\.isChecked) }
@@ -71,6 +73,7 @@ struct ShoppingListView: View {
             }
             .refreshable { ShoppingBrain.refreshRunningLow(context: context); await forceRefreshDeals() }
             .task {
+                prices = PriceBook.entries(everything)
                 await refreshDeals()
             }
         }
@@ -93,6 +96,9 @@ struct ShoppingListView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name + (item.quantityNote.isEmpty ? "" : " · \(item.quantityNote)")).strikethrough(item.isChecked)
                     if !item.reason.isEmpty && item.reason != "Added by you" { Text(item.reason).font(.caption).foregroundStyle(.secondary) }
+                    if !item.isChecked, let p = PriceBook.hint(for: item.name, in: prices) {
+                        Text(p).font(.caption2).foregroundStyle(.secondary)
+                    }
                     if let d = deals.deals(for: item.name).first {
                         Label("\(d.priceText) at \(d.store)", systemImage: "tag.fill").font(.caption.weight(.semibold)).foregroundStyle(.green)
                     }

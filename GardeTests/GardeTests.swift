@@ -192,3 +192,50 @@ import Foundation
                       ("Shallots", .produce), ("Sourdough bread", .bakery), ("Chicken broth", .canned), ("Peanut butter", .condiments)])
     func guessesAisle(name: String, category: FoodCategory) { #expect(ShoppingBrain.guessCategory(name) == category) }
 }
+
+@Suite("Recipe scaling") struct ScalingTests {
+    @Test(arguments: [
+        ("1 1/2 cups flour", 2.0, "3 cups flour"), ("1/2 cup heavy cream", 2.0, "1 cup heavy cream"), ("2 tbsp olive oil", 1.5, "3 tbsp olive oil"),
+        ("1 14-oz can tomatoes", 2.0, "2 14-oz can tomatoes"), ("½ tsp salt", 2.0, "1 tsp salt"), ("3 eggs", 0.5, "1 1/2 eggs"),
+        ("Salt and pepper to taste", 2.0, "Salt and pepper to taste"), ("1 lb chicken thighs", 3.0, "3 lb chicken thighs"),
+    ])
+    func scales(line: String, factor: Double, expected: String) { #expect(RecipeScaler.scale(line, by: factor) == expected) }
+}
+
+@Suite("Price book") struct PriceBookTests {
+    @Test func sameKeyForVariants() {
+        #expect(PriceBook.key("Organic Baby Spinach 5oz") == PriceBook.key("baby spinach"))
+        #expect(PriceBook.key("Large Brown Eggs 12CT") == PriceBook.key("brown eggs"))
+    }
+}
+
+@Suite("Gmail filters") struct GmailFilterTests {
+    @Test(arguments: [("Anthropic, PBC <invoice@stripe.com>", "Your receipt from Anthropic"), ("Qwen <noreply@qwen.ai>", "Payment receipt"),
+                      ("Uber Receipts <noreply@uber.com>", "Your Thursday evening order with Uber Eats")])
+    func notGrocery(from: String, subject: String) { #expect(EmailReceipt.groceryStore(from: from, subject: subject) == nil) }
+
+    @Test func groceryStores() {
+        #expect(EmailReceipt.groceryStore(from: "Walmart <help@walmart.com>", subject: "Your Walmart order receipt") == "Walmart")
+        #expect(EmailReceipt.groceryStore(from: "Instacart <orders@instacart.com>", subject: "Your Stop & Shop receipt") != nil)
+    }
+
+    @Test(arguments: ["Your order has shipped", "Your package was delivered", "Rate your order", "Your order is ready for pickup"])
+    func notices(subject: String) { #expect(EmailReceipt.isNotice(subject)) }
+
+    @MainActor @Test func takeoutSenders() {
+        #expect(Takeout.service(from: "DoorDash <no-reply@doordash.com>", subject: "Order confirmation for Michael from Thai Basil") == "DoorDash")
+        #expect(Takeout.service(from: "McDonald's <mcdonalds@email.mcdonalds.com>", subject: "Your receipt") != nil)
+        #expect(Takeout.service(from: "Uber <noreply@uber.com>", subject: "Your Thursday trip with Uber") == nil)
+        #expect(Takeout.service(from: "DoorDash <no-reply@doordash.com>", subject: "Your DashMart order") == nil)
+    }
+}
+
+@Suite("Seasonal") struct SeasonalTests {
+    @Test func everyMonthHasProduceAndNoTreeNuts() {
+        for m in 1...12 {
+            let list = Seasonal.byMonth[m] ?? []
+            #expect(!list.isEmpty)
+            #expect(AllergenGuard.violations(in: list, allergies: ["Tree nuts except almonds, hazelnuts"]).isEmpty)
+        }
+    }
+}

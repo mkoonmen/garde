@@ -88,6 +88,14 @@ struct PlanResult {
 }
 
 @Generable
+struct Swaps {
+    @Guide(description: "Two to four substitutes, each a short ingredient line with an amount, e.g. '1/2 cup Greek yogurt + 1 tbsp milk'")
+    var options: [String]
+    @Guide(description: "One short sentence on how the dish changes")
+    var note: String
+}
+
+@Generable
 struct Pairing {
     @Guide(description: "Exact name of the bottle from the list, or empty if nothing on hand fits")
     var bottleFromCellar: String
@@ -192,6 +200,7 @@ final class ChefAI {
         var mood: String = ""          // "something cozy", "date night", "quick lunch"
         var maxMinutes: Int = 45
         var mustUse: [String] = []
+        var noShopping = false         // only what's already in the kitchen
     }
 
     /// Generates recipes from what's in the kitchen, prioritizing what expires first.
@@ -215,6 +224,7 @@ final class ChefAI {
         \(request.mustUse.isEmpty ? "" : "Must use: \(request.mustUse.joined(separator: ", "))")
         Mood: \(request.mood.ifEmpty("chef's choice"))
         Max time: \(request.maxMinutes) minutes.
+        \(request.noShopping ? "NO SHOPPING: use only the inventory and spices above plus water, salt, pepper and cooking oil." : "")
         Suggest 3 different dishes.
         """
 
@@ -265,6 +275,7 @@ final class ChefAI {
         Do not use EXPIRED items. LEFTOVER items are already-cooked dishes: transform them into something new rather than just reheating.
         Write steps with explicit times when there's waiting, e.g. 'Simmer 10 minutes'.
         \(tasteText(logs))
+        \(Seasonal.hint)
         \(Takeout.tasteHint((try? GardeStore.container.mainContext.fetch(FetchDescriptor<TakeoutOrder>())) ?? []))
         """
     }
@@ -334,6 +345,24 @@ final class ChefAI {
             result.bottleFromCellar = ""
         }
         return result
+    }
+
+    /// Substitutes for one ingredient, preferring things already in the kitchen. Allergen-checked in code.
+    func substitute(_ ingredient: String, dish: String, items: [PantryItem], profile: KitchenProfile) async throws -> Swaps? {
+        guard state == .available else { return nil }
+        let session = ChefEngine.shared.session(instructions: """
+        You are a chef suggesting ingredient substitutions that keep a dish working.
+        ABSOLUTE RULE: never suggest these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
+        """)
+        let prompt = """
+        Dish: \(dish)
+        Replace: \(ingredient)
+        In the kitchen now: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        Prefer substitutes from the kitchen list first.
+        """
+        var out = try await session.respond(to: prompt, generating: Swaps.self).content
+        out.options = out.options.filter { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
+        return out.options.isEmpty ? nil : out
     }
 
     private func formatQty(_ q: Double) -> String {

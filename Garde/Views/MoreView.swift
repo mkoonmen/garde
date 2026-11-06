@@ -16,6 +16,7 @@ struct MoreView: View {
                     NavigationLink { SpicesView() } label: { Label("Spice rack", systemImage: "leaf") }
                     NavigationLink { BarView() } label: { Label("Bar & cellar", systemImage: "wineglass") }
                     NavigationLink { InsightsView() } label: { Label("Insights: cost & waste", systemImage: "chart.bar") }
+                    NavigationLink { PriceBookView() } label: { Label("Price book", systemImage: "tag") }
                 }
                 Section {
                     NavigationLink { ProfileView() } label: { Label("Allergies & tastes", systemImage: "heart.text.square") }
