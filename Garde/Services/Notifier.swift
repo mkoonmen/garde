@@ -37,6 +37,22 @@ enum Notifier {
         }
     }
 
+    /// Sunday 5 PM nudge to plan the week, with how much is expiring. Off when the setting is off.
+    static func scheduleWeeklyNudge(items: [PantryItem]) {
+        let center = UNUserNotificationCenter.current()
+        guard UserDefaults.standard.object(forKey: "weeklyNudge") as? Bool ?? true else {
+            center.removePendingNotificationRequests(withIdentifiers: ["weekly-plan"]); return
+        }
+        let soon = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) <= 7 }.count
+        let content = UNMutableNotificationContent()
+        content.title = "Plan the week?"
+        content.body = soon > 0 ? "\(soon) thing\(soon == 1 ? "" : "s") in your kitchen expire this week. Garde can plan dinners around them."
+                                : "Garde can plan this week's dinners from what you have."
+        content.sound = .default
+        var when = DateComponents(); when.weekday = 1; when.hour = 17
+        center.add(UNNotificationRequest(identifier: "weekly-plan", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: true)))
+    }
+
     /// For each planned dinner that needs something from the freezer, a 7 PM reminder the night before
     /// ("Move the chicken thighs to the fridge for tomorrow's piccata"). Same-day plans get a reminder now-ish if it's early.
     static func scheduleThawReminders(plan: [MealPlanEntry], items: [PantryItem]) {
@@ -79,7 +95,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let name = response.notification.request.content.userInfo["mustUse"] as? String
+        let weekly = response.notification.request.identifier == "weekly-plan"
         await MainActor.run {
+            if weekly { self.tab = 2; return }
             guard let name else { return }
             self.mustUse = name
             self.tab = 2

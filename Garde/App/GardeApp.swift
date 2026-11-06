@@ -62,6 +62,7 @@ struct RootView: View {
                 try? context.save()
                 Notifier.reschedule(items: items, warningDays: profiles.first?.expirationWarningDays ?? 2)
                 Notifier.scheduleThawReminders(plan: plan, items: items)
+                Notifier.scheduleWeeklyNudge(items: items)
                 WidgetCenter.shared.reloadAllTimelines()
                 KitchenFeed.publish(context: context)
             case .active:

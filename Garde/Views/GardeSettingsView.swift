@@ -6,9 +6,13 @@ struct GardeSettingsView: View {
     @State private var brain = ChefEngine.shared.brain
     @State private var sync = GardeStore.syncEnabled
     @State private var iCloudStatus = "Checking…"
+    @AppStorage("weeklyNudge") private var weeklyNudge = true
 
     var body: some View {
         Form { Group {
+            Section {
+                Toggle("Sunday \"plan the week\" reminder", isOn: $weeklyNudge)
+            } footer: { Text("5 PM on Sundays, with how much in your kitchen expires that week.") }
             Section {
                 Picker("Chef brain", selection: $brain) {
                     ForEach(ChefBrain.allCases) { Text($0.label).tag($0) }
