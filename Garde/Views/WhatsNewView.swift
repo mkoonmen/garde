@@ -14,6 +14,8 @@ enum WhatsNew {
         ("doc.text.viewfinder", "Scan a recipe page", "Scan → Recipe reads a cookbook page or recipe card into your recipes. Or paste a link in Shared recipes."),
         ("arrow.left.arrow.right", "Instant swaps", "Classic substitutions (buttermilk, cream, eggs, wine…) answer instantly, even offline."),
         ("leaf.fill", "No-waste streak", "The Kitchen shows how long since you last threw food away, and how much food you have on hand."),
+        ("person.text.rectangle", "Allergy card", "A full-screen card to show your server, translated on the phone for trips. More → Allergy card for restaurants."),
+        ("graduationcap", "Report card", "A monthly A–F for waste, home cooking and budget in Insights, plus a cooking journal of everything you've made."),
         ("checkmark.shield", "Safer allergies", "Photo scans warn about allergens, more hidden tree-nut dishes are caught, and onboarding asks which nuts you can eat."),
     ]
     /// Opens TestFlight, where testers can send feedback straight to the developer (no personal email shown in the app).
