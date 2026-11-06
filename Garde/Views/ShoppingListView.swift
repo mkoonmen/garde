@@ -189,30 +189,70 @@ struct DealsView: View {
     @State private var deals = DealsService.shared
     @State private var query = ""
     @State private var zipDraft = DealsService.shared.zip
+    @State private var category: FoodCategory?
+    @State private var store: String?
+    @State private var expanded: Set<String> = []
     @Query(filter: #Predicate<ShoppingItem> { !$0.isChecked }) private var list: [ShoppingItem]
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
     private var terms: [String] { DealsService.terms(list: list, pantry: pantry) }
+
+    /// Sale items in aisle categories ("Meat", "Produce"…), not one long list per store.
+    private var filtered: [DealsService.Deal] {
+        deals.search(query).filter { d in
+            (store == nil || d.store == store) && (category == nil || ShoppingBrain.guessCategory(d.name) == category)
+        }
+    }
 
     var body: some View {
         List { Group {
             Section {
                 HStack {
                     TextField("ZIP code", text: $zipDraft).keyboardType(.numberPad).font(.headline)
-                    Button("Update") { applyZip() }.buttonStyle(.borderedProminent).tint(Theme.copper).disabled(zipDraft.filter(\.isNumber).count != 5)
+                    Button("Update") { applyZip() }.buttonStyle(GardeProminent()).disabled(zipDraft.filter(\.isNumber).count != 5)
                 }
                 if deals.refreshing { HStack { ProgressView(); Text("Downloading this week's ads…").foregroundStyle(.secondary) } }
                 if let e = deals.error { Text(e).font(.footnote).foregroundStyle(.orange) }
                 if !deals.flyers.isEmpty {
-                    Text("\(deals.flyers.count) grocery ads · \(deals.all.count) sale items").font(.caption).foregroundStyle(.secondary)
+                    Text("\(deals.flyers.count) grocery ads · \(deals.visible.count) sale items").font(.caption).foregroundStyle(.secondary)
                 }
             } header: { Text("Your area") }
 
             if !deals.all.isEmpty {
-                let results = deals.search(query)
-                let grouped = Dictionary(grouping: results, by: \.store).sorted { $0.key < $1.key }
-                ForEach(grouped, id: \.key) { store, items in
-                    Section("\(store) · \(items.count)") { ForEach(items.prefix(query.isEmpty ? 40 : 200)) { DealRow(deal: $0) } }
+                // Filters: stores and aisles as chips.
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            chip("All stores", store == nil) { store = nil }
+                            ForEach(deals.stores.filter { !deals.hiddenStores.contains($0) }, id: \.self) { s in chip(s, store == s) { store = store == s ? nil : s } }
+                        }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            chip("All aisles", category == nil) { category = nil }
+                            ForEach(ShoppingBrain.aisleOrder, id: \.self) { c in chip(c.label, category == c) { category = category == c ? nil : c } }
+                        }
+                    }
                 }
+
+                if query.trimmingCharacters(in: .whitespaces).count >= 2 {
+                    compareSection
+                } else {
+                    let byAisle = Dictionary(grouping: filtered) { ShoppingBrain.guessCategory($0.name) }
+                    let order = ShoppingBrain.aisleOrder + FoodCategory.allCases.filter { !ShoppingBrain.aisleOrder.contains($0) }
+                    ForEach(order.filter { byAisle[$0] != nil }, id: \.self) { c in
+                        let items = (byAisle[c] ?? []).sorted { ($0.discountPercent ?? 0) > ($1.discountPercent ?? 0) }
+                        let open = expanded.contains(c.rawValue) || category != nil
+                        Section {
+                            ForEach(items.prefix(open ? 300 : 3)) { DealRow(deal: $0) }
+                            if items.count > 3 && category == nil {
+                                Button(open ? "Show less" : "Show all \(items.count)") {
+                                    withAnimation { if open { expanded.remove(c.rawValue) } else { expanded.insert(c.rawValue) } }
+                                }.font(.subheadline.weight(.semibold))
+                            }
+                        } header: { Text("\(c.label) · \(items.count)") }
+                    }
+                }
+
                 Section {
                     ForEach(deals.stores, id: \.self) { store in
                         Toggle(store, isOn: Binding(get: { !deals.hiddenStores.contains(store) },
@@ -226,15 +266,95 @@ struct DealsView: View {
             }
             Section { Toggle("Show deals", isOn: Binding(get: { deals.enabled }, set: { deals.enabled = $0 })) }
         }.listRowBackground(RowGlass()) }
-        .searchable(text: $query, prompt: "Search sale items")
+        .searchable(text: $query, prompt: "Search or compare: \"chicken\", \"eggs\"")
         .gardePage()
         .navigationTitle("Deals")
         .task { await deals.refresh(terms: terms) }
         .refreshable { await deals.refresh(terms: terms, force: true) }
     }
 
+    /// Search = compare: the same thing across stores, cheapest first, with price per unit when the ad gives a size.
+    @ViewBuilder private var compareSection: some View {
+        let rows = filtered.map { (deal: $0, unit: DealCompare.unitPrice($0)) }
+            .sorted { a, b in
+                switch (a.unit, b.unit) {
+                case let (x?, y?) where x.unit == y.unit: x.perUnit < y.perUnit
+                default: (a.deal.price ?? .infinity) < (b.deal.price ?? .infinity)
+                }
+            }
+        let priced = rows.compactMap(\.deal.price)
+        if rows.isEmpty {
+            Section { Text("Nothing on sale matches \"\(query)\" this week.").foregroundStyle(.secondary) }
+        } else {
+            Section {
+                if let lo = priced.min(), let hi = priced.max(), hi > lo {
+                    HStack {
+                        VStack(alignment: .leading) { Text("Cheapest").font(.caption).foregroundStyle(.secondary); Text(lo, format: .currency(code: "USD")).font(.title3.bold()).foregroundStyle(.green) }
+                        Spacer()
+                        VStack { Text("Stores").font(.caption).foregroundStyle(.secondary); Text("\(Set(rows.map(\.deal.store)).count)").font(.title3.bold()) }
+                        Spacer()
+                        VStack(alignment: .trailing) { Text("Priciest").font(.caption).foregroundStyle(.secondary); Text(hi, format: .currency(code: "USD")).font(.title3.bold()) }
+                    }
+                }
+                ForEach(Array(rows.prefix(60).enumerated()), id: \.element.deal.id) { i, r in
+                    HStack(alignment: .center, spacing: 10) {
+                        Text("\(i + 1)").font(.caption.weight(.bold)).foregroundStyle(i == 0 ? Color.green : .secondary).frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.deal.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                            HStack(spacing: 6) {
+                                Text(r.deal.store).font(.caption).foregroundStyle(.secondary)
+                                if i == 0 { Text("BEST").font(.caption2.weight(.heavy)).foregroundStyle(.green) }
+                            }
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(r.deal.priceText).font(.subheadline.weight(.bold)).foregroundStyle(i == 0 ? Color.green : .primary)
+                            if let u = r.unit { Text("\(u.perUnit.formatted(.currency(code: "USD")))/\(u.unit)").font(.caption2).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+            } header: { Text("Compare \"\(query)\" · \(rows.count)") } footer: {
+                Text("Sorted by price per unit when the ad lists a size (oz, lb, ct), otherwise by price.")
+            }
+        }
+    }
+
+    private func chip(_ title: String, _ on: Bool, action: @escaping () -> Void) -> some View {
+        Button(title, action: action).buttonStyle(.bordered).tint(on ? Theme.copper : .secondary).font(.subheadline)
+    }
+
     private func applyZip() {
         deals.zip = zipDraft
         Task { await deals.refresh(terms: terms, force: true) }
+    }
+}
+
+/// Price per ounce / pound / count from an ad's name ("Chicken Thighs 3 lb", "Eggs 12 ct", "Yogurt 32 oz").
+enum DealCompare {
+    struct Unit { let perUnit: Double; let unit: String }
+    static func unitPrice(_ d: DealsService.Deal) -> Unit? {
+        guard let price = d.price, price > 0 else { return nil }
+        let t = (d.name + " " + d.priceText).lowercased()
+        if t.contains("/lb") || t.contains("per lb") || t.contains(" lb.") && !t.contains(" lb ") { return Unit(perUnit: price, unit: "lb") }
+        if let m = t.firstMatch(of: /(\d+(?:\.\d+)?)\s*(oz|ounce|lb|pound|ct|count|pk|pack)\b/), let n = Double(m.1), n > 0 {
+            switch m.2 {
+            case "oz", "ounce": return Unit(perUnit: price / n * 16, unit: "lb")
+            case "lb", "pound": return Unit(perUnit: price / n, unit: "lb")
+            default: return Unit(perUnit: price / n, unit: "ea")
+            }
+        }
+        return nil
+    }
+}
+
+/// Copper button drawn by hand (system prominent buttons ignore the tint inside some glass lists and sheets).
+struct GardeProminent: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16).padding(.vertical, 9)
+            .background(Theme.copper.opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.4), in: .capsule)
     }
 }

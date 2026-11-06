@@ -34,7 +34,7 @@ struct FridgeCheckView: View {
                     Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 260).clipShape(.rect(cornerRadius: 12))
                 }
                 HStack {
-                    Button("Take photo", systemImage: "camera.fill") { showCamera = true }.buttonStyle(.borderedProminent).tint(Theme.copper)
+                    Button("Take photo", systemImage: "camera.fill") { showCamera = true }.buttonStyle(GardeProminent())
                     Spacer()
                     PhotosPicker(selection: $pick, matching: .images) { Label("Library", systemImage: "photo") }
                 }
@@ -56,7 +56,7 @@ struct FridgeCheckView: View {
                                 }.pickerStyle(.segmented)
                             }
                         }
-                        Button("Update kitchen") { apply() }.buttonStyle(.borderedProminent).tint(Theme.copper).frame(maxWidth: .infinity)
+                        Button("Update kitchen") { apply() }.buttonStyle(GardeProminent()).frame(maxWidth: .infinity)
                     } header: { Text("Didn't spot these") }
                 }
                 if !seen.isEmpty {

@@ -40,7 +40,7 @@ struct TakeoutView: View {
                             }
                             Spacer()
                             if cooking == dish { ProgressView() } else {
-                                Button("Cook it") { Task { await makeAtHome(dish) } }.buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.small)
+                                Button("Cook it") { Task { await makeAtHome(dish) } }.buttonStyle(GardeProminent()).controlSize(.small)
                             }
                         }
                     }
