@@ -24,7 +24,8 @@ struct CookJournalView: View {
                     HStack {
                         stat("\(logs.count)", "dishes")
                         stat(String(format: "%.1f★", Double(logs.map(\.rating).reduce(0, +)) / Double(max(logs.filter { $0.rating > 0 }.count, 1))), "average")
-                        stat(logs.compactMap(\.cost).reduce(0, +).formatted(.currency(code: "USD").precision(.fractionLength(0))), "cooked")
+                        let cost = logs.compactMap(\.cost).reduce(0, +)
+                        if cost > 0 { stat(cost.formatted(.currency(code: "USD").precision(.fractionLength(0))), "spent cooking") }
                     }
                 }
             }

@@ -63,7 +63,7 @@ struct CookModeView: View {
             Button { withAnimation { mise = false } } label: {
                 Text(gathered.count == ingredients.count ? "Everything's out. Start cooking" : "Start cooking (\(gathered.count)/\(ingredients.count) out)")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
-            }.buttonStyle(.borderedProminent).controlSize(.large).padding()
+            }.buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large).padding()
         }
         .background { GardeBackground() }
     }
@@ -111,10 +111,10 @@ struct CookModeView: View {
                     .buttonStyle(.bordered).disabled(index == 0).accessibilityLabel("Previous step")
                 if index == steps.count - 1 {
                     Button { finishing = true } label: { Text("Done").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 64) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).tint(Theme.copper)
                 } else {
                     Button { go(1) } label: { Image(systemName: "chevron.right").frame(maxWidth: .infinity, minHeight: 64) }
-                        .buttonStyle(.borderedProminent).accessibilityLabel("Next step")
+                        .buttonStyle(.borderedProminent).tint(Theme.copper).accessibilityLabel("Next step")
                 }
             }.font(.title2).padding(.horizontal)
 

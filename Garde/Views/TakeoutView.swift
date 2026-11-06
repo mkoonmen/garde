@@ -40,7 +40,7 @@ struct TakeoutView: View {
                             }
                             Spacer()
                             if cooking == dish { ProgressView() } else {
-                                Button("Cook it") { Task { await makeAtHome(dish) } }.buttonStyle(.borderedProminent).controlSize(.small)
+                                Button("Cook it") { Task { await makeAtHome(dish) } }.buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.small)
                             }
                         }
                     }
@@ -52,7 +52,7 @@ struct TakeoutView: View {
                             NotificationRouter.shared.tab = 2
                             dismiss()   // back to the Chef with the mood filled in
                         } label: {
-                            HStack { Text(c); Spacer(); Text("\(n) orders").foregroundStyle(.secondary); Image(systemName: "frying.pan").foregroundStyle(Theme.copper) }
+                            HStack { Text(c); Spacer(); Text("\(n) order\(n == 1 ? "" : "s")").foregroundStyle(.secondary); Image(systemName: "frying.pan").foregroundStyle(Theme.copper) }
                                 .contentShape(.rect)
                         }.buttonStyle(.plain)
                     }

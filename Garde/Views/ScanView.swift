@@ -58,7 +58,7 @@ struct ScanView: View {
 
                     HStack(spacing: 12) {
                         Button { showCamera = true } label: { Label("Camera", systemImage: "camera.fill").frame(maxWidth: .infinity) }
-                            .buttonStyle(.borderedProminent).controlSize(.large)
+                            .buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
                         PhotosPicker(selection: $pick, matching: .images) { Label("Photos", systemImage: "photo").frame(maxWidth: .infinity) }
                             .buttonStyle(.bordered).controlSize(.large)
                     }

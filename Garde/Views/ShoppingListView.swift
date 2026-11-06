@@ -198,7 +198,7 @@ struct DealsView: View {
             Section {
                 HStack {
                     TextField("ZIP code", text: $zipDraft).keyboardType(.numberPad).font(.headline)
-                    Button("Update") { applyZip() }.buttonStyle(.borderedProminent).disabled(zipDraft.filter(\.isNumber).count != 5)
+                    Button("Update") { applyZip() }.buttonStyle(.borderedProminent).tint(Theme.copper).disabled(zipDraft.filter(\.isNumber).count != 5)
                 }
                 if deals.refreshing { HStack { ProgressView(); Text("Downloading this week's ads…").foregroundStyle(.secondary) } }
                 if let e = deals.error { Text(e).font(.footnote).foregroundStyle(.orange) }

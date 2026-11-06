@@ -55,7 +55,7 @@ struct OnboardingView: View {
                 Button(page == pages - 1 ? "Start cooking" : page == 0 ? "Set up Garde" : "Next") {
                     if page == pages - 1 { finish() } else { page += 1 }
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large)
+                .buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
             }.padding()
         }
         .background { GardeBackground() }

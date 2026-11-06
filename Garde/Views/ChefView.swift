@@ -312,7 +312,7 @@ struct RecipeDetailView: View {
                 }
                 Button { cooking = true } label: {
                     Label("Start cook mode", systemImage: "play.circle.fill").frame(maxWidth: .infinity).font(.headline)
-                }.buttonStyle(.borderedProminent).controlSize(.large)
+                }.buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
             }
             Section("Pairing") {
                 if let p = pairing {

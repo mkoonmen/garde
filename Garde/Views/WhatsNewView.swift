@@ -46,7 +46,7 @@ struct WhatsNewView: View {
             if let onDone {
                 Section {
                     Button { onDone() } label: { Text("Let's cook").font(.headline).frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).controlSize(.large)
+                        .buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
                 }.listRowBackground(Color.clear)
             }
         }.listRowBackground(RowGlass()) }

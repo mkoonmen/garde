@@ -48,7 +48,7 @@ struct ShoppingModeView: View {
                                     if let p = estimate(item.name) { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary).monospacedDigit() }
                                 }
                                 .padding(.vertical, 8).contentShape(.rect)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.plain).listRowBackground(RowGlass())
                         }
                     }
                 }
@@ -62,6 +62,8 @@ struct ShoppingModeView: View {
                 }
                 .font(.subheadline.weight(.semibold)).padding().background(.ultraThinMaterial)
             }
+            .scrollContentBackground(.hidden)
+            .background { GardeBackground() }
             .navigationTitle("Shopping")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

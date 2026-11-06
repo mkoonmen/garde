@@ -40,6 +40,7 @@ enum DemoData {
         context.insert(TakeoutOrder(restaurant: "Shake Shack", cuisine: "Burgers", date: day(-9), dishes: ["ShackBurger", "Crinkle Fries"], total: 24.7, service: "Uber Eats"))
         context.insert(ShoppingItem(name: "Baby Spinach", category: .produce, reason: "Running low"))
         context.insert(ShoppingItem(name: "Eggs", category: .eggs))
+        if let p = try? context.fetch(FetchDescriptor<KitchenProfile>()).first { p.allergies = ["Tree nuts except almonds, hazelnuts"] }
         try? context.save()
     }
 }
