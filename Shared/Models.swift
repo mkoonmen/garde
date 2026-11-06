@@ -365,13 +365,21 @@ enum GardeStore {
     static var isExtension: Bool { Bundle.main.bundlePath.hasSuffix(".appex") }
 
     static func makeContainer(cloud: Bool) -> ModelContainer {
-        if cloud {
+        // Automated tests: throwaway in-memory store (and no App Group entitlement in unsigned test builds).
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        }
+        // An App Group config crashes (not throws) if the entitlement is missing, so check first.
+        let hasGroup = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) != nil
+        if cloud && hasGroup {
             let synced = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup),
                                             cloudKitDatabase: .private(cloudContainer))
             if let c = try? ModelContainer(for: schema, configurations: synced) { return c }
         }
-        let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup), cloudKitDatabase: .none)
-        if let c = try? ModelContainer(for: schema, configurations: config) { return c }
+        if hasGroup {
+            let config = ModelConfiguration(schema: schema, groupContainer: .identifier(appGroup), cloudKitDatabase: .none)
+            if let c = try? ModelContainer(for: schema, configurations: config) { return c }
+        }
         // Fallback if the App Group isn't provisioned yet: app-only storage.
         if let c = try? ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, cloudKitDatabase: .none)) { return c }
         // Last resort so the app still opens (data won't persist this launch).
