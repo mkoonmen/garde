@@ -53,10 +53,53 @@ struct LaunchModelFaults: Sendable {
     }
 }
 
+struct LocalModelInterrupted: LocalizedError {
+    var errorDescription: String? { "The downloaded chef paused. Open Garde and try again." }
+}
+
+/// Tracks only requests actually using the GPU. Cancellation asks MLX to stop producing
+/// tokens; commands already submitted to Metal still need to finish.
+@MainActor
+final class LocalModelRequests {
+    private var running: [UUID: () -> Void] = [:]
+    private(set) var isActive = true
+
+    func setActive(_ active: Bool) {
+        isActive = active
+        if !active { interrupt() }
+    }
+
+    func interrupt() {
+        for cancel in running.values { cancel() }
+    }
+
+    func run<T: Sendable>(brain: ChefBrain, _ op: @escaping @Sendable () async throws -> T) async throws -> T {
+        try Task.checkCancellation()
+        guard brain == .local8B else { return try await op() }
+        guard isActive else { throw LocalModelInterrupted() }
+        let id = UUID()
+        let request = Task {
+            try Task.checkCancellation()
+            return try await op()
+        }
+        running[id] = { request.cancel() }
+        defer { running[id] = nil }
+        do {
+            let value = try await withTaskCancellationHandler { try await request.value } onCancel: { request.cancel() }
+            if request.isCancelled { throw CancellationError() }
+            return value
+        } catch {
+            if request.isCancelled && !Task.isCancelled { throw LocalModelInterrupted() }
+            throw error
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ChefEngine {
     static let shared = ChefEngine()
+    let localRequests = LocalModelRequests()
 
     enum DownloadState: Equatable { case notDownloaded, downloading(Double), ready, failed(String) }
 
@@ -84,7 +127,7 @@ final class ChefEngine {
     /// The phone's GPU can't be used while Garde is in the background, and after a GPU fault this launch we stay on Apple's model.
     var usingLocal: Bool {
         brain == .local8B && localSupported && downloadState == .ready && Self.mlxFault == nil
-            && UIApplication.shared.applicationState != .background
+            && localRequests.isActive && UIApplication.shared.applicationState == .active
     }
 
     /// Last GPU error from the downloaded model this launch (nil = fine).
@@ -115,7 +158,13 @@ final class ChefEngine {
         Memory.cacheLimit = 256 * 1024 * 1024
     }
 
+    nonisolated static func recordTimeout() {
+        launchFaults.recordTimeout()
+        Task { @MainActor in shared.localRequests.interrupt() }
+    }
+
     private static func recordFault(_ text: String) {
+        shared.localRequests.interrupt()
         faultCount += 1
         UserDefaults.standard.set(text, forKey: "chef.lastFault")
         if faultCount >= 2 {
@@ -197,13 +246,13 @@ final class ChefEngine {
 
     /// A session on whichever brain is selected (falls back to Apple's model).
     /// `fast: true` always uses Apple's model (scanning, where speed matters more than prose).
-    func session(instructions: String, fast: Bool = false) -> LanguageModelSession {
+    func session(instructions: String, fast: Bool = false) -> ChefSession {
         if #available(iOS 27.0, *), usingLocal, !fast {
             Self.tuneMemory()
             let model = #huggingFaceLanguageModel(configuration: Self.modelConfig, capabilities: [.guidedGeneration])
-            return LanguageModelSession(model: model, instructions: instructions)
+            return ChefSession(model: LanguageModelSession(model: model, instructions: instructions), brain: .local8B)
         }
-        return LanguageModelSession(instructions: instructions)
+        return ChefSession(model: LanguageModelSession(instructions: instructions), brain: .apple)
     }
 }
 
@@ -214,13 +263,14 @@ struct AITimeoutError: LocalizedError {
 
 /// Runs a call and gives up after `seconds`, so a stuck model can never leave a spinner going forever.
 enum AITimeout {
-    static func run<T: Sendable>(seconds: Double, onTimeout: @Sendable () -> Void = { ChefEngine.launchFaults.recordTimeout() },
+    static func run<T: Sendable>(seconds: Double, onTimeout: @Sendable () -> Void = { ChefEngine.recordTimeout() },
                                  _ op: @escaping @Sendable () async throws -> T) async throws -> T {
         try Task.checkCancellation()
         // Finishing the stream wakes the caller even if the model ignores cancellation.
         let (stream, result) = AsyncThrowingStream<T, Error>.makeStream()
         let work = Task {
             do {
+                try Task.checkCancellation()
                 result.yield(try await op())
                 result.finish()
             } catch { result.finish(throwing: error) }
@@ -249,5 +299,27 @@ extension LanguageModelSession {
     /// `respond(to:generating:)` with a time limit.
     func reply<T: Generable & Sendable>(to prompt: String, generating type: T.Type, limit: Double = 90) async throws -> T {
         try await AITimeout.run(seconds: limit) { try await self.respond(to: prompt, generating: type).content }
+    }
+}
+
+
+/// Keep the actual model identity, including Apple-only scans, when applying lifecycle rules.
+struct ChefSession: Sendable {
+    let model: LanguageModelSession
+    let brain: ChefBrain
+
+    @MainActor
+    private func run<T: Sendable>(_ call: @escaping @Sendable () async throws -> T) async throws -> T {
+        let engine = ChefEngine.shared
+        guard brain != .local8B || engine.usingLocal else { throw LocalModelInterrupted() }
+        return try await engine.localRequests.run(brain: brain, call)
+    }
+
+    func reply(to prompt: String, limit: Double = 90) async throws -> String {
+        try await run { try await model.reply(to: prompt, limit: limit) }
+    }
+
+    func reply<T: Generable & Sendable>(to prompt: String, generating type: T.Type, limit: Double = 90) async throws -> T {
+        try await run { try await model.reply(to: prompt, generating: type, limit: limit) }
     }
 }

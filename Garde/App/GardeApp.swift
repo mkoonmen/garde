@@ -11,6 +11,12 @@ struct GardeApp: App {
         WindowGroup {
             RootView()
                 .tint(Theme.tint)
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                    ChefEngine.shared.localRequests.setActive(false)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    ChefEngine.shared.localRequests.setActive(true)
+                }
         }
         .modelContainer(GardeStore.container)
     }

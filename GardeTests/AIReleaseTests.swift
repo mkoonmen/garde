@@ -55,6 +55,66 @@ struct AIReleaseTests {
         #expect(faults.message == nil)
     }
 
+    @MainActor
+    @Test("Leaving the foreground interrupts Qwen while Apple requests keep running")
+    func onlyLocalWorkIsInterrupted() async throws {
+        let requests = LocalModelRequests()
+        let faults = LaunchModelFaults()
+        let appleGate = ModelGate()
+        let localGate = ModelGate()
+        let (starts, started) = AsyncStream<ChefBrain>.makeStream()
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            started.finish()
+            await localGate.release()
+            await appleGate.release()
+        }
+        defer { watchdog.cancel() }
+
+        let apple = Task {
+            try await requests.run(brain: .apple) {
+                started.yield(.apple)
+                await appleGate.wait()
+                try Task.checkCancellation()
+                return "Apple finished"
+            }
+        }
+        let local = Task {
+            try await requests.run(brain: .local8B) {
+                try await AITimeout.run(seconds: 3, onTimeout: { faults.recordTimeout() }) {
+                    started.yield(.local8B)
+                    await localGate.wait() // Represents Metal work already submitted.
+                    return "late result"
+                }
+            }
+        }
+        var iterator = starts.makeAsyncIterator()
+        let first = await iterator.next()
+        let second = await iterator.next()
+        #expect(Set([first, second].compactMap { $0 }) == [.apple, .local8B])
+
+        requests.setActive(false)
+        do {
+            _ = try await local.value
+            Issue.record("Interrupted Qwen response was delivered")
+        } catch { #expect(error is LocalModelInterrupted) }
+        #expect(faults.message == nil)
+        do {
+            _ = try await requests.run(brain: .local8B) { 1 }
+            Issue.record("New Qwen response started while inactive")
+        } catch { #expect(error is LocalModelInterrupted) }
+
+        let appleScan = try await requests.run(brain: .apple) { "Apple scan" }
+        #expect(appleScan == "Apple scan")
+        await localGate.release()
+        await appleGate.release()
+        let appleReply = try await apple.value
+        #expect(appleReply == "Apple finished")
+        requests.setActive(true)
+        let localRetry = try await requests.run(brain: .local8B) { "Qwen resumed" }
+        #expect(localRetry == "Qwen resumed")
+    }
+
     private actor ModelGate {
         private(set) var isReleased = false
         private var continuation: CheckedContinuation<Void, Never>?

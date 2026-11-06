@@ -20,8 +20,7 @@ final class ChefConversation {
 
     var messages: [Message] = []
     var thinking = false
-    private var session: LanguageModelSession?
-    private var sessionUsesLocal = false
+    private var session: ChefSession?
     private var instructions: String?
     private var allergies: [String] = []
 
@@ -49,7 +48,6 @@ final class ChefConversation {
     }
 
     private func createSession(instructions: String) {
-        sessionUsesLocal = ChefEngine.shared.usingLocal
         session = ChefEngine.shared.session(instructions: instructions)
     }
 
@@ -57,7 +55,7 @@ final class ChefConversation {
 
     func send(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let instructions, session == nil || sessionUsesLocal != ChefEngine.shared.usingLocal {
+        if let instructions, session == nil || session?.brain != (ChefEngine.shared.usingLocal ? .local8B : .apple) {
             createSession(instructions: instructions)
         }
         guard !trimmed.isEmpty, let session else { return }
@@ -75,6 +73,9 @@ final class ChefConversation {
                 }
             }
             messages.append(msg)
+        } catch let error as LocalModelInterrupted {
+            self.session = nil
+            messages.append(Message(fromUser: false, text: error.localizedDescription))
         } catch let error as AITimeoutError {
             self.session = nil
             messages.append(Message(fromUser: false, text: error.localizedDescription))
