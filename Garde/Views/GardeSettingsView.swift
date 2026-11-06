@@ -4,7 +4,6 @@ import UserNotifications
 
 struct GardeSettingsView: View {
     @State private var engine = ChefEngine.shared
-    @State private var brain = ChefEngine.shared.brain
     @State private var sync = GardeStore.syncEnabled
     @State private var iCloudStatus = "Checking…"
     @AppStorage("weeklyNudge") private var weeklyNudge = true
@@ -29,18 +28,17 @@ struct GardeSettingsView: View {
                 Toggle("Technique tips in cook mode", isOn: $cookTips)
             } footer: { Text("Sunday: 5 PM, with how much in your kitchen expires that week. Leftovers: 11:30 the day after you save them.") }
             Section {
-                Picker("Chef brain", selection: $brain) {
+                Picker("Chef brain", selection: $engine.brain) {
                     ForEach(ChefBrain.allCases) { Text($0.label).tag($0) }
                 }
-                .onChange(of: brain) { _, b in engine.brain = b }
-                Text(brain.detail).font(.footnote).foregroundStyle(.secondary)
+                Text(engine.brain.detail).font(.footnote).foregroundStyle(.secondary)
                 if let note = engine.autoSwitchedNote {
                     Label(note, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
-                        .onDisappear { UserDefaults.standard.removeObject(forKey: "chef.autoSwitched") }
+                        .onDisappear { engine.autoSwitchedNote = nil }
                 }
-                if brain == .local8B {
+                if engine.brain == .local8B {
                     if !engine.localSupported {
-                        Label("Needs iOS 27 or later. Using Apple's model for now.", systemImage: "info.circle").font(.footnote)
+                        Label("Needs an iPhone running iOS 27 or later. Using Apple's model for now.", systemImage: "info.circle").font(.footnote)
                     } else {
                         switch engine.downloadState {
                         case .notDownloaded:
@@ -48,7 +46,12 @@ struct GardeSettingsView: View {
                             Text("Use Wi-Fi and keep Garde open until it finishes.").font(.caption).foregroundStyle(.secondary)
                         case .downloading(let p):
                             ProgressView(value: p) { Text("Downloading… \(Int(p * 100))%") }
-                            Text("\(ByteCountFormatter.string(fromByteCount: engine.downloadedBytes, countStyle: .file)) of 4.7 GB · keep Garde open; the screen stays on.").font(.caption).foregroundStyle(.secondary)
+                            if engine.totalDownloadBytes > 0 {
+                                let received = ByteCountFormatter.string(fromByteCount: engine.downloadedBytes, countStyle: .file)
+                                let total = ByteCountFormatter.string(fromByteCount: engine.totalDownloadBytes, countStyle: .file)
+                                Text("\(received) of \(total)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text("Keep Garde open until the download finishes.").font(.caption).foregroundStyle(.secondary)
                             if engine.stalled { Label("Nothing new for a minute. Check Wi-Fi and free space (needs about 10 GB).", systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(.orange) }
                         case .ready:
                             Label("Downloaded. Runs fully offline.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)

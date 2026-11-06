@@ -21,6 +21,7 @@ final class ChefConversation {
     var messages: [Message] = []
     var thinking = false
     private var session: LanguageModelSession?
+    private var sessionUsesLocal = false
     private var instructions: String?
     private var allergies: [String] = []
 
@@ -41,17 +42,24 @@ final class ChefConversation {
         Spices: \(spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ").ifEmpty("basic only"))
         """
         self.instructions = instructions
-        session = ChefEngine.shared.session(instructions: instructions)
+        createSession(instructions: instructions)
         if messages.isEmpty {
             messages.append(Message(fromUser: false, text: "What are we making? Tell me what you're craving, what you've got, or how much time you have."))
         }
+    }
+
+    private func createSession(instructions: String) {
+        sessionUsesLocal = ChefEngine.shared.usingLocal
+        session = ChefEngine.shared.session(instructions: instructions)
     }
 
     func reset() { session = nil; instructions = nil; messages = [] }
 
     func send(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if session == nil, let instructions { session = ChefEngine.shared.session(instructions: instructions) }
+        if let instructions, session == nil || sessionUsesLocal != ChefEngine.shared.usingLocal {
+            createSession(instructions: instructions)
+        }
         guard !trimmed.isEmpty, let session else { return }
         messages.append(Message(fromUser: true, text: trimmed))
         thinking = true
@@ -67,6 +75,9 @@ final class ChefConversation {
                 }
             }
             messages.append(msg)
+        } catch let error as AITimeoutError {
+            self.session = nil
+            messages.append(Message(fromUser: false, text: error.localizedDescription))
         } catch let error as LanguageModelSession.GenerationError {
             if case .exceededContextWindowSize = error {
                 messages.append(Message(fromUser: false, text: "We've been talking a while, so I'm starting a fresh page. Ask me again?"))

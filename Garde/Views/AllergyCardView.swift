@@ -64,7 +64,7 @@ struct AllergyCardView: View {
         guard ChefAI().state == .available else { translateError = "Translation needs Apple Intelligence; showing English."; return }
         working = true; defer { working = false }
         let session = ChefEngine.shared.session(instructions: "You translate short, important allergy notes for restaurant staff. Translate exactly and completely; keep every food listed. Output only the translation.")
-        let result = try? await session.respond(to: "Translate into \(lang):\n\n\(english)").content
+        let result = try? await session.reply(to: "Translate into \(lang):\n\n\(english)")
         guard lang == language, !Task.isCancelled else { return }   // the language changed while this was running
         if let result { translated = result } else { translateError = "Couldn't translate; showing English." }
     }

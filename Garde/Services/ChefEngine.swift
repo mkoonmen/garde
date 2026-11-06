@@ -1,4 +1,5 @@
 import Foundation
+import os
 import UIKit
 import FoundationModels
 import MLXLLM
@@ -23,6 +24,35 @@ enum ChefBrain: String, CaseIterable, Identifiable {
     }
 }
 
+/// MLX reports errors on worker threads while sessions are created on the main actor.
+struct LaunchModelFaults: Sendable {
+    private enum Fault: Sendable { case timedOut, gpu(String) }
+    private let fault = OSAllocatedUnfairLock<Fault?>(initialState: nil)
+
+    var message: String? {
+        fault.withLock {
+            switch $0 {
+            case nil: return nil
+            case .timedOut: return "timed out"
+            case .gpu(let message): return message
+            }
+        }
+    }
+
+    /// A failed Metal command can trigger several callbacks. Count the affected launch once.
+    func recordGPU(_ message: String) -> Bool {
+        fault.withLock { current in
+            if case .gpu = current { return false }
+            current = .gpu(message)
+            return true
+        }
+    }
+
+    func recordTimeout() {
+        fault.withLock { if $0 == nil { $0 = .timedOut } }
+    }
+}
+
 @MainActor
 @Observable
 final class ChefEngine {
@@ -32,16 +62,22 @@ final class ChefEngine {
 
     static let modelConfig = ModelConfiguration(id: "mlx-community/Qwen3-8B-4bit")
 
-    var brain: ChefBrain {
-        get { ChefBrain(rawValue: UserDefaults.standard.string(forKey: "chef.brain") ?? "") ?? .apple }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "chef.brain") }
+    var brain = ChefBrain(rawValue: UserDefaults.standard.string(forKey: "chef.brain") ?? "") ?? .apple {
+        didSet { UserDefaults.standard.set(brain.rawValue, forKey: "chef.brain") }
+    }
+    var autoSwitchedNote = UserDefaults.standard.string(forKey: "chef.autoSwitched") {
+        didSet { UserDefaults.standard.set(autoSwitchedNote, forKey: "chef.autoSwitched") }
     }
     var downloadState: DownloadState = UserDefaults.standard.bool(forKey: "chef.local8BReady") ? .ready : .notDownloaded
 
     /// The 8B model can only drive LanguageModelSession on iOS 27+.
     var localSupported: Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
         if #available(iOS 27.0, *) { return true }
         return false
+        #endif
     }
 
     /// True when the selected brain is usable right now.
@@ -52,25 +88,24 @@ final class ChefEngine {
     }
 
     /// Last GPU error from the downloaded model this launch (nil = fine).
-    nonisolated(unsafe) static var mlxFault: String?
-    /// How many launches in a row hit a GPU error; after 2 we switch back to Apple's model.
+    nonisolated static let launchFaults = LaunchModelFaults()
+    nonisolated static var mlxFault: String? { launchFaults.message }
+    /// After two launches with a GPU error we switch back to Apple's model.
     static var faultCount: Int {
         get { UserDefaults.standard.integer(forKey: "chef.mlxFaults") }
         set { UserDefaults.standard.set(newValue, forKey: "chef.mlxFaults") }
     }
-    var autoSwitchedNote: String? { UserDefaults.standard.string(forKey: "chef.autoSwitched") }
-
     /// By default MLX kills the whole app on any GPU error (that was the crash in 2.9.5).
     /// This turns those errors into "fall back to Apple's model" instead, and keeps MLX's memory cache small.
-    static func installSafety() {
-        #if targetEnvironment(simulator)
-        return
-        #endif
+    nonisolated static func installSafety() {
+        #if !targetEnvironment(simulator)
         setErrorHandler({ message, _ in
             let text = message.map { String(cString: $0) } ?? "GPU error"
-            ChefEngine.mlxFault = text
-            DispatchQueue.main.async { ChefEngine.recordFault(text) }
+            if ChefEngine.launchFaults.recordGPU(text) {
+                Task { @MainActor in ChefEngine.recordFault(text) }
+            }
         })
+        #endif
     }
     /// Only touch MLX's GPU memory settings right before the downloaded model runs (never at launch / in the simulator).
     private static var memoryTuned = false
@@ -84,8 +119,8 @@ final class ChefEngine {
         faultCount += 1
         UserDefaults.standard.set(text, forKey: "chef.lastFault")
         if faultCount >= 2 {
-            UserDefaults.standard.set(ChefBrain.apple.rawValue, forKey: "chef.brain")
-            UserDefaults.standard.set("Qwen hit a phone GPU error twice, so Garde switched back to Apple's model. You can switch again any time.", forKey: "chef.autoSwitched")
+            shared.brain = .apple
+            shared.autoSwitchedNote = "Qwen hit a phone GPU error twice, so Garde switched back to Apple's model. You can switch again any time."
             faultCount = 0
         }
     }
@@ -93,7 +128,7 @@ final class ChefEngine {
     /// Bytes written so far and a stall note, shown under the progress bar.
     var downloadedBytes: Int64 = 0
     var stalled = false
-    static let modelBytes: Int64 = 4_700_000_000
+    var totalDownloadBytes: Int64 = 0
     private var downloadTask: Task<Void, Never>?
 
     /// Starts the download in a task the engine owns, so leaving Settings doesn't cancel it.
@@ -102,41 +137,55 @@ final class ChefEngine {
         downloadTask = Task { await downloadLocalModel(); downloadTask = nil }
     }
 
-    /// Downloads (once) and warms up the 8B model.
-    /// The library only reports progress per finished file, and the weights are one ~4.5 GB file,
-    /// so it sat at 0% for ages. We also watch how many bytes have landed on disk.
-    func downloadLocalModel() async {
-        guard localSupported else { downloadState = .failed("Needs iOS 27 or later."); return }
-        downloadState = .downloading(0); stalled = false
-        UIApplication.shared.isIdleTimerDisabled = true   // screen lock pauses the download
-        let bg = UIApplication.shared.beginBackgroundTask(withName: "model-download")
-        let base = Self.diskBytes()
+    /// Fetch the model files without allocating GPU memory. A session loads them when needed.
+    private func downloadLocalModel() async {
+        guard localSupported else { downloadState = .failed("Needs an iPhone running iOS 27 or later."); return }
+        downloadState = .downloading(0)
+        downloadedBytes = 0
+        totalDownloadBytes = 0
+        stalled = false
+        let previousIdleSetting = UIApplication.shared.isIdleTimerDisabled
+        UIApplication.shared.isIdleTimerDisabled = true
+        var bg: UIBackgroundTaskIdentifier = .invalid
+        func endBackgroundTime() {
+            guard bg != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(bg)
+            bg = .invalid
+        }
+        bg = UIApplication.shared.beginBackgroundTask(withName: "model-download") { [weak self] in
+            self?.downloadTask?.cancel()
+            endBackgroundTime()
+        }
         let watcher = Task { @MainActor in
-            var last: Int64 = 0, quiet = 0
+            var lastBytes: Int64 = 0
+            var lastChange = ContinuousClock.now
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                let now = max(0, Self.diskBytes() - base)
-                downloadedBytes = now
-                quiet = now > last ? 0 : quiet + 1
-                stalled = quiet >= 30   // a minute with nothing new
-                last = now
-                if case .downloading(let f) = downloadState {
-                    let est = min(0.99, Double(now) / Double(Self.modelBytes))
-                    if est > f { downloadState = .downloading(est) }
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                if downloadedBytes != lastBytes {
+                    lastBytes = downloadedBytes
+                    lastChange = .now
                 }
+                stalled = .now - lastChange >= .seconds(60)
             }
         }
         defer {
             watcher.cancel()
-            UIApplication.shared.isIdleTimerDisabled = false
-            UIApplication.shared.endBackgroundTask(bg)
+            UIApplication.shared.isIdleTimerDisabled = previousIdleSetting
+            endBackgroundTime()
         }
         do {
-            _ = try await #huggingFaceLoadModelContainer(configuration: Self.modelConfig) { progress in
+            _ = try await MLXLMCommon.resolve(configuration: Self.modelConfig, from: #hubDownloader(),
+                                              useLatest: false) { progress in
+                let total = progress.totalUnitCount
+                // The cached-snapshot fast path sends a single synthetic 1/1.
+                guard total > 1 else { return }
+                let fraction = min(1, max(0, progress.fractionCompleted))
+                let bytes = Int64((fraction * Double(total)).rounded())
                 Task { @MainActor in
-                    if case .downloading(let f) = self.downloadState, progress.fractionCompleted > f {
-                        self.downloadState = .downloading(progress.fractionCompleted)
-                    }
+                    guard case .downloading(let previous) = self.downloadState, fraction >= previous else { return }
+                    self.downloadedBytes = bytes
+                    self.totalDownloadBytes = total
+                    self.downloadState = .downloading(fraction)
                 }
             }
             UserDefaults.standard.set(true, forKey: "chef.local8BReady")
@@ -144,24 +193,6 @@ final class ChefEngine {
         } catch {
             downloadState = .failed("Download stopped: \(error.localizedDescription) Tap Try again; it picks up where it left off.")
         }
-    }
-
-    /// Size of the places the downloader writes to (caches, temp, documents).
-    nonisolated static func diskBytes() -> Int64 {
-        let fm = FileManager.default
-        var dirs = [fm.temporaryDirectory]
-        dirs += fm.urls(for: .cachesDirectory, in: .userDomainMask)
-        dirs += fm.urls(for: .documentDirectory, in: .userDomainMask)
-        dirs += fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        var total: Int64 = 0
-        for d in dirs {
-            guard let e = fm.enumerator(at: d, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileSizeKey]) else { continue }
-            for case let u as URL in e {
-                let v = try? u.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileSizeKey])
-                total += Int64(v?.totalFileAllocatedSize ?? v?.fileSize ?? 0)
-            }
-        }
-        return total
     }
 
     /// A session on whichever brain is selected (falls back to Apple's model).
@@ -183,33 +214,40 @@ struct AITimeoutError: LocalizedError {
 
 /// Runs a call and gives up after `seconds`, so a stuck model can never leave a spinner going forever.
 enum AITimeout {
-    private final class Once: @unchecked Sendable {
-        private let lock = NSLock(); private var done = false
-        func claim() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
-    }
-    static func run<T>(seconds: Double, _ op: @escaping () async throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
-            let once = Once()
-            let work = Task {
-                do { let v = try await op(); if once.claim() { cont.resume(returning: v) } }
-                catch { if once.claim() { cont.resume(throwing: error) } }
-            }
-            Task {
-                try? await Task.sleep(for: .seconds(seconds))
-                if once.claim() {
-                    work.cancel()
-                    // A stuck downloaded model: use Apple's model for the rest of this launch.
-                    await MainActor.run { if ChefEngine.shared.usingLocal { ChefEngine.mlxFault = "timed out" } }
-                    cont.resume(throwing: AITimeoutError())
-                }
-            }
+    static func run<T: Sendable>(seconds: Double, onTimeout: @Sendable () -> Void = { ChefEngine.launchFaults.recordTimeout() },
+                                 _ op: @escaping @Sendable () async throws -> T) async throws -> T {
+        try Task.checkCancellation()
+        // Finishing the stream wakes the caller even if the model ignores cancellation.
+        let (stream, result) = AsyncThrowingStream<T, Error>.makeStream()
+        let work = Task {
+            do {
+                result.yield(try await op())
+                result.finish()
+            } catch { result.finish(throwing: error) }
+        }
+        let timer = Task {
+            do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
+            result.finish(throwing: AITimeoutError())
+        }
+        defer { timer.cancel(); work.cancel() }
+        var iterator = stream.makeAsyncIterator()
+        do {
+            guard let value = try await iterator.next() else { throw CancellationError() }
+            return value
+        } catch is AITimeoutError {
+            onTimeout()
+            throw AITimeoutError()
         }
     }
 }
 
 extension LanguageModelSession {
+    func reply(to prompt: String, limit: Double = 90) async throws -> String {
+        try await AITimeout.run(seconds: limit) { try await self.respond(to: prompt).content }
+    }
+
     /// `respond(to:generating:)` with a time limit.
-    func reply<T: Generable>(to prompt: String, generating type: T.Type, limit: Double = 90) async throws -> T {
+    func reply<T: Generable & Sendable>(to prompt: String, generating type: T.Type, limit: Double = 90) async throws -> T {
         try await AITimeout.run(seconds: limit) { try await self.respond(to: prompt, generating: type).content }
     }
 }

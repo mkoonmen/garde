@@ -252,7 +252,7 @@ final class ChefAI {
 
     /// Turns OCR text (+ optional Vision labels) into structured grocery items.
     func parseScan(text: String, labels: [String]) async -> ParsedScan {
-        guard state == .available else { return HeuristicParser.parse(text) }
+        guard SystemLanguageModel.default.availability == .available else { return HeuristicParser.parse(text) }
         let session = ChefEngine.shared.session(instructions: """
         You read grocery receipts, food labels and photos of food, and extract the food items.
         Receipts use cryptic abbreviations; expand them to normal names (e.g. 'BNLS SKNLS CHKN THGH' -> 'Boneless skinless chicken thighs').
@@ -375,7 +375,7 @@ final class ChefAI {
 
         // 1. Outline: one short line per day.
         let outlineSession = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
-        let outline = try await outlineSession.respond(to: """
+        let outline = try await outlineSession.reply(to: """
         Sketch one dinner per day for \(days) days starting \(start) (dayIndex 0 to \(days - 1)). Titles and main ingredients only.
         Use the soonest-expiring food on the earliest days. Vary proteins and cuisines. Weeknights under 45 minutes.
         Frozen items need a night to thaw: don't put frozen meat or fish on day 0.
@@ -383,7 +383,7 @@ final class ChefAI {
         \(notes.isEmpty ? "" : "Notes for this week: \(notes)")
         Kitchen (soonest-expiring first):
         \(inventory)
-        """, generating: WeekOutline.self).content
+        """, generating: WeekOutline.self)
 
         // 2. One full recipe per dinner, each in a fresh session.
         var results: [PlanResult] = []
@@ -392,13 +392,13 @@ final class ChefAI {
         for (i, sketch) in sketches.enumerated() {
             progress?(i + 1, sketches.count)
             let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
-            guard let dinner = try? await session.respond(to: """
+            guard let dinner = try? await session.reply(to: """
             Write the full recipe for: \(sketch.title) (main ingredients: \(sketch.keyIngredients.joined(separator: ", "))).
             Kitchen (soonest-expiring first):
             \(inventory)
             Spices: \(spiceList)
             List anything not in the kitchen under needToBuy.
-            """, generating: DinnerRecipe.self).content else { continue }
+            """, generating: DinnerRecipe.self) else { continue }
             let r = dinner.recipe
             if AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps + dinner.needToBuy, allergies: profile.allergies).isEmpty {
                 results.append(PlanResult(dayIndex: min(max(sketch.dayIndex, 0), days - 1), recipe: r, needToBuy: dinner.needToBuy))

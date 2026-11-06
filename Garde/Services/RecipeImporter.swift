@@ -18,10 +18,11 @@ enum RecipeImporter {
     }
 
     enum ImportError: LocalizedError {
-        case nothingFound, chefOffline
+        case nothingFound, chefOffline, scanOffline
         var errorDescription: String? {
             switch self {
             case .nothingFound: "Couldn't find a recipe in that."
+            case .scanOffline: "The chef needs Apple Intelligence to read a recipe photo."
             case .chefOffline: "The chef needs Apple Intelligence (or the downloaded model) to read this one."
             }
         }
@@ -31,6 +32,7 @@ enum RecipeImporter {
         var recipe: RecipeIdea?
         var source = item.url ?? "Shared text"
         var context = item.text ?? ""
+        var scannedPhoto = false
 
         if let s = item.url, let url = URL(string: s) {
             if let host = url.host?.lowercased(), host.contains("tiktok") || host.contains("youtube") || host.contains("youtu.be") {
@@ -44,12 +46,13 @@ enum RecipeImporter {
         if recipe == nil, let data = RecipeInbox.imageData(for: item), let img = UIImage(data: data) {
             let ocr = (try? await TextRecognizer.recognizeText(in: img)) ?? ""
             context = ocr + "\n" + context
+            scannedPhoto = !ocr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             source = item.url == nil ? "Photo" : source
         }
         if recipe == nil {
             let trimmed = context.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { throw ImportError.nothingFound }
-            recipe = try await writeUp(trimmed)
+            recipe = try await writeUp(trimmed, scannedPhoto: scannedPhoto)
         }
         guard let r = recipe, !r.title.isEmpty, !r.ingredients.isEmpty else { throw ImportError.nothingFound }
 
@@ -63,14 +66,16 @@ enum RecipeImporter {
 
     // MARK: Chef write-up (when there's no structured recipe)
 
-    static func writeUp(_ text: String) async throws -> RecipeIdea {
-        guard ChefEngine.shared.usingLocal || SystemLanguageModel.default.availability == .available else { throw ImportError.chefOffline }
+    static func writeUp(_ text: String, scannedPhoto: Bool) async throws -> RecipeIdea {
+        guard SystemLanguageModel.default.availability == .available || (!scannedPhoto && ChefEngine.shared.usingLocal) else {
+            throw scannedPhoto ? ImportError.scanOffline : ImportError.chefOffline
+        }
         let session = ChefEngine.shared.session(instructions: """
         You turn social media captions, video titles, web pages and cookbook text into a clean home recipe.
         Keep the original dish. If amounts or steps are missing, fill them in sensibly for a home cook.
         If there is clearly no dish described, return an empty title.
-        """)
-        return try await session.reply(to: String(text.prefix(5000)), generating: RecipeIdea.self)
+        """, fast: scannedPhoto)
+        return try await session.reply(to: String(text.prefix(5000)), generating: RecipeIdea.self, limit: scannedPhoto ? 45 : 90)
     }
 
     // MARK: Web helpers

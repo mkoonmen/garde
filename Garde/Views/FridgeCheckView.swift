@@ -97,13 +97,13 @@ struct FridgeCheckView: View {
             let hay = (labels + [text]).joined(separator: " ").lowercased()
             for item in inSpot where ShoppingBrain.appears(item.name, in: hay) { visible.insert(item.name) }
             // Then let the on-device model reason about the rest.
-            if SystemLanguageModel.default.availability == .available || ChefEngine.shared.usingLocal, !names.isEmpty {
-                let session = ChefEngine.shared.session(instructions: "You compare a kitchen inventory with what a camera saw in a fridge photo. Be generous: if an item could plausibly be one of the seen objects or text, count it as visible.")
-                if let r = try? await session.respond(to: """
+            if SystemLanguageModel.default.availability == .available, !names.isEmpty {
+                let session = ChefEngine.shared.session(instructions: "You compare a kitchen inventory with what a camera saw in a fridge photo. Be generous: if an item could plausibly be one of the seen objects or text, count it as visible.", fast: true)
+                if let r = try? await session.reply(to: """
                 Inventory: \(names.joined(separator: "; "))
                 Objects recognized in the photo: \(labels.joined(separator: ", "))
                 Text read from packages: \(String(text.prefix(1500)))
-                """, generating: Sighting.self).content {
+                """, generating: Sighting.self, limit: 45) {
                     r.visible.forEach { visible.insert($0) }
                 }
             }

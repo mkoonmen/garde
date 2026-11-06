@@ -202,13 +202,13 @@ enum BottleReader {
         guard !(text + hint).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let photo = image.storageJPEG(maxDimension: 900)
 
-        if SystemLanguageModel.default.availability == .available || ChefEngine.shared.usingLocal {
-            let session = ChefEngine.shared.session(instructions: "You read wine, liquor, beer and seltzer labels. Use only what's on the label; don't invent a vintage.")
-            if let l = try? await session.respond(to: """
+        if SystemLanguageModel.default.availability == .available {
+            let session = ChefEngine.shared.session(instructions: "You read wine, liquor, beer and seltzer labels. Use only what's on the label; don't invent a vintage.", fast: true)
+            if let l = try? await session.reply(to: """
             Product database match: \(hint.isEmpty ? "none" : hint)
             Label text:
             \(String(text.prefix(1500)))
-            """, generating: Label.self).content, !l.name.isEmpty {
+            """, generating: Label.self, limit: 45), !l.name.isEmpty {
                 return BottleDraft(name: l.name, kind: BottleKind.allCases.first { $0.rawValue.lowercased() == l.kind.lowercased() } ?? guessKind(text + hint),
                                    vintage: l.vintage, region: l.region, notes: l.notes, photo: photo)
             }
