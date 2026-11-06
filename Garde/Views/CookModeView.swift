@@ -46,17 +46,10 @@ struct CookModeView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
                         ForEach(timers) { t in
-                            let left = max(0, Int(t.ends.timeIntervalSince(now)))
-                            HStack(spacing: 6) {
-                                Image(systemName: left == 0 ? "bell.fill" : "timer")
-                                Text("Step \(t.step + 1)  \(left / 60):\(String(format: "%02d", left % 60))").monospacedDigit()
-                                Button("Dismiss", systemImage: "xmark.circle.fill") {
-                                    timers.removeAll { $0.id == t.id }
-                                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["timer-\(t.id)"])
-                                }.labelStyle(.iconOnly)
+                            TimerChip(step: t.step, ends: t.ends, now: now) {
+                                timers.removeAll { $0.id == t.id }
+                                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["timer-\(t.id)"])
                             }
-                            .font(.headline).padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(left == 0 ? Color.red.opacity(0.25) : Theme.accent.opacity(0.15), in: .capsule)
                         }
                     }.padding(.horizontal)
                 }.padding(.top, 10)
@@ -126,7 +119,7 @@ struct CookModeView: View {
         }
         .sheet(isPresented: $showIngredients) {
             NavigationStack {
-                List(ingredients, id: \.self) { Group { Text($0) }.listRowBackground(RowGlass()) }
+                List(ingredients, id: \.self) { line in Text(line).listRowBackground(RowGlass()) }
                     .gardePage()
                     .navigationTitle("Ingredients · serves \(servings)").navigationBarTitleDisplayMode(.inline)
             }.presentationDetents([.medium, .large])
@@ -242,5 +235,29 @@ struct FinishCookingView: View {
             context.insert(left)
         }
         onDone()
+    }
+}
+
+
+/// One running cook-mode timer.
+struct TimerChip: View {
+    let step: Int
+    let ends: Date
+    let now: Date
+    var onDismiss: () -> Void
+
+    private var left: Int { max(0, Int(ends.timeIntervalSince(now))) }
+    private var clock: String { String(format: "%d:%02d", left / 60, left % 60) }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: left == 0 ? "bell.fill" : "timer")
+            Text("Step \(step + 1)  \(clock)").monospacedDigit()
+            Button("Dismiss", systemImage: "xmark.circle.fill", action: onDismiss).labelStyle(.iconOnly)
+        }
+        .font(.headline)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: .capsule)
+        .overlay(Capsule().strokeBorder(left == 0 ? Color.red : Theme.copper, lineWidth: 1))
     }
 }
