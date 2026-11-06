@@ -227,6 +227,15 @@ struct ItemEditView: View {
                         if estimated { Text("Estimated from typical shelf life. Change it if the package says otherwise.").font(.caption).foregroundStyle(.secondary) }
                     }
                 }
+                if let item, !item.isUsedUp {
+                    Section {
+                        Button("Cook something with \(item.name)", systemImage: "frying.pan") {
+                            NotificationRouter.shared.mustUse = item.name
+                            NotificationRouter.shared.tab = 2
+                            dismiss()
+                        }
+                    }
+                }
                 if !name.trimmingCharacters(in: .whitespaces).isEmpty {
                     Section("How long it keeps") {
                         HStack {
