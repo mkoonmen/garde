@@ -2,22 +2,22 @@
 
 *Garde* is short for **garde-manger**, the kitchen station that keeps the larder: stocked, labeled, nothing wasted.
 
-A private kitchen assistant. The AI is Apple's on-device model; your food, receipts and tastes stay on the iPhone. The only network calls are Gmail (if you connect it) and barcode lookups (Open Food Facts, barcode number only).
+A private kitchen assistant with on-device AI using Apple's model or an optional downloaded Qwen model. Kitchen data syncs through your private iCloud database when sync is enabled. Optional Gmail receipt import, barcode lookups and weekly-ad deal retrieval use their respective services. This release adds no cloud AI service.
 
 ## Tabs
 | Tab | What's there |
 |---|---|
-| **Kitchen** | Dashboard (fridge/freezer/pantry tiles, This week: cooked/eaten/tossed/spent), **Tonight's idea**, "use these first", past-their-date cleanup, deep-in-the-freezer list, inventory with expiration countdowns, leftovers badge, swipe **Ate it** or **Tossed** |
+| **Kitchen** | Dashboard (fridge/freezer/pantry tiles, This week: cooked/eaten/tossed/spent), **Tonight’s choices** (use what’s here / quick and easy / something you’ll love), "use these first", past-their-date cleanup, deep-in-the-freezer list, inventory with expiration countdowns, leftovers badge, swipe **Ate it** or **Tossed** |
 | **Scan** | **Live scan**: beep through barcodes as you unpack, tap a printed date to attach it, allergen warning if a product contains one of yours. **Photo scan**: receipt, grocery haul / fridge, or label → reviewed list of items |
 | **Chef** | **Ask the chef** (offline chat) · Takeout favorites · Host a dinner · Cook again · In season now · Recipe ideas (mood, time, must-use, no-shopping, Surprise me, remix leftovers). **Week plan** (toolbar, fake-out night). Recipe pages: servings scaling, ⇄ swaps, add missing to list, cost, nutrition, pairing, restaurant plating, notes, share, **Cook mode** (mise en place first) |
 | **List** | Smart shopping list in store-walk order with last price and cheapest store per item, weekly-ad deals, "Add my usuals". Auto-adds what you're running out of, low spices, week-plan needs. Ticks itself off when groceries are scanned or imported |
-| **More** | Settings · Spice rack (Cook with it) · Bar & cellar (Mix tonight, tasting flight) · Insights (budget, your taste, spend, waste) · Price book · Allergies & tastes · Receipts (editable) · Gmail receipts · Used-up history · What's new · Send feedback · JSON export/import · Reset · Developer options |
+| **More** | Settings · Spice rack (Cook with it) · Bar & cellar (Mix tonight, tasting flight) · Insights (budget, your taste, spend, waste) · Price book · Allergies & tastes · Receipts (editable) · Gmail receipts · Household memory · Used-up history · What's new · Send feedback · JSON export/import · Reset · Developer options |
 
 ### Cook mode
-Full screen, big text, screen stays on. Steps can be read aloud; say **"next", "back", "repeat", "start timer", "how long"** (speech recognized on-device). Steps with a time get a one-tap timer (with a backup notification if the phone locks). When you finish: rate it (1–5, "what I'd change", "never again"), mark ingredients used, save leftovers with a 4-day countdown.
+Full screen, big text, screen stays on. Steps can be read aloud; say **"next", "back", "repeat", "start timer", "how long"** (speech recognized on-device). Steps with a time get a one-tap timer (with a backup notification if the phone locks). When you finish: rate it (1–5, "what I'd change", "never again"), confirm measured ingredient deductions or packages finished, and save leftovers with a 4-day countdown. Item history explains stock changes and allows Undo while the recorded state is still current.
 
 ### Taste memory
-Every rating is fed back into the chef and the week planner: loved dishes steer suggestions, feedback is applied, "never again" dishes are filtered out in code.
+Ratings and cooking notes feed the chef and week planner. Loved dishes steer suggestions, and "never again" dishes are filtered out in code. More → Household memory lets you edit weeknight time, spice and leftover preferences, favorite brands, store preferences and household notes. Review or edit a cooking note, or stop using it in suggestions.
 
 ### Siri & widgets
 - "What's expiring in Garde" · "What's for dinner in Garde" · "Add to my Garde list" · "How's my grocery budget in Garde" · "What's in season in Garde" · used / bought / do I have
@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Updated the feature guide and privacy description for the connected kitchen release. Simulator tests passed twice (81 tests), the updated Kitchen rendered successfully, and the production CloudKit schema deployment was confirmed.
 - 2026-11-06 — Finished and discarded items also open their item history from More → Used up, alongside the existing Restore button. History can be reviewed without restoring stock first.
 - 2026-11-06 — v3.0 verification: 81 tests in 31 suites passed using the revised simulator script, which completed and shut the simulator down. Direct Cook this choices also pass their measured ingredient-cost estimate into the cooking log.
 - 2026-11-06 — Recipe-book accuracy: Can make now requires every measured ingredient to be covered, and availability updates when amounts, ingredient identity, expiration or saved ingredients change. Unknown amounts are labeled to buy or check.
