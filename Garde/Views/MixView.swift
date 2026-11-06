@@ -10,6 +10,8 @@ struct MixView: View {
     @State private var drinks: [Cocktail] = []
     @State private var working = false
     @State private var message: String?
+    @State private var flight: Flight?
+    @State private var flighting = false
 
     private let moods = ["Classic", "Refreshing", "Stirred & strong", "Low-ABV", "Fall", "Tiki"]
 
@@ -23,6 +25,18 @@ struct MixView: View {
                     HStack { Spacer(); if working { ProgressView() } else { Label("Mix something", systemImage: "wineglass") }; Spacer() }
                 }.disabled(working)
             } footer: { Text("Uses \(bottles.filter { $0.count > 0 }.count) bottles from your bar plus citrus, sugar and herbs from your kitchen.") }
+            Section {
+                Button { Task { await planFlight() } } label: {
+                    HStack { Spacer(); if flighting { ProgressView() } else { Label("Plan a tasting flight", systemImage: "list.number") }; Spacer() }
+                }.disabled(flighting || bottles.filter { $0.count > 0 }.count < 2)
+                if let flight {
+                    ForEach(Array(flight.pours.enumerated()), id: \.offset) { i, p in
+                        HStack(alignment: .top, spacing: 10) { Text("\(i + 1)").font(.headline).foregroundStyle(Theme.copper); Text(p) }
+                    }
+                    Text(flight.why).font(.subheadline).foregroundStyle(.secondary)
+                    if !flight.snacks.isEmpty { Label("Set out: \(flight.snacks.joined(separator: ", "))", systemImage: "fork.knife").font(.caption) }
+                }
+            } footer: { Text("Side-by-side tasting from your own bottles, lightest to boldest.") }
             if let message { Section { Text(message).foregroundStyle(.orange) } }
             ForEach(Array(drinks.enumerated()), id: \.offset) { _, d in
                 Section {
@@ -37,6 +51,15 @@ struct MixView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Mix tonight")
+    }
+
+    private func planFlight() async {
+        guard let profile = profiles.first else { message = "Set up your kitchen profile first."; return }
+        let chef = ChefAI()
+        if case .unavailable(let why) = chef.state { message = why; return }
+        flighting = true; message = nil; defer { flighting = false }
+        do { flight = try await chef.flight(bottles: bottles, profile: profile) }
+        catch { message = "Couldn't plan the flight: \(error.localizedDescription)" }
     }
 
     private func mix() async {

@@ -126,6 +126,16 @@ struct Cocktail {
 }
 
 @Generable
+struct Flight {
+    @Guide(description: "Three or four bottles from the list in tasting order, each as 'Bottle name: what to notice'")
+    var pours: [String]
+    @Guide(description: "One or two sentences on why this order works")
+    var why: String
+    @Guide(description: "Two to four simple snacks to set out with the flight")
+    var snacks: [String]
+}
+
+@Generable
 struct Plating {
     @Guide(description: "Three to five short steps to plate the dish like a fine-dining restaurant: plate choice, sauce, placement, height, finishing")
     var steps: [String]
@@ -430,6 +440,20 @@ final class ChefAI {
         """
         let list = try await session.respond(to: prompt, generating: CocktailList.self).content
         return list.drinks.filter { AllergenGuard.violations(in: [$0.name, $0.method] + $0.spec + $0.missing, allergies: profile.allergies).isEmpty }
+    }
+
+    /// A guided tasting flight from bottles on hand (bourbon, whiskey, wine…). Snacks are allergen-checked.
+    func flight(bottles: [BarBottle], profile: KitchenProfile) async throws -> Flight? {
+        guard state == .available else { return nil }
+        let list = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.kind.label)\($0.vintage.isEmpty ? "" : ", \($0.vintage)"))" }
+        guard list.count >= 2 else { return nil }
+        let session = ChefEngine.shared.session(instructions: """
+        You are a spirits and wine educator leading a home tasting. Only use bottles from the list.
+        Snacks must never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
+        """)
+        var f = try await session.respond(to: "Bottles on hand:\n" + list.joined(separator: "\n"), generating: Flight.self).content
+        f.snacks = f.snacks.filter { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
+        return f
     }
 
     /// How to plate a dish like a restaurant. Allergen-checked in code.
