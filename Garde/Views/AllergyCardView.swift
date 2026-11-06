@@ -9,6 +9,7 @@ struct AllergyCardView: View {
     @State private var language = "English"
     @State private var translated: String?
     @State private var working = false
+    @State private var translateError: String?
 
     private let languages = ["English", "Spanish", "Italian", "French", "Portuguese", "German", "Japanese"]
 
@@ -30,6 +31,7 @@ struct AllergyCardView: View {
                         .font(.title.weight(.heavy)).foregroundStyle(.red)
                     Text(language == "English" ? english : (translated ?? english))
                         .font(.title2.weight(.semibold)).textSelection(.enabled)
+                    if let translateError { Text(translateError).font(.caption).foregroundStyle(.orange) }
                     if language != "English", translated != nil {
                         Divider()
                         Text(english).font(.callout).foregroundStyle(.secondary)
@@ -52,15 +54,18 @@ struct AllergyCardView: View {
                     } label: { if working { ProgressView() } else { Label(language, systemImage: "globe") } }
                 }
             }
-            .onChange(of: language) { _, l in Task { await translate(to: l) } }
+            .task(id: language) { await translate(to: language) }
         }
     }
 
     private func translate(to lang: String) async {
-        translated = nil
-        guard lang != "English", ChefAI().state == .available else { return }
+        translated = nil; translateError = nil
+        guard lang != "English" else { return }
+        guard ChefAI().state == .available else { translateError = "Translation needs Apple Intelligence; showing English."; return }
         working = true; defer { working = false }
         let session = ChefEngine.shared.session(instructions: "You translate short, important allergy notes for restaurant staff. Translate exactly and completely; keep every food listed. Output only the translation.")
-        translated = try? await session.respond(to: "Translate into \(lang):\n\n\(english)").content
+        let result = try? await session.respond(to: "Translate into \(lang):\n\n\(english)").content
+        guard lang == language, !Task.isCancelled else { return }   // the language changed while this was running
+        if let result { translated = result } else { translateError = "Couldn't translate; showing English." }
     }
 }

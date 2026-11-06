@@ -45,9 +45,10 @@ struct BarView: View {
                         }.buttonStyle(.plain)
                         .swipeActions {
                             Button("Opened one", systemImage: "minus") {
-                                b.count = max(0, b.count - 1)
-                                // Last bottle opened: put it on the shopping list so it gets replaced.
-                                if b.count == 0 { context.insert(ShoppingItem(name: b.name, category: .beverages, reason: "Last bottle opened")) }
+                                let was = b.count
+                                b.count = max(0, was - 1)
+                                // Last bottle opened: put it on the shopping list (once) so it gets replaced.
+                                if was == 1 { context.insert(ShoppingItem(name: b.name, category: .beverages, reason: "Last bottle opened")) }
                             }.tint(.orange)
                             Button("Delete", systemImage: "trash", role: .destructive) { context.delete(b) }
                         }

@@ -90,13 +90,29 @@ enum ShoppingBrain {
             let k = key(item.name)
             guard k.count >= 3 else { continue }
             // Only when every word of the list item is in what was bought: "Butter" bought never ticks off "Peanut butter".
-            if keys.contains(k) || keys.contains(where: { words(k).isSubset(of: words($0)) }) { item.isChecked = true }
+            if keys.contains(k) || keys.contains(where: { sameItem(list: k, bought: $0) }) { item.isChecked = true }
         }
     }
 
     /// Whole-word match either way: "eggs" ~ "large brown eggs", "milk" ~ "whole milk"; never "egg" ~ "eggplant".
     static func words(_ s: String) -> Set<String> {
         Set(s.lowercased().split { !$0.isLetter }.map { w in let w = String(w); return w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") ? String(w.dropLast()) : w })
+    }
+
+    /// Words that turn one food into a different one: "peanut butter" isn't butter, "almond milk" isn't milk.
+    static let modifiers: Set<String> = ["peanut", "almond", "oat", "soy", "coconut", "cashew", "apple", "cocoa", "egg", "rice", "corn",
+                                         "pumpkin", "sunflower", "nut", "chocolate", "ice", "cream", "sour", "butter", "cheese", "chicken", "beef"]
+
+    /// Is something bought ("Large Brown Eggs") the list item ("eggs")? Every list word must be there, the last word (the food)
+    /// must match, and no extra word may turn it into another food.
+    static func sameItem(list: String, bought: String) -> Bool {
+        let l = key(list).split { !$0.isLetter }.map { words(String($0)).first ?? String($0) }
+        let sizes: Set<String> = ["gallon", "gal", "qt", "quart", "pint", "lb", "oz", "ct", "pack", "pk", "dozen", "each", "bag", "box",
+                                  "bottle", "jar", "can", "loaf", "carton", "value", "family", "size", "count"]
+        let b = key(bought).split { !$0.isLetter }.map { words(String($0)).first ?? String($0) }.filter { !sizes.contains($0) }
+        guard let lHead = l.last, let bHead = b.last, lHead == bHead, Set(l).isSubset(of: Set(b)) else { return false }
+        let extra = Set(b).subtracting(l)
+        return extra.isDisjoint(with: modifiers)
     }
 
     static func sameFood(_ a: String, _ b: String) -> Bool {

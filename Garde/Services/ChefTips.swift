@@ -7,10 +7,10 @@ enum ChefTips {
         (["caramelize"], "Low and slow: 30+ minutes, a pinch of salt, stir only now and then."),
         (["sauté", "saute"], "Hot pan, then oil, then food. Don't crowd it or it steams."),
         (["deglaze"], "Scrape up the brown bits with a wooden spoon. That's the flavor."),
-        (["rest"], "Resting keeps the juices in. Tent loosely with foil."),
+        (["let it rest", "let rest", "rest for", "rest 5", "rest 10", "rest the"], "Resting keeps the juices in. Tent loosely with foil."),
         (["whisk"], "A damp towel under the bowl keeps it from spinning."),
         (["fold"], "Cut down the middle, sweep along the bottom, turn the bowl. Stop when just combined."),
-        (["boil", "pasta"], "Salt the water like the sea. Save a cup of pasta water before draining."),
+        (["boil the pasta", "cook the pasta", "pasta water", "salted water"], "Salt the water like the sea. Save a cup of pasta water before draining."),
         (["simmer"], "Small, lazy bubbles. A rolling boil makes sauces split and meat tough."),
         (["roast"], "Spread it out on the pan; space is what gives you browning."),
         (["mince", "garlic"], "Smash the clove with the flat of the knife first; the skin slips off."),
@@ -22,11 +22,12 @@ enum ChefTips {
         (["deep fry", "deep-fry", "shallow fry", "fry until"], "Oil is ready when a wooden spoon handle bubbles steadily. Never leave it."),
         (["internal temperature", "thermometer", "165", "145"], "Chicken 165°F, pork 145°F, steak medium-rare 130°F. Check the thickest part."),
         (["grill"], "Clean, oiled grates. Let it release before flipping."),
-        (["bake", "oven"], "Most ovens run hot or cold; an oven thermometer is a cheap fix."),
+        (["preheat"], "Most ovens run hot or cold; an oven thermometer is a cheap fix."),
     ]
 
     static func tip(for step: String) -> String? {
-        let s = step.lowercased()
-        return table.first { $0.words.contains { s.contains($0) } }?.tip
+        // Whole words only: "rest of the sauce" isn't resting, "pork chops" isn't chopping, "unsalted" isn't salt.
+        let s = " " + step.lowercased().replacingOccurrences(of: "[^\\p{L}0-9]+", with: " ", options: .regularExpression) + " "
+        return table.first { $0.words.contains { w in s.contains(" " + w.replacingOccurrences(of: "-", with: " ") + " ") } }?.tip
     }
 }

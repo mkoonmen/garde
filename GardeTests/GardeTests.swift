@@ -283,6 +283,7 @@ import Foundation
         #expect(QuickAdd.parse("a dozen eggs").first?.quantity == 12)
         #expect(QuickAdd.parse("half a dozen eggs").first?.quantity == 6)
         #expect(QuickAdd.parse("mac and cheese, milk").map(\.name) == ["Mac and cheese", "Milk"])
+        #expect(QuickAdd.parse("milk and half and half").map(\.name) == ["Milk", "Half and half"])
     }
 }
 
@@ -328,15 +329,20 @@ import Foundation
         #expect(!ShoppingBrain.sameFood("egg", "eggplant"))
         #expect(!ShoppingBrain.sameFood("oil", "foil"))
         #expect(!ShoppingBrain.words("peanut butter").isSubset(of: ShoppingBrain.words("butter")))
-        #expect(ShoppingBrain.words("eggs").isSubset(of: ShoppingBrain.words("large brown eggs")))
+        #expect(ShoppingBrain.sameItem(list: "eggs", bought: "Large Brown Eggs"))
+        #expect(ShoppingBrain.sameItem(list: "milk", bought: "Hood Whole Milk Gallon"))
+        #expect(ShoppingBrain.sameItem(list: "milk", bought: "Whole Milk"))
+        #expect(!ShoppingBrain.sameItem(list: "butter", bought: "Peanut Butter"))
+        #expect(!ShoppingBrain.sameItem(list: "milk", bought: "Almond Milk"))
+        #expect(!ShoppingBrain.sameItem(list: "eggs", bought: "Egg Noodles"))
     }
 }
 
 @Suite("Hidden tree nuts") struct HiddenNutTests {
     let a = ["Tree nuts except almonds, hazelnuts"]
-    @Test(arguments: ["Mortadella sandwich", "Chicken korma", "Waldorf salad", "Chicken mole", "Baklava"])
+    @Test(arguments: ["Mortadella sandwich", "Chicken korma", "Waldorf salad", "Chicken mole", "Baklava", "Gelato al pistacchio", "Pollo con nueces"])
     func blocked(text: String) { #expect(!AllergenGuard.violations(in: [text], allergies: a).isEmpty) }
-    @Test(arguments: ["Guacamole and chips", "Pork pozole"])
+    @Test(arguments: ["Guacamole and chips", "Pork pozole", "Gnocchi with sage butter", "Salsa con nuez moscada", "Gelato alla nocciola"])
     func fine(text: String) { #expect(AllergenGuard.violations(in: [text], allergies: a).isEmpty) }
 }
 
@@ -368,5 +374,7 @@ import Foundation
     @Test func matches() {
         #expect(ChefTips.tip(for: "Sear the chicken 6 minutes per side.") != nil)
         #expect(ChefTips.tip(for: "Serve and enjoy.") == nil)
+        #expect(ChefTips.tip(for: "Add the rest of the broth") == nil)
+        #expect(ChefTips.tip(for: "Add the pork chops") == nil)
     }
 }

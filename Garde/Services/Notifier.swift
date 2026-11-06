@@ -41,7 +41,7 @@ enum Notifier {
     }
 
     /// "Leftover piccata for lunch?" at 11:30 the next day.
-    static func leftoverLunch(title: String) {
+    static func leftoverLunch(title: String, itemID: UUID) {
         guard UserDefaults.standard.object(forKey: "leftoverNudge") as? Bool ?? true else { return }
         let c = UNMutableNotificationContent()
         c.title = "Leftovers for lunch?"
@@ -50,7 +50,7 @@ enum Notifier {
         c.userInfo = ["mustUse": "\(title) (leftovers)"]
         guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now) else { return }
         var when = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow); when.hour = 11; when.minute = 30
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "leftover-" + UUID().uuidString, content: c,
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "leftover-" + itemID.uuidString, content: c,
                                                                      trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)))
     }
 

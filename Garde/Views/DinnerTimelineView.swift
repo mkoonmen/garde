@@ -89,7 +89,6 @@ struct DinnerTimelineView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Dinner timeline")
-        .onChange(of: serveAt) { _, _ in if reminders { schedule(true) } }
         .onChange(of: steps.map(\.start)) { _, _ in if reminders { schedule(true) } }
         .task {
             let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
@@ -100,6 +99,7 @@ struct DinnerTimelineView: View {
     private func schedule(_ on: Bool) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: (0..<30).map { "timeline-\($0)" })
+        earlier = 0
         guard on else { return }
         for (i, s) in steps.enumerated() where s.start > .now {
             let c = UNMutableNotificationContent()

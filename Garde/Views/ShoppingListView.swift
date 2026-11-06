@@ -57,7 +57,7 @@ struct ShoppingListView: View {
                         ForEach(deals.matchedDeals.prefix(8)) { d in
                             // Only compare like with like: every word you buy it as must be in the deal, and not per-pound deals.
                             let perLb = d.name.lowercased().contains("/lb") || d.name.lowercased().contains("per lb") || d.priceText.lowercased().contains("lb")
-                            DealRow(deal: d, usual: perLb ? nil : prices.first { !$0.key.isEmpty && ShoppingBrain.words($0.key).isSubset(of: ShoppingBrain.words(d.name)) }?.average)
+                            DealRow(deal: d, usual: perLb ? nil : prices.first { !$0.key.isEmpty && ShoppingBrain.sameItem(list: $0.key, bought: d.name) }?.average)
                         }
                         NavigationLink("Browse all \(deals.visible.count) sale items") { DealsView() }
                     } header: {

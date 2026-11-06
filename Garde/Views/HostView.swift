@@ -95,9 +95,14 @@ struct HostView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Host a dinner")
-        .onChange(of: occasion) { _, o in
-            if o.localizedCaseInsensitiveContains("christmas") { dinnerDay = Self.nextChristmas() }
-            else if o.localizedCaseInsensitiveContains("giving") { dinnerDay = Self.nextThanksgiving() }
+        .onChange(of: occasion) { old, o in
+            // Only when the holiday first appears, so a date you picked isn't reset on every keystroke.
+            let xmas = { (s: String) in s.localizedCaseInsensitiveContains("christmas") }
+            let giving = { (s: String) in s.localizedCaseInsensitiveContains("giving") }
+            if xmas(o) && !xmas(old) {
+                let day = Self.nextChristmas()
+                dinnerDay = o.localizedCaseInsensitiveContains("eve") ? Calendar.current.date(byAdding: .day, value: -1, to: day) ?? day : day
+            } else if giving(o) && !giving(old) { dinnerDay = Self.nextThanksgiving() }
         }
     }
 

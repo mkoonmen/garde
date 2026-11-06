@@ -19,6 +19,13 @@ struct GardeSettingsView: View {
                         if !on { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["weekly-plan"]) }
                     }
                 Toggle("Leftovers-for-lunch reminder", isOn: $leftoverNudge)
+                    .onChange(of: leftoverNudge) { _, on in
+                        guard !on else { return }
+                        let center = UNUserNotificationCenter.current()
+                        center.getPendingNotificationRequests { reqs in
+                            center.removePendingNotificationRequests(withIdentifiers: reqs.map(\.identifier).filter { $0.hasPrefix("leftover-") })
+                        }
+                    }
                 Toggle("Technique tips in cook mode", isOn: $cookTips)
             } footer: { Text("Sunday: 5 PM, with how much in your kitchen expires that week. Leftovers: 11:30 the day after you save them.") }
             Section {

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UserNotifications
 
 // MARK: - Enums
 
@@ -115,6 +116,8 @@ final class PantryItem {
         isUsedUp = true
         wasTossed = tossed
         usedUpDate = .now
+        // Leftovers already eaten or tossed: drop tomorrow's "leftovers for lunch?" reminder.
+        if isLeftover { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["leftover-" + id.uuidString]) }
     }
 
     /// Whole days until expiration (negative = expired). nil if unknown.
@@ -235,9 +238,9 @@ final class KitchenProfile {
         func union(_ a: [String], _ b: [String]) -> [String] { a + b.filter { x in !a.contains { $0.caseInsensitiveCompare(x) == .orderedSame } } }
         for p in ordered.dropFirst() {
             if sig(p) == sig(keep) && score(p) == score(keep) { continue }   // identical copies are harmless; deleting one risks both
-            keep.allergies = union(keep.allergies, p.allergies)
-            keep.loves = union(keep.loves, p.loves)
-            keep.dislikes = union(keep.dislikes, p.dislikes)
+            keep.allergies = union(keep.allergies, p.allergies)   // allergies always union: safer to keep one too many
+            if keep.loves.isEmpty { keep.loves = p.loves }         // tastes: keep's own, so a removed dislike doesn't come back
+            if keep.dislikes.isEmpty { keep.dislikes = p.dislikes }
             if keep.dietNotes.isEmpty { keep.dietNotes = p.dietNotes }
             if keep.monthlyBudget == 0 { keep.monthlyBudget = p.monthlyBudget }
             context.delete(p)

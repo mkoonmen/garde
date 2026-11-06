@@ -285,7 +285,7 @@ struct FinishCookingView: View {
                                   unit: "serving", expirationDate: Calendar.current.date(byAdding: .day, value: 4, to: .now), expirationIsEstimated: true)
             left.isLeftover = true
             context.insert(left)
-            Notifier.leftoverLunch(title: title)
+            Notifier.leftoverLunch(title: title, itemID: left.id)
         }
         onDone()
     }

@@ -46,7 +46,8 @@ enum QuickAdd {
         if let (v, end) = RecipeScaler.leadingAmount(raw) {
             qty = v
             words = String(raw[end...]).split(separator: " ").map(String.init)
-        } else if let first = words.first?.lowercased(), let n = numberWords[first] {
+        } else if let first = words.first?.lowercased(), let n = numberWords[first],
+                  !(words.count > 1 && ["and", "&"].contains(words[1].lowercased())) {   // "half and half" is a food, not ½ of one
             qty = n; words.removeFirst()
         }
         if let u = words.first.flatMap({ units[$0.lowercased()] }) { unit = u; words.removeFirst() }

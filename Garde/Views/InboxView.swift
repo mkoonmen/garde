@@ -18,6 +18,7 @@ struct InboxView: View {
     @State private var receiptNote: String?
     @State private var pasted = ""
     @State private var declinedReceipts: Set<UUID> = []
+    @State private var shownReceiptID: UUID?
 
     var body: some View {
         List { Group {
@@ -46,8 +47,9 @@ struct InboxView: View {
         .navigationTitle("Shared recipes")
         .task { await processAll() }
         .sheet(item: $pendingReceipt, onDismiss: {
-            // Closed without adding: don't keep popping it up; it stays in the list to read or remove.
-            for i in items where RecipeInbox.load().contains(where: { $0.id == i.id }) { declinedReceipts.insert(i.id) }
+            // Closed without adding: don't keep popping that receipt up; it stays in the list to review or remove.
+            if let id = shownReceiptID, RecipeInbox.load().contains(where: { $0.id == id }) { declinedReceipts.insert(id) }
+            shownReceiptID = nil
         }) { p in
             ScanReviewView(scan: p.scan, isReceipt: true, rawText: p.text, image: nil) {
                 RecipeInbox.remove(p.item.id)
@@ -155,6 +157,7 @@ struct InboxView: View {
         let scan = await ChefAI().parseScan(text: String(text.prefix(6000)), labels: [])
         guard !scan.items.isEmpty else { return false }
         // Show it for review first: a recipe post with prices shouldn't silently become groceries.
+        shownReceiptID = item.id
         pendingReceipt = PendingReceipt(id: item.id, item: item, scan: scan, text: text)
         return true
     }

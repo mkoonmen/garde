@@ -24,8 +24,11 @@ struct ShoppingModeView: View {
     var body: some View {
         NavigationStack {
             List {
-                if open.isEmpty && inCart.isEmpty {
-                    ContentUnavailableView("All done", systemImage: "checkmark.seal.fill", description: Text("Everything's in the cart."))
+                if open.isEmpty {
+                    Section {
+                        Label(inCart.isEmpty ? "Nothing on the list" : "Everything's in the cart", systemImage: "checkmark.seal.fill")
+                            .font(.headline).foregroundStyle(.green)
+                    }
                 }
                 ForEach(grouped, id: \.0) { cat, items in
                     Section(cat.label) {
