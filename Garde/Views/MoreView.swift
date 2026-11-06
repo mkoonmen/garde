@@ -45,6 +45,22 @@ struct MoreView: View {
                     Text("Plain JSON, readable by any app or AI. Everything stays on this iPhone unless you share it.")
                 }
                 if let message { Section { Text(message) } }
+
+            let log = GmailImporter.log
+            if !log.isEmpty {
+                Section {
+                    DisclosureGroup("What happened to each email (\(log.count))") {
+                        ForEach(log.prefix(150)) { l in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(l.outcome).font(.caption.weight(.semibold))
+                                    .foregroundStyle(l.outcome.hasPrefix("Imported") || l.outcome.hasPrefix("Takeout") ? Color.green : l.outcome.hasPrefix("Waiting") ? .orange : .secondary)
+                                Text(l.from).font(.caption)
+                                Text(l.subject).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        }
+                    }
+                } footer: { Text("If a real grocery receipt was skipped, tell the developer which store it was from (TestFlight feedback) so Garde can learn it, then tap Re-read.") }
+            }
             }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("More")
@@ -279,6 +295,22 @@ struct GmailSettingsView: View {
             }
 
             if let message { Section { Text(message) } }
+
+            let log = GmailImporter.log
+            if !log.isEmpty {
+                Section {
+                    DisclosureGroup("What happened to each email (\(log.count))") {
+                        ForEach(log.prefix(150)) { l in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(l.outcome).font(.caption.weight(.semibold))
+                                    .foregroundStyle(l.outcome.hasPrefix("Imported") || l.outcome.hasPrefix("Takeout") ? Color.green : l.outcome.hasPrefix("Waiting") ? .orange : .secondary)
+                                Text(l.from).font(.caption)
+                                Text(l.subject).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        }
+                    }
+                } footer: { Text("If a real grocery receipt was skipped, tell the developer which store it was from (TestFlight feedback) so Garde can learn it, then tap Re-read.") }
+            }
 
             if !gmailReceipts.isEmpty {
                 Section("Imported from email · \(gmailReceipts.count)") {

@@ -182,6 +182,12 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         isImporting = true
         defer { isImporting = false; processed.save() }
         processed = ProcessedIDs()   // pick up any reset done elsewhere
+        // Emails skipped by older, stricter or buggier readers get one more look with this version's rules
+        // (receipts already imported are recognized by their id and not duplicated).
+        if !UserDefaults.standard.bool(forKey: "mail.recheck.v292") {
+            processed.reset()
+            UserDefaults.standard.set(true, forKey: "mail.recheck.v292")
+        }
 
         let known = Set(((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).compactMap(\.sourceID))
             .union(((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).compactMap(\.sourceID))
@@ -268,15 +274,25 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         await client.logout()
     }
 
+    /// What happened to each email in the latest imports (newest first), so "why isn't my receipt here?" has an answer.
+    struct LogLine: Codable, Identifiable { var id = UUID(); var date = Date(); var from: String; var subject: String; var outcome: String }
+    static var log: [LogLine] {
+        get { (UserDefaults.standard.data(forKey: "mail.log")).flatMap { try? JSONDecoder().decode([LogLine].self, from: $0) } ?? [] }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(Array(newValue.prefix(300))), forKey: "mail.log") }
+    }
+    private func log(_ from: String, _ subject: String, _ outcome: String) {
+        Self.log.insert(LogLine(from: Self.storeName(from: from), subject: subject, outcome: outcome), at: 0)
+    }
+
     /// Turns one email into a grocery receipt, a takeout order, or nothing.
     private func handle(processedKey id: String, sourceID: String, subject: String, from: String, date: Date, body: String,
                         context: ModelContext, run: inout Run, report: inout ImportReport) async {
         // Restaurant delivery receipts become takeout history (for cooking inspiration), not groceries.
         if let service = Takeout.service(from: from, subject: subject) {
             // Status emails ("delivered", "rate your order") would duplicate the same meal.
-            if EmailReceipt.isNotice(subject) { report.skipped += 1; processed.insert(id); return }
+            if EmailReceipt.isNotice(subject) { log(from, subject, "Skipped: delivery/status update"); report.skipped += 1; processed.insert(id); return }
             // Without the AI, leave it unread so it's picked up once the model is ready.
-            guard run.brainReady else { report.waiting += 1; return }
+            guard run.brainReady else { log(from, subject, "Waiting for Apple Intelligence"); report.waiting += 1; return }
             if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
                 // The same meal often arrives as a confirmation and a receipt: keep one.
                 let day = Calendar.current.startOfDay(for: date)
@@ -285,20 +301,20 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                         && Set($0.dishes.map { $0.lowercased() }) == Set(order.dishes.map { $0.lowercased() })
                         && ($0.total == nil || order.total == nil || abs(($0.total ?? 0) - (order.total ?? 0)) < 0.01)
                 }
-                if dupes { report.skipped += 1; processed.insert(id); return }
+                if dupes { log(from, subject, "Skipped: same meal already saved"); report.skipped += 1; processed.insert(id); return }
                 order.sourceID = sourceID
                 context.insert(order)
                 run.existingTakeout.append(order)
-                report.takeout += 1
-            } else { report.skipped += 1 }
+                report.takeout += 1; log(from, subject, "Takeout: \(order.restaurant)")
+            } else { report.skipped += 1; log(from, subject, "Skipped: couldn't read the order") }
             processed.insert(id); try? context.save()
             return
         }
         // Only real grocery stores become grocery receipts; everything else (software, subscriptions, shipping notices) is ignored.
         guard let knownStore = EmailReceipt.groceryStore(from: from, subject: subject),
-              !EmailReceipt.isNotice(subject) else { report.skipped += 1; processed.insert(id); return }
+              !EmailReceipt.isNotice(subject) else { log(from, subject, EmailReceipt.isNotice(subject) ? "Skipped: shipping/status email" : "Skipped: not from a grocery store Garde knows"); report.skipped += 1; processed.insert(id); return }
         let focus = EmailReceipt.focus(body)
-        guard focus.priceLines >= 1 else { report.skipped += 1; processed.insert(id); return }   // no prices = not a receipt
+        guard focus.priceLines >= 1 else { log(from, subject, "Skipped: no prices in the email"); report.skipped += 1; processed.insert(id); return }   // no prices = not a receipt
 
         // Read in chunks so long receipts fit the on-device model, then merge.
         var items: [ParsedItem] = []
@@ -310,7 +326,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         }
         items = EmailReceipt.dedupe(items).filter { EmailReceipt.isFood($0) }
         // A real receipt has a total, or at least a few food lines. "1 item, no total" is an order update.
-        guard !items.isEmpty, (focus.total ?? aiTotal) != nil || items.count >= 3 else { report.skipped += 1; processed.insert(id); return }
+        guard !items.isEmpty, (focus.total ?? aiTotal) != nil || items.count >= 3 else { log(from, subject, items.isEmpty ? "Skipped: no food items found" : "Skipped: no total and under 3 items"); report.skipped += 1; processed.insert(id); return }
 
         let store = knownStore
         let receipt = Receipt(store: store, date: date, total: focus.total ?? aiTotal, rawText: "From: \(from)\nSubject: \(subject)\n\n" + focus.text)
@@ -327,7 +343,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             context.insert(item)
         }
         if date >= .now.addingTimeInterval(-21 * 86_400) { ShoppingBrain.checkOff(names: items.map(\.name), context: context) }
-        report.receipts += 1; report.items += items.count
+        log(from, subject, "Imported \(Plural.items(items.count))"); report.receipts += 1; report.items += items.count
         processed.insert(id)
         try? context.save()
     }
