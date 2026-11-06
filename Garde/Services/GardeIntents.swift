@@ -54,9 +54,12 @@ struct AddToListIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let ctx = GardeStore.container.mainContext
-        ctx.insert(ShoppingItem(name: item.capitalized, category: ShoppingBrain.guessCategory(item), reason: "Added with Siri"))
+        // "milk, eggs and bread" adds three.
+        let lines = QuickAdd.parse(item)
+        let names = lines.count > 1 ? lines.map(\.name) : [item.capitalized]
+        for n in names { ctx.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), reason: "Added with Siri")) }
         try ctx.save()
-        return .result(dialog: "Added \(item) to your list.")
+        return .result(dialog: names.count > 1 ? "Added \(names.count) things to your list." : "Added \(item) to your list.")
     }
 }
 
