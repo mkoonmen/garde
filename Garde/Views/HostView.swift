@@ -68,7 +68,7 @@ struct HostView: View {
                     HStack { Spacer(); if working { ProgressView() } else { Label("Plan the menu", systemImage: "party.popper") }; Spacer() }
                 }.disabled(working)
             }
-            if let message { Section { Text(message).foregroundStyle(.orange) } }
+            if let message { Section { Text(message).foregroundStyle(.orange); CookingFoundationLink(guestAllergies: guestAllergies.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }) } }
             if let menu {
                 Section("Menu") {
                     ForEach(Array(menu.courses.enumerated()), id: \.offset) { _, c in

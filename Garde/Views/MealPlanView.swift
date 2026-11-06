@@ -38,7 +38,7 @@ struct MealPlanView: View {
                 }.disabled(working || chef.state != .available)
             } footer: { Text("Uses what expires first, then adds whatever's missing to your List.") }
 
-            if let message { Section { Text(message).font(.footnote) } }
+            if let message { Section { Text(message).font(.footnote); CookingFoundationLink() } }
 
             ForEach(upcoming) { entry in
                 Section(entry.day.formatted(.dateTime.weekday(.wide).month().day())) {

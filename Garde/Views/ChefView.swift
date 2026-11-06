@@ -29,9 +29,10 @@ struct ChefView: View {
         NavigationStack {
             List { Group {
                 if case .unavailable(let why) = chef.state {
-                    Section { Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                    Section { Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.orange); CookingFoundationLink() }
                 }
 
+                Section { CookingFoundationLink() }
                 Section {
                     NavigationLink { ChefChatView() } label: {
                         HStack(spacing: 12) {
@@ -141,7 +142,7 @@ struct ChefView: View {
                     .buttonStyle(.plain).listRowBackground(Color.clear).listRowInsets(EdgeInsets()).disabled(working || chef.state != .available)
                 }
 
-                if let error { Section { Text(error).foregroundStyle(.red) } }
+                if let error { Section { Text(error).foregroundStyle(.red); CookingFoundationLink() } }
                 if blocked > 0 {
                     Section { Label("\(blocked) idea\(blocked == 1 ? " was" : "s were") thrown out for containing an allergen.", systemImage: "shield.checkered").font(.footnote) }
                 }

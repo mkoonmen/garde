@@ -30,7 +30,7 @@ struct MealPrepView: View {
                     HStack { Spacer(); if working { ProgressView() } else { Label("Plan my prep", systemImage: "takeoutbag.and.cup.and.straw") }; Spacer() }
                 }.disabled(working)
             } footer: { Text("Built around what expires first. Checked against your allergies.") }
-            if let message { Section { Text(message).foregroundStyle(.orange) } }
+            if let message { Section { Text(message).foregroundStyle(.orange); CookingFoundationLink() } }
             if let plan {
                 ForEach(Array(plan.dishes.enumerated()), id: \.offset) { _, d in
                     Section {

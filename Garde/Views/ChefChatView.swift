@@ -117,6 +117,7 @@ struct ChefChatView: View {
         VStack(spacing: 0) {
             if case .unavailable(let why) = chef.state {
                 ContentUnavailableView("Chef is offline", systemImage: "brain", description: Text(why))
+                CookingFoundationLink().padding()
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
