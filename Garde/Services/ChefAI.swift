@@ -88,6 +88,26 @@ struct PlanResult {
 }
 
 @Generable
+struct HostMenu {
+    @Guide(description: "Three to five courses in serving order")
+    var courses: [HostCourse]
+    @Guide(description: "Prep timeline from days before to serving, each a short line like 'Day before: make the dessert'")
+    var timeline: [String]
+    @Guide(description: "Groceries to buy that are not already in the kitchen, each with an amount for the whole party")
+    var shoppingList: [String]
+}
+
+@Generable
+struct HostCourse {
+    @Guide(description: "Course name, e.g. 'Starter', 'Main', 'Side', 'Dessert'")
+    var course: String
+    @Guide(description: "Dish name")
+    var dish: String
+    @Guide(description: "One sentence: what it is and what can be made ahead")
+    var note: String
+}
+
+@Generable
 struct Swaps {
     @Guide(description: "Two to four substitutes, each a short ingredient line with an amount, e.g. '1/2 cup Greek yogurt + 1 tbsp milk'")
     var options: [String]
@@ -346,6 +366,26 @@ final class ChefAI {
             result.bottleFromCellar = ""
         }
         return result
+    }
+
+    /// A menu, prep timeline and shopping list for having people over. Checked against your allergies and the guests'.
+    func hostMenu(guests: Int, occasion: String, guestAllergies: [String], items: [PantryItem], profile: KitchenProfile, logs: [CookLog]) async throws -> (menu: HostMenu?, blocked: Bool) {
+        guard state == .available else { return (nil, false) }
+        let all = profile.allergies + guestAllergies
+        let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs) + """
+
+        You are planning a dinner party. Guests' allergies are just as absolute: \(guestAllergies.isEmpty ? "none" : guestAllergies.joined(separator: "; ")).
+        Favor dishes that can be made ahead so the host can enjoy the party.
+        """)
+        let prompt = """
+        Occasion: \(occasion.ifEmpty("dinner with friends"))
+        Guests (including host): \(guests)
+        Already in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        """
+        let menu = try await session.respond(to: prompt, generating: HostMenu.self).content
+        let text = menu.courses.flatMap { [$0.dish, $0.note] } + menu.shoppingList + menu.timeline
+        if !AllergenGuard.violations(in: text, allergies: all).isEmpty { return (nil, true) }
+        return (menu, false)
     }
 
     /// Substitutes for one ingredient, preferring things already in the kitchen. Allergen-checked in code.

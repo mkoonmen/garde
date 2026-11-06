@@ -50,6 +50,7 @@ struct ChefView: View {
                     }
                     NavigationLink { FridgeCheckView() } label: { Label("Fridge check-in", systemImage: "camera.viewfinder") }
                     NavigationLink { TakeoutView() } label: { Label("Takeout favorites (DoorDash, Uber Eats)", systemImage: "bag") }
+                    NavigationLink { HostView() } label: { Label("Host a dinner", systemImage: "party.popper") }
                 } footer: { Text("Share a TikTok, Instagram post, web page or photo to Garde to save the recipe.") }
 
                 let again = cookAgain

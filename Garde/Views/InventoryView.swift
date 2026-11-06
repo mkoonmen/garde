@@ -274,10 +274,48 @@ struct KitchenHero: View {
                     .buttonStyle(.plain)
                 }
             }
+            WeekStrip()
         }
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
         .onAppear { withAnimation(.spring(duration: 0.6)) { appeared = true } }
         .sensoryFeedback(.selection, trigger: filter)
+    }
+}
+
+/// "This week": dinners cooked, food eaten vs. tossed, money spent on groceries.
+struct WeekStrip: View {
+    @Query private var logs: [CookLog]
+    @Query(filter: #Predicate<PantryItem> { $0.isUsedUp }) private var finished: [PantryItem]
+    @Query private var receipts: [Receipt]
+
+    var body: some View {
+        let start = Date.now.addingTimeInterval(-7 * 86_400)
+        let cooked = logs.filter { $0.date >= start }.count
+        let done = finished.filter { ($0.usedUpDate ?? .distantPast) >= start }
+        let tossed = done.filter(\.wasTossed).count
+        let spent = receipts.filter { $0.date >= start }.compactMap(\.total).reduce(0, +)
+        if cooked + done.count > 0 || spent > 0 {
+            HStack(spacing: 0) {
+                cell("\(cooked)", "cooked", "frying.pan")
+                cell("\(done.count - tossed)", "eaten", "checkmark.circle")
+                cell("\(tossed)", "tossed", "trash", warn: tossed > 0)
+                cell(spent.formatted(.currency(code: "USD").precision(.fractionLength(0))), "spent", "cart")
+            }
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
+            .overlay(alignment: .topLeading) {
+                Text("THIS WEEK").font(.caption2.weight(.bold)).foregroundStyle(Theme.copper).offset(x: 12, y: -14)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private func cell(_ v: String, _ l: String, _ icon: String, warn: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: icon).font(.caption).foregroundStyle(warn ? .orange : .secondary)
+            Text(v).font(.system(.headline, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+            Text(l).font(.caption2).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity)
     }
 }
