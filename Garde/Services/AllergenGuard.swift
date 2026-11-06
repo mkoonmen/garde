@@ -15,7 +15,7 @@ enum AllergenGuard {
         "peanut": ["peanut", "groundnut", "satay"],
         "tree nut": ["almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia", "brazil nut", "pine nut",
                      "praline", "marzipan", "nutella", "pesto", "frangipane", "gianduja", "nut butter", "amaretto",
-                     "nut", "nuts", "chestnut", "nut oil", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
+                     "nut", "nuts", "chestnut", "nut oil", "nocino", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
         "dairy": ["milk", "butter", "cream", "creme", "crème", "cheese", "yogurt", "yoghurt", "ghee", "whey", "casein", "mozzarella",
                   "parmesan", "parmigiano", "pecorino", "brie", "cheddar", "gouda", "ricotta", "boursin", "mascarpone", "burrata",
                   "feta", "stracciatella", "half-and-half", "custard", "queso", "paneer", "kefir", "alfredo"],
@@ -47,7 +47,7 @@ enum AllergenGuard {
         "hazelnut": ["hazelnut", "nutella", "gianduja", "filbert"],
         "peanut": ["peanut", "groundnut", "satay"],
         "coconut": ["coconut"],
-        "pistachio": ["pistachio"], "cashew": ["cashew"], "walnut": ["walnut"], "pecan": ["pecan", "praline"],
+        "pistachio": ["pistachio"], "cashew": ["cashew"], "walnut": ["walnut", "nocino"], "pecan": ["pecan", "praline"],
         "macadamia": ["macadamia"], "pine nut": ["pine nut", "pignoli", "pesto"], "brazil nut": ["brazil nut"], "chestnut": ["chestnut"],
     ]
 

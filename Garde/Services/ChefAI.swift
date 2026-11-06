@@ -108,6 +108,24 @@ struct HostCourse {
 }
 
 @Generable
+struct CocktailList {
+    @Guide(description: "Three to five cocktails that can be made with the bottles listed (plus common pantry items)")
+    var drinks: [Cocktail]
+}
+
+@Generable
+struct Cocktail {
+    @Guide(description: "Cocktail name")
+    var name: String
+    @Guide(description: "Spec lines with amounts, e.g. '2 oz bourbon', '3/4 oz lemon juice'")
+    var spec: [String]
+    @Guide(description: "One or two sentences on how to make it, including glass and garnish")
+    var method: String
+    @Guide(description: "Anything missing that they would need to buy, or empty")
+    var missing: [String]
+}
+
+@Generable
 struct Swaps {
     @Guide(description: "Two to four substitutes, each a short ingredient line with an amount, e.g. '1/2 cup Greek yogurt + 1 tbsp milk'")
     var options: [String]
@@ -386,6 +404,24 @@ final class ChefAI {
         let text = menu.courses.flatMap { [$0.dish, $0.note] } + menu.shoppingList + menu.timeline
         if !AllergenGuard.violations(in: text, allergies: all).isEmpty { return (nil, true) }
         return (menu, false)
+    }
+
+    /// Cocktails from the bar, using pantry citrus, sugar, herbs etc. Allergen-checked in code.
+    func cocktails(bottles: [BarBottle], items: [PantryItem], profile: KitchenProfile, mood: String) async throws -> [Cocktail] {
+        guard state == .available else { return [] }
+        let spirits = bottles.filter { $0.count > 0 }.map { "\($0.name) (\($0.kind.label))" }
+        let session = ChefEngine.shared.session(instructions: """
+        You are a skilled bartender. Suggest classic and creative cocktails that use the bottles on hand.
+        ABSOLUTE RULE: never include these allergens or anything made from them (including liqueurs): \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
+        """)
+        let prompt = """
+        Bottles: \(spirits.joined(separator: ", ").ifEmpty("none"))
+        Kitchen: \(items.prefix(40).map(\.name).joined(separator: ", "))
+        Mood: \(mood.ifEmpty("bartender's choice"))
+        Prefer drinks that need nothing extra.
+        """
+        let list = try await session.respond(to: prompt, generating: CocktailList.self).content
+        return list.drinks.filter { AllergenGuard.violations(in: [$0.name, $0.method] + $0.spec + $0.missing, allergies: profile.allergies).isEmpty }
     }
 
     /// Substitutes for one ingredient, preferring things already in the kitchen. Allergen-checked in code.

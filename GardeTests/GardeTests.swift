@@ -34,7 +34,7 @@ import Foundation
 
     @Test(arguments: ["Basil pesto pasta", "Mixed nuts", "Cashew chicken", "Walnut brownies", "Pistachio gelato", "Pecan pie",
                       "Contains: nuts", "May contain tree nuts", "Macadamia cookies", "Roasted chestnuts", "Pine nut salad", "Praline",
-                      "Almond and walnut cake"])
+                      "Almond and walnut cake", "Nocino old fashioned"])
     func blocked(text: String) { #expect(!AllergenGuard.violations(in: [text], allergies: allergies).isEmpty) }
 }
 

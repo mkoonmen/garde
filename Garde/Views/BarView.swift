@@ -24,6 +24,11 @@ struct BarView: View {
             if bottles.isEmpty {
                 ContentUnavailableView("Bar is empty", systemImage: "wineglass", description: Text("Add your bottles and recipes will pair from what you own."))
             }
+            if bottles.contains(where: { $0.count > 0 }) {
+                Section {
+                    NavigationLink { MixView() } label: { Label("What can I mix tonight?", systemImage: "wineglass.fill") }
+                }
+            }
             ForEach(grouped, id: \.0) { kind, items in
                 Section(kind.label) {
                     ForEach(items) { b in
