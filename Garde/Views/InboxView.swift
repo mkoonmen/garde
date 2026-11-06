@@ -16,9 +16,20 @@ struct InboxView: View {
     struct PendingReceipt: Identifiable { let id: UUID; let item: InboxItem; let scan: ParsedScan; let text: String }
     @State private var working: Set<UUID> = []
     @State private var receiptNote: String?
+    @State private var pasted = ""
 
     var body: some View {
         List { Group {
+            Section {
+                HStack {
+                    TextField("Paste a recipe link or text", text: $pasted, axis: .vertical).lineLimit(1...4)
+                    Button("Add", systemImage: "plus.circle.fill") { addPasted() }.labelStyle(.iconOnly).font(.title2)
+                        .disabled(pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                PasteButton(payloadType: String.self) { strings in
+                    if let s = strings.first { pasted = s; addPasted() }
+                }.labelStyle(.titleAndIcon)
+            } footer: { Text("Or in any app: Share → Garde.") }
             if let receiptNote { Section { Label(receiptNote, systemImage: "checkmark.circle.fill").foregroundStyle(.green) } }
             if items.isEmpty {
                 ContentUnavailableView("Nothing shared yet", systemImage: "square.and.arrow.down",
@@ -97,6 +108,16 @@ struct InboxView: View {
         s = s.replacing(/^[\d\s\/½¼¾⅓⅔.\-]+/, with: "")
         s = s.replacing(/^(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|lbs?|pounds?|oz|ounces?|grams?|g|kg|cans?|cloves?|pinch|bunch(es)?|sprigs?|slices?|large|small|medium)\b\.?\s*(of\s+)?/, with: "")
         return s.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? line
+    }
+
+    private func addPasted() {
+        let t = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        let link = t.firstMatch(of: /https?:\/\/\S+/).map { String($0.0) }
+        RecipeInbox.add(url: link, text: link == nil || t.count > (link?.count ?? 0) + 5 ? t : nil)
+        pasted = ""
+        items = RecipeInbox.load()
+        Task { await processAll() }
     }
 
     private func processAll() async {
