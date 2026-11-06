@@ -323,10 +323,114 @@ final class CookLog {
 
 // MARK: - Bar & cellar
 
-enum BottleKind: String, Codable, CaseIterable, Identifiable {
-    case red, white, rose, sparkling, dessert, bourbon, whiskey, tequila, rum, gin, vodka, other
+/// Top-level drink family, picked first when adding a bottle.
+enum DrinkCategory: String, CaseIterable, Identifiable {
+    case liquor, wine, beer, seltzer, other
     var id: String { rawValue }
-    var label: String { self == .rose ? "Rosé" : rawValue.capitalized }
+    var label: String {
+        switch self { case .liquor: "Liquor"; case .wine: "Wine"; case .beer: "Beer & cider"; case .seltzer: "Hard seltzer & RTD"; case .other: "Other" }
+    }
+    var kinds: [BottleKind] { BottleKind.allCases.filter { $0.category == self } }
+}
+
+/// The type of bottle. Raw values are stored, so old ones (red, bourbon…) never change.
+enum BottleKind: String, Codable, CaseIterable, Identifiable {
+    // Wine
+    case red, white, rose, sparkling, dessert, orangeWine, fortified
+    // Liquor
+    case bourbon, rye, scotch, irish, japanese, whiskey, tequila, mezcal, rum, gin, vodka,
+         cognac, brandy, liqueur, amaro, vermouth, absinthe, sake, soju, bitters
+    // Beer
+    case lager, pilsner, ipa, paleAle, wheat, stout, porter, amber, belgian, sour, cider, nonAlcBeer
+    // Seltzer
+    case seltzer, cannedCocktail
+    case other
+    var id: String { rawValue }
+
+    var category: DrinkCategory {
+        switch self {
+        case .red, .white, .rose, .sparkling, .dessert, .orangeWine, .fortified: .wine
+        case .lager, .pilsner, .ipa, .paleAle, .wheat, .stout, .porter, .amber, .belgian, .sour, .cider, .nonAlcBeer: .beer
+        case .seltzer, .cannedCocktail: .seltzer
+        case .other: .other
+        default: .liquor
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .rose: "Rosé"
+        case .orangeWine: "Orange / skin-contact"
+        case .fortified: "Port, sherry & fortified"
+        case .rye: "Rye whiskey"
+        case .scotch: "Scotch"
+        case .irish: "Irish whiskey"
+        case .japanese: "Japanese whisky"
+        case .whiskey: "Other whiskey"
+        case .cognac: "Cognac & Armagnac"
+        case .brandy: "Brandy & pisco"
+        case .liqueur: "Liqueur"
+        case .amaro: "Amaro & aperitivo"
+        case .bitters: "Cocktail bitters"
+        case .ipa: "IPA"
+        case .paleAle: "Pale ale"
+        case .wheat: "Wheat / hefeweizen"
+        case .stout: "Stout"
+        case .amber: "Amber & brown ale"
+        case .belgian: "Belgian & Trappist"
+        case .sour: "Sour & gose"
+        case .nonAlcBeer: "Non-alcoholic beer"
+        case .seltzer: "Hard seltzer"
+        case .cannedCocktail: "Canned cocktail / RTD"
+        default: rawValue.capitalized
+        }
+    }
+
+    /// Finer styles to choose from under this type (empty = none).
+    var styles: [String] {
+        switch self {
+        case .red: ["Cabernet Sauvignon", "Merlot", "Pinot Noir", "Syrah / Shiraz", "Malbec", "Zinfandel", "Sangiovese / Chianti", "Tempranillo / Rioja", "Grenache / Garnacha", "Nebbiolo / Barolo", "Cabernet Franc", "Petite Sirah", "Bordeaux blend", "Red blend"]
+        case .white: ["Chardonnay (oaked)", "Chardonnay (unoaked)", "Sauvignon Blanc", "Pinot Grigio / Gris", "Riesling (dry)", "Riesling (sweet)", "Moscato", "Chenin Blanc", "Albariño", "Grüner Veltliner", "Gewürztraminer", "Viognier", "Vermentino", "White blend"]
+        case .rose: ["Provence (dry)", "Sparkling rosé", "White Zinfandel", "Other rosé"]
+        case .sparkling: ["Champagne", "Prosecco", "Cava", "Crémant", "Lambrusco", "Pét-nat", "Other sparkling"]
+        case .dessert: ["Sauternes", "Ice wine", "Late harvest", "Tokaji", "Vin Santo"]
+        case .fortified: ["Ruby port", "Tawny port", "Fino / Manzanilla sherry", "Amontillado / Oloroso", "Pedro Ximénez", "Madeira", "Marsala"]
+        case .bourbon: ["Straight", "Small batch", "Single barrel", "Bottled-in-bond", "Wheated", "High rye", "Cask strength"]
+        case .rye: ["Straight rye", "Bottled-in-bond", "Canadian rye", "Cask strength"]
+        case .scotch: ["Single malt (Speyside)", "Single malt (Highland)", "Islay / peated", "Islands", "Campbeltown", "Blended", "Blended malt"]
+        case .irish: ["Blended", "Single pot still", "Single malt"]
+        case .japanese: ["Single malt", "Blended"]
+        case .whiskey: ["American single malt", "Tennessee", "Canadian", "Corn", "Flavored"]
+        case .tequila: ["Blanco / silver", "Reposado", "Añejo", "Extra añejo", "Cristalino"]
+        case .mezcal: ["Espadín", "Tobalá", "Ensamble"]
+        case .rum: ["White / silver", "Gold", "Dark", "Aged", "Spiced", "Overproof", "Rhum agricole", "Cachaça", "Coconut"]
+        case .gin: ["London dry", "New Western / contemporary", "Old Tom", "Plymouth", "Navy strength", "Sloe gin"]
+        case .vodka: ["Unflavored", "Flavored", "Citrus", "Vanilla"]
+        case .cognac: ["VS", "VSOP", "XO", "Armagnac"]
+        case .brandy: ["American brandy", "Spanish brandy", "Pisco", "Calvados / apple", "Grappa", "Eau de vie"]
+        case .liqueur: ["Orange (triple sec, Cointreau)", "Coffee", "Cream", "Herbal", "Nut / almond", "Fruit", "Elderflower", "Maraschino", "Chocolate"]
+        case .amaro: ["Aperitivo (Campari, Aperol)", "Medium amaro", "Fernet", "Chartreuse"]
+        case .vermouth: ["Sweet / rosso", "Dry", "Blanc / bianco", "Lillet / aromatized wine"]
+        case .sake: ["Junmai", "Ginjo", "Daiginjo", "Nigori", "Sparkling"]
+        case .lager: ["American light", "Mexican lager", "Helles", "Märzen / Oktoberfest", "Vienna", "Dark lager", "Bock"]
+        case .pilsner: ["German pils", "Czech pils", "Italian pils"]
+        case .ipa: ["West Coast", "Hazy / New England", "Double / imperial", "Session", "Black IPA"]
+        case .paleAle: ["American pale", "English bitter", "ESB", "Blonde ale", "Cream ale"]
+        case .wheat: ["Hefeweizen", "Witbier", "American wheat", "Fruit wheat"]
+        case .stout: ["Dry / Irish", "Milk stout", "Oatmeal", "Imperial", "Pastry stout"]
+        case .porter: ["Robust", "Baltic", "Smoked"]
+        case .belgian: ["Dubbel", "Tripel", "Quadrupel", "Saison", "Belgian strong"]
+        case .sour: ["Gose", "Berliner weisse", "Fruited sour", "Lambic / gueuze", "Flanders red"]
+        case .cider: ["Dry", "Semi-sweet", "Rosé cider", "Perry (pear)"]
+        case .seltzer: ["Lime", "Black cherry", "Mango", "Variety pack", "Tequila seltzer", "Vodka seltzer"]
+        case .cannedCocktail: ["Margarita", "Vodka soda", "Gin & tonic", "Paloma", "Mule", "Old fashioned", "Spritz"]
+        default: []
+        }
+    }
+
+    /// Bottle / can / keg choices make sense for beer, cider and seltzer.
+    var hasFormat: Bool { category == .beer || category == .seltzer }
+    static let formats = ["Bottle", "Can", "Tallboy can", "Draft / keg", "Growler", "Crowler"]
 }
 
 @Model
@@ -338,6 +442,8 @@ final class BarBottle {
     var region: String = ""
     var count: Int = 1
     var notes: String = ""
+    var style: String = ""
+    var format: String = ""
     @Attribute(.externalStorage) var photo: Data?
 
     init(name: String, kind: BottleKind, vintage: String = "", region: String = "", count: Int = 1) {
@@ -347,6 +453,8 @@ final class BarBottle {
         self.region = region
         self.count = count
     }
+    /// "Pinot Noir (Red)" style description for the chef.
+    var typeLabel: String { style.isEmpty ? kind.label : "\(style) \(kind.label.lowercased())" }
     var kind: BottleKind {
         get { BottleKind(rawValue: kindRaw) ?? .other }
         set { kindRaw = newValue.rawValue }

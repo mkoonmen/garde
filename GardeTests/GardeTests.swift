@@ -396,3 +396,25 @@ import Foundation
         #expect(h["subject"] == "Receipt")
     }
 }
+
+final class DrinkTaxonomyTests: XCTestCase {
+    func testOldRawValuesStillDecode() {
+        for raw in ["red", "white", "rose", "sparkling", "dessert", "bourbon", "whiskey", "tequila", "rum", "gin", "vodka", "other"] {
+            XCTAssertNotNil(BottleKind(rawValue: raw), raw)
+        }
+    }
+    func testEveryCategoryHasTypes() {
+        for c in DrinkCategory.allCases { XCTAssertFalse(c.kinds.isEmpty, c.label) }
+        XCTAssertGreaterThanOrEqual(DrinkCategory.liquor.kinds.count, 15)
+        XCTAssertTrue(BottleKind.red.styles.contains("Pinot Noir"))
+        XCTAssertTrue(BottleKind.ipa.hasFormat)
+        XCTAssertFalse(BottleKind.bourbon.hasFormat)
+    }
+    @MainActor func testGuessKind() {
+        XCTAssertEqual(BottleReader.guessKind("White Claw Hard Seltzer Mango"), .seltzer)
+        XCTAssertEqual(BottleReader.guessKind("Sierra Nevada Hazy IPA"), .ipa)
+        XCTAssertEqual(BottleReader.guessKind("Lagavulin 16 Islay Single Malt Scotch"), .scotch)
+        XCTAssertEqual(BottleReader.guessKind("Caymus Cabernet Sauvignon"), .red)
+        XCTAssertEqual(BottleReader.guessKind("Del Maguey Mezcal"), .mezcal)
+    }
+}

@@ -410,7 +410,7 @@ final class ChefAI {
 
     func pair(dish: String, ingredients: [String], bottles: [BarBottle]) async throws -> Pairing? {
         guard state == .available else { return nil }
-        let cellar = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.kind.label)\($0.vintage.isEmpty ? "" : ", \($0.vintage)")\($0.region.isEmpty ? "" : ", \($0.region)"))" }
+        let cellar = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.typeLabel)\($0.vintage.isEmpty ? "" : ", \($0.vintage)")\($0.region.isEmpty ? "" : ", \($0.region)"))" }
         let session = ChefEngine.shared.session(instructions: "You are a sommelier and bartender. Pair drinks with food. Only pick a bottle that is in the list.")
         let prompt = """
         Dish: \(dish)
@@ -449,7 +449,7 @@ final class ChefAI {
     /// Cocktails from the bar, using pantry citrus, sugar, herbs etc. Allergen-checked in code.
     func cocktails(bottles: [BarBottle], items: [PantryItem], profile: KitchenProfile, mood: String) async throws -> [Cocktail] {
         guard state == .available else { return [] }
-        let spirits = bottles.filter { $0.count > 0 }.map { "\($0.name) (\($0.kind.label))" }
+        let spirits = bottles.filter { $0.count > 0 }.map { "\($0.name) (\($0.typeLabel))" }
         let session = ChefEngine.shared.session(instructions: """
         You are a skilled bartender. Suggest classic and creative cocktails that use the bottles on hand.
         ABSOLUTE RULE: never include these allergens or anything made from them (including liqueurs): \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
@@ -485,7 +485,7 @@ final class ChefAI {
     /// A guided tasting flight from bottles on hand (bourbon, whiskey, wine…). Snacks are allergen-checked.
     func flight(bottles: [BarBottle], profile: KitchenProfile) async throws -> Flight? {
         guard state == .available else { return nil }
-        let list = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.kind.label)\($0.vintage.isEmpty ? "" : ", \($0.vintage)"))" }
+        let list = bottles.filter { $0.count > 0 }.map { "- \($0.name) (\($0.typeLabel)\($0.vintage.isEmpty ? "" : ", \($0.vintage)"))" }
         guard list.count >= 2 else { return nil }
         let session = ChefEngine.shared.session(instructions: """
         You are a spirits and wine educator leading a home tasting. Only use bottles from the list.

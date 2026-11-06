@@ -40,15 +40,17 @@ struct GardeSettingsView: View {
                     } else {
                         switch engine.downloadState {
                         case .notDownloaded:
-                            Button("Download Qwen3 8B (4.7 GB)", systemImage: "arrow.down.circle") { Task { await engine.downloadLocalModel() } }
+                            Button("Download Qwen3 8B (4.7 GB)", systemImage: "arrow.down.circle") { engine.startDownload() }
                             Text("Use Wi-Fi and keep Garde open until it finishes.").font(.caption).foregroundStyle(.secondary)
                         case .downloading(let p):
                             ProgressView(value: p) { Text("Downloading… \(Int(p * 100))%") }
+                            Text("\(ByteCountFormatter.string(fromByteCount: engine.downloadedBytes, countStyle: .file)) of 4.7 GB · keep Garde open; the screen stays on.").font(.caption).foregroundStyle(.secondary)
+                            if engine.stalled { Label("Nothing new for a minute. Check Wi-Fi and free space (needs about 10 GB).", systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(.orange) }
                         case .ready:
                             Label("Downloaded. Runs fully offline.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                         case .failed(let why):
                             Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-                            Button("Try again") { Task { await engine.downloadLocalModel() } }
+                            Button("Try again") { engine.startDownload() }
                         }
                     }
                 }
