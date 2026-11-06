@@ -3,6 +3,14 @@ import Foundation
 /// Recipe identity is separate from the branded product printed on a receipt.
 enum FoodIdentity {
     static let aliases: [(String, [String])] = [
+        ("garlic bread", ["garlic bread"]), ("banana bread", ["banana bread"]),
+        ("bread crumbs", ["bread crumb", "breadcrumb", "panko"]),
+        ("potato chips", ["potato chip"]), ("tortilla chips", ["tortilla chip"]),
+        ("tomato soup", ["tomato soup"]), ("chicken soup", ["chicken soup"]),
+        ("chocolate milk", ["chocolate milk"]), ("egg roll", ["egg roll"]),
+        ("almond flour", ["almond flour"]), ("coconut flour", ["coconut flour"]),
+        ("onion dip", ["onion dip"]), ("spinach dip", ["spinach dip"]),
+        ("lemon juice", ["lemon juice"]), ("lime juice", ["lime juice"]),
         ("rice milk", ["rice milk"]), ("hemp milk", ["hemp milk"]), ("pea milk", ["pea milk"]), ("macadamia milk", ["macadamia milk"]),
         ("evaporated milk", ["evaporated milk"]), ("condensed milk", ["condensed milk"]),
         ("egg white", ["egg white"]), ("egg yolk", ["egg yolk"]), ("egg noodles", ["egg noodle"]),

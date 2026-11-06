@@ -14,6 +14,11 @@ struct KitchenUpgradeTests {
         #expect(FoodIdentity.ingredient("Silk Silk Almond 64 FL OZ") == "almond milk")
         #expect(!FoodIdentity.matches("milk", "Silk almond milk"))
         #expect(!FoodIdentity.matches("butter", "peanut butter"))
+        #expect(!FoodIdentity.matches("garlic", "garlic bread"))
+        #expect(!FoodIdentity.matches("potato", "potato chips"))
+        #expect(!FoodIdentity.matches("tomato", "tomato soup"))
+        #expect(!FoodIdentity.matches("flour", "almond flour"))
+        #expect(!FoodIdentity.matches("milk", "chocolate milk"))
         #expect(FoodIdentity.matches("chicken", "chicken thighs"))
         #expect(FoodIdentity.productKey("Kirkland milk 1 gal") != FoodIdentity.productKey("Organic Valley milk 1 gal"))
     }
