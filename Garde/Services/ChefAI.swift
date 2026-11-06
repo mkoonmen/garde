@@ -126,6 +126,28 @@ struct Cocktail {
 }
 
 @Generable
+struct MealPrep {
+    @Guide(description: "Two or three dishes to batch cook that reheat well and cover the lunches or dinners asked for")
+    var dishes: [PrepDish]
+    @Guide(description: "One efficient prep session in order, 6 to 12 short steps, overlapping oven and stovetop work")
+    var session: [String]
+    @Guide(description: "Groceries to buy that are not already in the kitchen, each with an amount")
+    var shoppingList: [String]
+}
+
+@Generable
+struct PrepDish {
+    @Guide(description: "Dish name")
+    var name: String
+    @Guide(description: "How many portions it makes")
+    var portions: Int
+    @Guide(description: "How to store it and how many days it keeps in the fridge, e.g. 'Glass containers, 4 days; freeze extras'")
+    var storage: String
+    @Guide(description: "Ingredient lines with amounts")
+    var ingredients: [String]
+}
+
+@Generable
 struct Flight {
     @Guide(description: "Three or four bottles from the list in tasting order, each as 'Bottle name: what to notice'")
     var pours: [String]
@@ -440,6 +462,24 @@ final class ChefAI {
         """
         let list = try await session.respond(to: prompt, generating: CocktailList.self).content
         return list.drinks.filter { AllergenGuard.violations(in: [$0.name, $0.method] + $0.spec + $0.missing, allergies: profile.allergies).isEmpty }
+    }
+
+    /// One Sunday prep session that covers the week's lunches or dinners. Allergen-checked in code.
+    func mealPrep(meals: Int, people: Int, focus: String, items: [PantryItem], profile: KitchenProfile, logs: [CookLog]) async throws -> MealPrep? {
+        guard state == .available else { return nil }
+        let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs) + """
+
+        You plan efficient batch-cooking sessions for the week. Dishes must reheat well and stay good for several days.
+        """)
+        let prompt = """
+        Cover \(meals) meals for \(people) \(people == 1 ? "person" : "people").
+        Focus: \(focus.ifEmpty("balanced, high protein"))
+        Use first (expires soon): \(items.filter { ($0.daysLeft ?? 99) <= 5 }.prefix(12).map(\.name).joined(separator: ", ").ifEmpty("nothing urgent"))
+        Also in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
+        """
+        let plan = try await session.respond(to: prompt, generating: MealPrep.self).content
+        let text = plan.dishes.flatMap { [$0.name, $0.storage] + $0.ingredients } + plan.session + plan.shoppingList
+        return AllergenGuard.violations(in: text, allergies: profile.allergies).isEmpty ? plan : nil
     }
 
     /// A guided tasting flight from bottles on hand (bourbon, whiskey, wine…). Snacks are allergen-checked.

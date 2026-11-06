@@ -6,13 +6,14 @@ import PhotosUI
 /// Text is read with on-device OCR, then the on-device model turns it into items you review before saving.
 struct ScanView: View {
     enum Kind: String, CaseIterable, Identifiable {
-        case receipt = "Receipt", groceries = "Groceries / fridge", label = "Label / date"
+        case receipt = "Receipt", groceries = "Groceries", label = "Label", recipe = "Recipe"
         var id: String { rawValue }
         var hint: String {
             switch self {
             case .receipt: "Lay the receipt flat in good light. Long receipts: take it in two photos."
             case .groceries: "Spread items out so labels face the camera."
             case .label: "Get close to the package so the expiration date is sharp."
+            case .recipe: "A cookbook page, recipe card or handwritten recipe. Garde reads it and saves it to your recipes."
             }
         }
     }
@@ -27,6 +28,7 @@ struct ScanView: View {
     @State private var rawText = ""
     @State private var chef = ChefAI()
     @State private var live = false
+    @State private var showInbox = false
 
     var body: some View {
         NavigationStack {
@@ -74,6 +76,7 @@ struct ScanView: View {
             .gardePage()
             .navigationTitle("Scan")
             .fullScreenCover(isPresented: $live) { LiveScanView() }
+            .navigationDestination(isPresented: $showInbox) { InboxView() }
             .fullScreenCover(isPresented: $showCamera) { CameraPicker { process($0) }.ignoresSafeArea() }
             .onChange(of: pick) { _, new in
                 Task {
@@ -88,6 +91,12 @@ struct ScanView: View {
     }
 
     private func process(_ img: UIImage) {
+        if kind == .recipe {
+            // Same path as Share → Garde: the inbox reads it, checks allergens and what you'd need to buy.
+            RecipeInbox.add(url: nil, text: nil, imageData: img.storageJPEG(maxDimension: 2000))
+            showInbox = true
+            return
+        }
         image = img
         working = true
         Task {
