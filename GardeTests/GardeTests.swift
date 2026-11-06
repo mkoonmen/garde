@@ -333,3 +333,15 @@ import Foundation
     @Test(arguments: ["Guacamole and chips", "Pork pozole"])
     func fine(text: String) { #expect(AllergenGuard.violations(in: [text], allergies: a).isEmpty) }
 }
+
+@Suite("Offline swaps") struct SubstitutionTests {
+    @Test func classics() {
+        #expect(Substitutions.offline(for: "1 cup buttermilk") != nil)
+        #expect(Substitutions.offline(for: "2 large eggs") != nil)
+        #expect(Substitutions.offline(for: "1 eggplant") == nil)
+    }
+    @Test func nutSwapIsSafeForMichael() {
+        let opts = Substitutions.offline(for: "1/2 cup walnuts")?.options ?? []
+        #expect(opts.contains { AllergenGuard.violations(in: [$0], allergies: ["Tree nuts except almonds, hazelnuts"]).isEmpty })
+    }
+}

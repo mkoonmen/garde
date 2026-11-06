@@ -54,7 +54,9 @@ struct ShoppingListView: View {
                         if deals.matchedDeals.isEmpty {
                             Text("Nothing on your list is on sale this week.").font(.subheadline).foregroundStyle(.secondary)
                         }
-                        ForEach(deals.matchedDeals.prefix(8)) { d in DealRow(deal: d) }
+                        ForEach(deals.matchedDeals.prefix(8)) { d in
+                            DealRow(deal: d, usual: prices.first { ShoppingBrain.sameFood($0.key, d.name) }?.average)
+                        }
                         NavigationLink("Browse all \(deals.visible.count) sale items") { DealsView() }
                     } header: {
                         HStack { Text("On sale near you"); Spacer(); if deals.refreshing { ProgressView().controlSize(.mini) } }
@@ -153,6 +155,7 @@ struct ShoppingListView: View {
 
 struct DealRow: View {
     let deal: DealsService.Deal
+    var usual: Double? = nil      // what you normally pay, from your receipts
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -162,6 +165,9 @@ struct DealRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(deal.priceText).font(.subheadline.weight(.bold)).foregroundStyle(.green).multilineTextAlignment(.trailing)
+                if let usual, let p = deal.price, usual > p * 1.05 {
+                    Text("you usually pay \(usual.formatted(.currency(code: "USD")))").font(.caption2.weight(.semibold)).foregroundStyle(Theme.copper)
+                }
                 if let to = deal.validTo { Text("thru \(to.formatted(.dateTime.weekday(.abbreviated)))").font(.caption2).foregroundStyle(.tertiary) }
             }
         }
