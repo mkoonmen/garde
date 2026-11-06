@@ -378,3 +378,21 @@ import Foundation
         #expect(ChefTips.tip(for: "Add the pork chops") == nil)
     }
 }
+
+@Suite("Email parsing (iCloud / IMAP)") struct MIMETests {
+    @Test func encodedSubject() {
+        #expect(MIMEParser.decodeWords("=?UTF-8?Q?Your_Walmart_order_receipt?=") == "Your Walmart order receipt")
+        #expect(MIMEParser.decodeWords("=?utf-8?B?WW91ciBUYXJnZXQgcmVjZWlwdA==?=") == "Your Target receipt")
+    }
+    @Test func multipartPrefersPlainText() {
+        let raw = "Content-Type: multipart/alternative; boundary=\"XX\"\r\n\r\n--XX\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nMilk 3.49=0ATotal 3.49\r\n--XX\r\nContent-Type: text/html\r\n\r\n<p>Milk</p>\r\n--XX--\r\n"
+        let text = MIMEParser.bodyText(Data(raw.utf8))
+        #expect(text.contains("Milk 3.49"))
+        #expect(text.contains("Total 3.49"))
+    }
+    @Test func headersUnfold() {
+        let h = MIMEParser.headers("From: Walmart\r\n <help@walmart.com>\r\nSubject: Receipt\r\n\r\n")
+        #expect(h["from"] == "Walmart <help@walmart.com>")
+        #expect(h["subject"] == "Receipt")
+    }
+}
