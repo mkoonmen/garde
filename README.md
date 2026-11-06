@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Recipe-book accuracy: Can make now requires every measured ingredient to be covered, and availability updates when amounts, ingredient identity, expiration or saved ingredients change. Unknown amounts are labeled to buy or check.
 - 2026-11-06 — Test-script coordination: compile before using the simulator, wait for another app's active simulator tests, and shut the simulator down only after Garde actually uses it. A compile failure no longer shuts down another app's test run.
 - 2026-11-06 — Release builds also use one job and skip indexing to keep memory and disk use down. The separate CloudKit diagnostic returns a failure status if schema validation fails.
 - 2026-11-06 — CloudKit production repair: initialized and deployed all eleven model record types and their indexes from the actual SwiftData models. The container previously had only Users. Added a schema snapshot and a separate signed diagnostic target under Tools/CloudSchema for future schema validation. Deployment was confirmed in CloudKit Console. Physical two-device syncing remains a device check.

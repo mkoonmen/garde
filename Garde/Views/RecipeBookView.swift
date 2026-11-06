@@ -23,13 +23,19 @@ struct RecipeBookView: View {
             && {
                 switch filter {
                 case .all: true
-                case .canMake: (missingByID[r.id] ?? 99) <= 1
+                case .canMake: (missingByID[r.id] ?? 99) == 0
                 case .quick: r.minutes > 0 && r.minutes <= 30
                 case .favorites: r.isFavorite
                 case .loved: (best[r.title.lowercased()] ?? 0) >= 4
                 }
             }()
         }
+    }
+
+    private var stockSignature: String {
+        let stock = items.map { "\($0.id)/\($0.ingredientName)/\($0.availableLabel)/\($0.daysLeft ?? 999)" }.sorted().joined(separator: "|")
+        let recipes = saved.map { $0.id.uuidString + $0.ingredients.joined(separator: "|") }.sorted().joined(separator: "/")
+        return stock + recipes
     }
 
     var body: some View {
@@ -39,7 +45,7 @@ struct RecipeBookView: View {
             }
             if shown.isEmpty {
                 ContentUnavailableView(filter == .canMake ? "Nothing ready to make" : "No recipes", systemImage: "books.vertical",
-                                       description: Text(filter == .canMake ? "No saved recipe is within one ingredient of what you have." : "Try another search or filter."))
+                                       description: Text(filter == .canMake ? "No saved recipe has all its recorded ingredient amounts available." : "Try another search or filter."))
             }
             ForEach(shown) { r in
                 NavigationLink {
@@ -49,7 +55,7 @@ struct RecipeBookView: View {
                     HStack {
                         RecipeRow(title: r.title, summary: r.summary, minutes: r.minutes)
                         if let m = missingByID[r.id] {
-                            Text(m == 0 ? "Ready" : "\(m) to buy").font(.caption2.weight(.semibold))
+                            Text(m == 0 ? "Ready" : "\(m) to buy or check").font(.caption2.weight(.semibold))
                                 .foregroundStyle(m == 0 ? .green : .secondary)
                         }
                     }
@@ -63,7 +69,7 @@ struct RecipeBookView: View {
         .gardePage()
         .searchable(text: $query, prompt: "Search recipes or ingredients")
         .navigationTitle("Recipe book")
-        .task(id: items.count + saved.count) {
+        .task(id: stockSignature) {
             var m: [UUID: Int] = [:]
             for r in saved { m[r.id] = RecipeScaler.missing(r.ingredients, have: items).count }
             missingByID = m
