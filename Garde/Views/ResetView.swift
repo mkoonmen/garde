@@ -19,6 +19,7 @@ struct ResetView: View {
         case recipes = "Saved recipes"
         case taste = "Taste memory (ratings)"
         case bar = "Bar & cellar"
+        case takeout = "Takeout history"
         case profile = "Allergies & tastes"
         case shared = "Shared recipes inbox"
         case deals = "Deals & store settings"
@@ -29,7 +30,7 @@ struct ResetView: View {
             switch self {
             case .kitchen: "refrigerator"; case .history: "clock.arrow.circlepath"; case .receipts: "receipt"
             case .spices: "leaf"; case .list: "checklist"; case .plan: "calendar"; case .recipes: "bookmark"
-            case .taste: "star"; case .bar: "wineglass"; case .profile: "heart.text.square"; case .shared: "square.and.arrow.down"
+            case .taste: "star"; case .bar: "wineglass"; case .takeout: "bag"; case .profile: "heart.text.square"; case .shared: "square.and.arrow.down"
             case .deals: "tag"; case .gmail: "envelope"; case .everything: "arrow.counterclockwise.circle"
             }
         }
@@ -81,6 +82,7 @@ struct ResetView: View {
         case .recipes: wipe(SavedRecipe.self)
         case .taste: wipe(CookLog.self)
         case .bar: wipe(BarBottle.self)
+        case .takeout: wipe(TakeoutOrder.self)
         case .profile:
             wipe(KitchenProfile.self)
             context.insert(KitchenProfile())

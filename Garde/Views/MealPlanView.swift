@@ -18,6 +18,8 @@ struct MealPlanView: View {
     @State private var chef = ChefAI()
     @State private var days = 5
     @State private var notes = ""
+    @State private var fakeOut = true
+    @Query private var takeout: [TakeoutOrder]
     @State private var working = false
     @State private var message: String?
     @State private var step = ""
@@ -29,6 +31,7 @@ struct MealPlanView: View {
             Section {
                 Stepper("Plan \(days) dinners", value: $days, in: 2...7)
                 TextField("This week… (e.g. out Friday, steak night Saturday)", text: $notes, axis: .vertical)
+                if !takeout.isEmpty { Toggle("Fake-out night (homemade takeout favorite)", isOn: $fakeOut) }
                 Button { Task { await makePlan() } } label: {
                     HStack { Spacer(); if working { ProgressView(step.isEmpty ? "Planning…" : step) } else { Label(upcoming.isEmpty ? "Plan my week" : "Re-plan", systemImage: "calendar.badge.plus") }; Spacer() }
                         .font(.headline)
@@ -78,7 +81,7 @@ struct MealPlanView: View {
         working = true; message = nil; defer { working = false }
         do {
             step = "Sketching the week…"
-            let out = try await chef.planWeek(days: days, items: items, spices: spices, profile: profile, logs: logs, notes: notes) { i, n in
+            let out = try await chef.planWeek(days: days, items: items, spices: spices, profile: profile, logs: logs, notes: notes + fakeOutNote) { i, n in
                 step = "Writing dinner \(i) of \(n)…"
             }
             step = ""
@@ -102,5 +105,12 @@ struct MealPlanView: View {
         } catch {
             message = "The planner got stuck: \(error.localizedDescription)"
         }
+    }
+
+    /// Asks for one dinner that recreates something you order a lot.
+    private var fakeOutNote: String {
+        guard fakeOut, !takeout.isEmpty else { return "" }
+        let top = Takeout.favorites(takeout).dishes.prefix(5).map(\.0).joined(separator: ", ")
+        return " Make one night a homemade \"fake-out\" of a takeout favorite: \(top)."
     }
 }
