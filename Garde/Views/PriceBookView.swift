@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 /// Every price you've paid, from receipts and scans: last, lowest, average, and which store is cheapest.
 struct PriceBookView: View {
@@ -65,6 +66,16 @@ struct PriceHistoryView: View {
                 LabeledContent("Lowest", value: entry.lowest.formatted(.currency(code: "USD")))
                 LabeledContent("Average", value: entry.average.formatted(.currency(code: "USD")))
                 if let c = entry.cheapestStore { LabeledContent("Cheapest store", value: c) }
+            }
+            if entry.paid.count > 1 {
+                Section {
+                    Chart(Array(entry.paid.enumerated()), id: \.offset) { _, p in
+                        LineMark(x: .value("Date", p.date), y: .value("Price", p.price)).foregroundStyle(Theme.copper).interpolationMethod(.monotone)
+                        PointMark(x: .value("Date", p.date), y: .value("Price", p.price)).foregroundStyle(by: .value("Store", p.store))
+                    }
+                    .chartYAxis { AxisMarks { v in AxisGridLine(); AxisValueLabel { if let d = v.as(Double.self) { Text(d, format: .currency(code: "USD")) } } } }
+                    .frame(height: 170)
+                }
             }
             Section("History") {
                 ForEach(Array(entry.paid.enumerated()), id: \.offset) { _, p in

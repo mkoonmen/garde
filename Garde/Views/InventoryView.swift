@@ -71,6 +71,22 @@ struct InventoryView: View {
                     } header: { Text("Use these first") }
                 }
 
+                let expired = items.filter { ($0.daysLeft ?? 0) < -2 && $0.location != .freezer }
+                if !expired.isEmpty && filter == nil && search.isEmpty {
+                    Section {
+                        Text(expired.prefix(6).map(\.name).joined(separator: ", ") + (expired.count > 6 ? "…" : ""))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        HStack {
+                            Button("Toss all \(expired.count)", systemImage: "trash") {
+                                withAnimation { expired.forEach { $0.markUsed(tossed: true) } }
+                            }.tint(.red)
+                            Spacer()
+                            Button("We ate them", systemImage: "checkmark") {
+                                withAnimation { expired.forEach { $0.markUsed() } }
+                            }
+                        }.buttonStyle(.bordered)
+                    } header: { Text("Past their date") } footer: { Text("Clear them out so expirations and the chef stay accurate. Tossed items count toward waste.") }
+                }
                 let longFrozen = items.filter { $0.location == .freezer && ($0.frozenDate ?? .now) < Date.now.addingTimeInterval(-90 * 86_400) }
                     .sorted { ($0.frozenDate ?? .now) < ($1.frozenDate ?? .now) }
                 if !longFrozen.isEmpty {
