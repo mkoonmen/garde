@@ -15,7 +15,7 @@ print(next(x['udid'] for _,v in ios for x in v if 'iPhone' in x['name']))")
   echo "Simulator $SIM"
   [[ -n "$SIM" ]] || { echo "No available iPhone simulator"; exit 1; }
   trap 'xcrun simctl shutdown "$SIM" >/dev/null 2>&1 || true' EXIT
-  xcodebuild test -parallel-testing-enabled NO -collect-test-diagnostics never -jobs 2 -project Garde.xcodeproj -scheme Garde -destination "id=$SIM" CODE_SIGNING_ALLOWED=NO > build/test-full.log 2>&1
+  xcodebuild test -parallel-testing-enabled NO -collect-test-diagnostics never -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "id=$SIM" CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO SWIFT_ENABLE_BATCH_MODE=NO > build/test-full.log 2>&1
   test_result=$?
   grep -E "error:|✘|failed|passed after|\*\* TEST" build/test-full.log | grep -v "^.*✔" | sort -u | head -80
   (( test_result == 0 )) || exit "$test_result"

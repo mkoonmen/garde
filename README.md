@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Test runs use one build job, the active simulator architecture and no index store or Swift batch compilation to reduce memory pressure on this Mac. Simulator cleanup still runs when the script exits.
 - 2026-11-06 — v3.0 fallback access: the Chef always offers a cooking foundation of saved recipes and original basic methods. Dinner, week planning, hosting and meal-prep errors link directly to it, with guest-allergy filtering preserved for hosting. Chat also offers it when the model is unavailable.
 - 2026-11-06 — v3.0 validation: ingredient matching reuses normalized aliases to reduce repeated work, Tonight's choices refresh after edited ratings and dislikes, and recipe cost documentation reflects measured package shares.
 - 2026-11-06 — v3.0 release review: scanning saves atomically and prevents repeated confirmation, zero stock no longer counts as available, usual-product restocks absorb matching meal shortages without duplicate list rows, reset removes related item history, and What's new explains the six connected upgrades.
