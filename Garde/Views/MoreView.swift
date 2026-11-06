@@ -24,6 +24,7 @@ struct MoreView: View {
                     Button { showAllergyCard = true } label: { Label("Allergy card for restaurants", systemImage: "person.text.rectangle") }
                     NavigationLink { ReceiptsView() } label: { Label("Receipts", systemImage: "receipt") }
                     NavigationLink { GmailSettingsView() } label: { Label("Email receipts (Gmail, iCloud)", systemImage: "envelope") }
+                    NavigationLink { HouseholdMemoryView() } label: { Label("What the chef remembers", systemImage: "brain") }
                     NavigationLink { CookJournalView() } label: { Label("Cooking journal", systemImage: "book.closed") }
                     NavigationLink { UsedUpView() } label: { Label("Used-up history", systemImage: "clock.arrow.circlepath") }
                 }
@@ -236,7 +237,7 @@ struct UsedUpView: View {
         List { Group {
             if used.isEmpty { Text("Items you mark used up land here.").foregroundStyle(.secondary) }
             ForEach(used) { i in
-                HStack { Text(i.name); Spacer(); Button("Restore") { i.isUsedUp = false }.buttonStyle(.borderless) }
+                HStack { Text(i.name); Spacer(); Button("Restore") { i.restore() }.buttonStyle(.borderless) }
             }
             .onDelete { offsets in offsets.forEach { context.delete(used[$0]) } }
         }.listRowBackground(RowGlass()) }

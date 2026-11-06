@@ -286,9 +286,10 @@ final class ChefAI {
     /// Generates recipes from what's in the kitchen, prioritizing what expires first.
     /// Any recipe that mentions an allergen is discarded by `AllergenGuard`.
     func suggestRecipes(items: [PantryItem], spices: [Spice], profile: KitchenProfile, logs: [CookLog] = [], request: RecipeRequest) async throws -> (recipes: [RecipeIdea], blocked: Int) {
-        guard state == .available else { return ([], 0) }
+        let backup = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: request)
+        guard state == .available else { return (Array(backup.prefix(3)), 0) }
 
-        let active = items.filter { !$0.isUsedUp }
+        let active = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 0) >= 0 }
             .sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
         let inventory = inventoryText(active, limit: 30)
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).joined(separator: ", ")
@@ -305,15 +306,25 @@ final class ChefAI {
         Mood: \(request.mood.ifEmpty("chef's choice"))
         Max time: \(request.maxMinutes) minutes.
         \(request.noShopping ? "NO SHOPPING: use only the inventory and spices above plus water, salt, pepper and cooking oil." : "")
-        Suggest 3 different dishes.
+        Suggest 3 different dishes. Include preparation, preheating and cooking in the total time.
+        Include every ingredient used in the directions and specify amounts. Mention the required cookware in the steps.
+        Reference method you may adapt, keeping its food-safety checks: \(backup.first.map { $0.title + ": " + $0.steps.joined(separator: " ") } ?? "Use simple, conventional cooking methods.")
         """
 
-        let batch = try await session.reply(to: prompt, generating: RecipeBatch.self)
+        let batch: RecipeBatch
+        do { batch = try await session.reply(to: prompt, generating: RecipeBatch.self, limit: 45) }
+        catch is CancellationError { throw CancellationError() }
+        catch { return (Array(backup.prefix(3)), 0) }
         let never = Set(logs.filter(\.neverAgain).map { $0.title.lowercased() })
         let safe = batch.recipes.filter {
             AllergenGuard.violations(in: [$0.title] + $0.ingredients + $0.steps, allergies: profile.allergies).isEmpty
         }
-        return (safe.filter { !never.contains($0.title.lowercased()) }, batch.recipes.count - safe.count)
+        let checked = safe.filter { recipe in
+            !never.contains(recipe.title.lowercased()) && RecipeFoundation.check(recipe).valid &&
+            RecipeFoundation.check(recipe).notes.isEmpty && recipe.minutes <= request.maxMinutes &&
+            (!request.noShopping || KitchenStock.plan(recipe.ingredients, items: active).allSatisfy(\.covered))
+        }
+        return (checked.isEmpty ? Array(backup.prefix(3)) : checked, batch.recipes.count - safe.count)
     }
 
 
@@ -323,17 +334,17 @@ final class ChefAI {
         active.prefix(limit).map { item -> String in
             let d = item.daysLeft.map { $0 < 0 ? "EXPIRED" : "\($0)d left" } ?? "no date"
             let tag = item.isLeftover ? " [LEFTOVER, already cooked]" : ""
-            return "- \(item.name)\(tag) (\(formatQty(item.quantity)) \(item.unit), \(item.location.label), \(d))"
+            return "- \(item.name)\(tag) (\(item.availableLabel), recipe ingredient \(item.ingredientName), \(item.location.label), \(d))"
         }.joined(separator: "\n")
     }
 
     /// Turns cook ratings into taste guidance.
-    func tasteText(_ logs: [CookLog]) -> String {
+    func tasteText(_ logs: [CookLog], profile: KitchenProfile? = nil) -> String {
         let recent = logs.sorted { $0.date > $1.date }.prefix(40)
         let loved = recent.filter { $0.rating >= 4 }.map(\.title)
         let meh = recent.filter { $0.rating > 0 && $0.rating <= 2 && !$0.neverAgain }.map(\.title)
         let never = recent.filter(\.neverAgain).map(\.title)
-        let changes = recent.filter { !$0.wouldChange.isEmpty }.prefix(8).map { "\($0.title): \($0.wouldChange)" }
+        let changes = recent.filter { !$0.wouldChange.isEmpty && !(profile?.ignoredFeedbackIDs.contains($0.id.uuidString) ?? false) }.prefix(8).map { "\($0.title): \($0.wouldChange)" }
         var out: [String] = []
         if !loved.isEmpty { out.append("Dishes they rated highly (make more like these): \(loved.joined(separator: "; "))") }
         if !meh.isEmpty { out.append("Dishes they found mediocre: \(meh.joined(separator: "; "))") }
@@ -354,7 +365,10 @@ final class ChefAI {
         Prefer ingredients that expire soonest. Assume salt, pepper, oil and water are available.
         Do not use EXPIRED items. LEFTOVER items are already-cooked dishes: transform them into something new rather than just reheating.
         Write steps with explicit times when there's waiting, e.g. 'Simmer 10 minutes'.
-        \(tasteText(logs))
+        Household preferences: weeknights about \(profile.weeknightMinutes) minutes, spice level \(profile.spicePreference), leftovers \(profile.leftoverPreference).
+        Preferred brands: \(profile.preferredBrands.joined(separator: ", ")).
+        Remember these specific instructions: \(profile.householdMemory.joined(separator: "; ")).
+        \(tasteText(logs, profile: profile))
         \(Seasonal.hint)
         \(Takeout.tasteHint((try? GardeStore.container.mainContext.fetch(FetchDescriptor<TakeoutOrder>())) ?? []))
         """
@@ -367,8 +381,11 @@ final class ChefAI {
     /// Unsafe dinners are dropped.
     func planWeek(days: Int, items: [PantryItem], spices: [Spice], profile: KitchenProfile, logs: [CookLog], notes: String,
                   progress: ((Int, Int) -> Void)? = nil) async throws -> (dinners: [PlanResult], blocked: Int) {
-        guard state == .available else { return ([], 0) }
-        let active = items.filter { !$0.isUsedUp }.sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
+        guard state == .available else {
+            let recipes = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: RecipeRequest())
+            return (recipes.prefix(days).enumerated().map { PlanResult(dayIndex: $0.offset, recipe: $0.element, needToBuy: RecipeScaler.missing($0.element.ingredients, have: items)) }, 0)
+        }
+        let active = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 0) >= 0 }.sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
         let inventory = inventoryText(active, limit: 25).ifEmpty("(empty)")
         let spiceList = spices.filter { $0.level != .empty }.map(\.name).prefix(20).joined(separator: ", ").ifEmpty("basic only")
         let start = Date.now.formatted(.dateTime.weekday(.wide).month().day())
@@ -400,9 +417,13 @@ final class ChefAI {
             List anything not in the kitchen under needToBuy.
             """, generating: DinnerRecipe.self) else { continue }
             let r = dinner.recipe
-            if AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps + dinner.needToBuy, allergies: profile.allergies).isEmpty {
+            if RecipeFoundation.check(r).valid && AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps + dinner.needToBuy, allergies: profile.allergies).isEmpty {
                 results.append(PlanResult(dayIndex: min(max(sketch.dayIndex, 0), days - 1), recipe: r, needToBuy: dinner.needToBuy))
             } else { blocked += 1 }
+        }
+        if results.isEmpty {
+            let recipes = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: RecipeRequest())
+            results = recipes.prefix(days).enumerated().map { PlanResult(dayIndex: $0.offset, recipe: $0.element, needToBuy: RecipeScaler.missing($0.element.ingredients, have: items)) }
         }
         return (results, blocked)
     }

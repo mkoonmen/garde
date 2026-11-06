@@ -99,6 +99,12 @@ final class PantryItem {
     var locationRaw: String = StorageLocation.fridge.rawValue
     var quantity: Double = 1
     var unit: String = "each"
+    var ingredientOverride: String = ""
+    var packageAmount: Double = 0
+    var packageUnit: String = "ml"
+    var remainingAmount: Double?
+    var remainingFraction: Double = 1
+    var lastCheckedDate: Date?
     var purchaseDate: Date = Date()
     var expirationDate: Date?
     var expirationIsEstimated: Bool = true
@@ -160,8 +166,10 @@ final class PantryItem {
         }
     }
 
-    func open(on date: Date = .now) { storage.open(name: name, category: category, on: date) }
-    func unopen() { storage.unopen() }
+    func open(on date: Date = .now) {
+        recordChange("Opened", explanation: "Opened shelf life and storage applied.") { storage.open(name: name, category: category, on: date) }
+    }
+    func unopen() { recordChange("Sealed again", explanation: "The original sealed date and storage were restored.") { storage.unopen() } }
     var isOpened: Bool { openedDate != nil }
 
     var category: FoodCategory {
@@ -182,27 +190,33 @@ final class PantryItem {
 
     /// Moves it to the freezer and restarts the clock with freezer shelf life.
     func freeze() {
-        frozenDate = .now
-        location = .freezer
-        expirationDate = ShelfLife.estimatedExpiration(name: name, category: category, in: .freezer)
-        expirationIsEstimated = true
+        recordChange("Frozen", explanation: "Freezer storage and shelf life applied.") {
+            frozenDate = .now
+            location = .freezer
+            expirationDate = ShelfLife.estimatedExpiration(name: name, category: category, in: .freezer)
+            expirationIsEstimated = true
+        }
     }
 
-    /// Thawed in the fridge: cook within a couple of days.
     func thaw() {
-        location = .fridge
-        frozenDate = nil
-        let days = (category == .seafood || category == .poultry || category == .meat) ? 2 : 3
-        expirationDate = Calendar.current.date(byAdding: .day, value: days, to: .now)
-        expirationIsEstimated = true
+        recordChange("Thawed", explanation: "Fridge storage and thawed shelf life applied.") {
+            location = .fridge
+            frozenDate = nil
+            let days = (category == .seafood || category == .poultry || category == .meat) ? 2 : 3
+            expirationDate = Calendar.current.date(byAdding: .day, value: days, to: .now)
+            expirationIsEstimated = true
+        }
     }
 
     func markUsed(tossed: Bool = false) {
-        if !isUsedUp { didRestockUsedUp = false }
-        isUsedUp = true
-        wasTossed = tossed
-        usedUpDate = .now
-        // Leftovers already eaten or tossed: drop tomorrow's "leftovers for lunch?" reminder.
+        recordChange(tossed ? "Tossed" : "Finished", explanation: tossed ? "You marked this item as waste." : "You marked this item finished.") {
+            if !isUsedUp { didRestockUsedUp = false }
+            isUsedUp = true
+            wasTossed = tossed
+            usedUpDate = .now
+            remainingFraction = 0
+            remainingAmount = 0
+        }
         if isLeftover { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["leftover-" + id.uuidString]) }
     }
 
@@ -304,6 +318,15 @@ final class KitchenProfile {
     var householdSize: Int = 1
     var skillLevel: String = "Confident home cook"
     var expirationWarningDays: Int = 2
+    var weeknightMinutes: Int = 30
+    var spicePreference: String = "Medium"
+    var leftoverPreference: String = "Enjoy leftovers"
+    var preferredBrands: [String] = []
+    var householdMemory: [String] = []
+    var ignoredFeedbackIDs: [String] = []
+    var preferredStore: String = ""
+    var allowExtraStore: Bool = false
+    var minimumExtraStoreSavings: Double = 10
     var monthlyBudget: Double = 0       // grocery budget per month, 0 = off
 
     init() {}
@@ -316,7 +339,7 @@ final class KitchenProfile {
         // Choose by content only, so every synced device picks the same one (picking by fetch order could make two
         // devices each delete a different copy and lose both).
         func sig(_ p: KitchenProfile) -> String {
-            [p.allergies, p.loves, p.dislikes].map { $0.map { $0.lowercased() }.sorted().joined(separator: "|") }.joined(separator: "#") + "#" + p.dietNotes
+            [p.allergies, p.loves, p.dislikes].map { $0.map { $0.lowercased() }.sorted().joined(separator: "|") }.joined(separator: "#") + "#" + p.dietNotes + "#" + p.householdMemory.joined(separator: "|")
         }
         func score(_ p: KitchenProfile) -> Int { p.allergies.count * 100 + p.loves.count + p.dislikes.count + (p.dietNotes.isEmpty ? 0 : 1) }
         let ordered = all.sorted { score($0) != score($1) ? score($0) > score($1) : sig($0) < sig($1) }
@@ -328,6 +351,10 @@ final class KitchenProfile {
             if keep.loves.isEmpty { keep.loves = p.loves }         // tastes: keep's own, so a removed dislike doesn't come back
             if keep.dislikes.isEmpty { keep.dislikes = p.dislikes }
             if keep.dietNotes.isEmpty { keep.dietNotes = p.dietNotes }
+            keep.householdMemory = union(keep.householdMemory, p.householdMemory)
+            keep.preferredBrands = union(keep.preferredBrands, p.preferredBrands)
+            keep.ignoredFeedbackIDs = union(keep.ignoredFeedbackIDs, p.ignoredFeedbackIDs)
+            if keep.preferredStore.isEmpty { keep.preferredStore = p.preferredStore }
             if keep.monthlyBudget == 0 { keep.monthlyBudget = p.monthlyBudget }
             context.delete(p)
         }
@@ -344,6 +371,13 @@ final class ShoppingItem {
     var categoryRaw: String = FoodCategory.other.rawValue
     var quantityNote: String = ""
     var isChecked: Bool = false
+    var sourceItemID: UUID?
+    var isSpecificProduct: Bool = false
+    var wasAutoChecked: Bool = false
+    var planDemandKey: String = ""
+    var planSourcesKey: String = ""
+    var mealNote: String = ""
+    var isDismissed: Bool = false
     var reason: String = ""          // "Running low", "For Tue: Chicken piccata", "Added by you"
     var createdAt: Date = Date()
 
@@ -575,7 +609,7 @@ final class TakeoutOrder {
 enum GardeStore {
     static let appGroup = "group.com.michaelkoonmen.garde"
     static let schema = Schema([PantryItem.self, Receipt.self, Spice.self, SavedRecipe.self, KitchenProfile.self,
-                                ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self, TakeoutOrder.self])
+                                ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self, TakeoutOrder.self, KitchenEvent.self])
 
     static let cloudContainer = "iCloud.com.michaelkoonmen.garde"
 

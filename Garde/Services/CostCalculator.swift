@@ -6,15 +6,15 @@ enum CostCalculator {
     /// Uses the per-unit price of each matched item, one unit per ingredient line (an estimate, not an invoice).
     static func estimate(ingredients: [String], items: [PantryItem]) -> (total: Double, matched: Int) {
         var total = 0.0, matched = 0
-        let priced = items.filter { ($0.price ?? 0) > 0 }
-        for line in ingredients.map({ $0.lowercased() }) {
-            guard let item = priced
-                .filter({ line.contains(ShoppingBrain.key($0.name)) || ShoppingBrain.key($0.name).split(separator: " ").contains(where: { $0.count > 3 && line.contains($0) }) })
-                .max(by: { $0.purchaseDate < $1.purchaseDate }),
-                  let price = item.price else { continue }
-            let perUnit = price / max(item.quantity, 1)
-            total += min(perUnit, price)
-            matched += 1
+        for need in KitchenStock.plan(ingredients, items: items) {
+            var priced = false
+            for allocation in need.allocations {
+                if let price = allocation.item.price, let original = allocation.item.originalAmount, original.value > 0 {
+                    total += price * allocation.amount.value / original.value
+                    priced = true
+                }
+            }
+            if priced { matched += 1 }
         }
         return (total, matched)
     }

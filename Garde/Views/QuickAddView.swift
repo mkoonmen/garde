@@ -52,7 +52,7 @@ struct QuickAddView: View {
             let item = PantryItem(name: l.name, category: l.category, location: l.location, quantity: l.quantity, unit: l.unit,
                                   expirationDate: Calendar.current.date(byAdding: .day, value: days, to: .now))
             if l.location == .freezer { item.frozenDate = .now }
-            context.insert(item)
+            KitchenStock.register(item, context: context)
         }
         ShoppingBrain.checkOff(names: lines.map(\.name), context: context)
         try? context.save()

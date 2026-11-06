@@ -340,7 +340,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             // Old orders: food bought weeks ago is probably gone; count it as history, not current stock.
             if date < .now.addingTimeInterval(-21 * 86_400) { item.isUsedUp = true; item.usedUpDate = date }
             item.receipt = receipt
-            context.insert(item)
+            KitchenStock.register(item, context: context)
         }
         if date >= .now.addingTimeInterval(-21 * 86_400) { ShoppingBrain.checkOff(names: items.map(\.name), context: context) }
         log(from, subject, "Imported \(Plural.items(items.count))"); report.receipts += 1; report.items += items.count

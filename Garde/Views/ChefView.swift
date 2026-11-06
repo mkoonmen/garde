@@ -281,8 +281,11 @@ struct RecipeDetailView: View {
     private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
 
     private var usedItems: [PantryItem] {
-        let text = ((idea?.usesFromKitchen ?? []) + ingredients).joined(separator: " ")
-        return items.filter { !$0.isLeftover && ShoppingBrain.appears($0.name, in: text) }
+        let matched = Set(KitchenStock.plan(shownIngredients, items: items).flatMap { $0.allocations.map { $0.item.id } })
+        return items.filter { item in
+            matched.contains(item.id) || shownIngredients.contains { FoodIdentity.matches(RecipeScaler.foodName($0), item.ingredientName) }
+        }
+
     }
 
     var body: some View {
@@ -319,6 +322,7 @@ struct RecipeDetailView: View {
                     Label("Start cook mode", systemImage: "play.circle.fill").labelStyle(.titleAndIcon).foregroundStyle(.white).frame(maxWidth: .infinity).font(.headline)
                 }.buttonStyle(GardeProminent()).controlSize(.large)
             }
+            RecipeQualitySection(recipe: RecipeIdea(title: title, summary: summary, minutes: minutes, servings: serves, ingredients: shownIngredients, steps: steps, usesFromKitchen: []))
             Section("Pairing") {
                 if let p = pairing {
                     if !p.bottleFromCellar.isEmpty { Label(p.bottleFromCellar, systemImage: "wineglass").font(.headline) }

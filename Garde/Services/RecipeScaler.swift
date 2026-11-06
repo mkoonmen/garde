@@ -76,13 +76,6 @@ enum RecipeScaler {
 
     /// Ingredient lines with nothing matching in the kitchen (salt, pepper, oil and water assumed).
     static func missing(_ lines: [String], have items: [PantryItem]) -> [String] {
-        let basicWords: Set<String> = ["salt", "pepper", "water", "oil", "olive", "ice", "kosher", "sea", "black", "white", "ground",
-                                        "freshly", "fresh", "cracked", "extra-virgin", "extra", "virgin", "and", "or", "flaky", "neutral", "vegetable", "canola"]
-        return lines.filter { line in
-            let food = foodName(line).lowercased()
-            let words = food.split(separator: " ").map(String.init)
-            guard !words.isEmpty, !words.allSatisfy({ basicWords.contains($0) }) else { return false }
-            return !items.contains { ShoppingBrain.appears($0.name, in: line) || ShoppingBrain.appears(food, in: $0.name) }
-        }
+        KitchenStock.plan(lines, items: items).filter { !$0.covered }.map(\.shoppingLine)
     }
 }

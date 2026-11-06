@@ -27,6 +27,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     @Query private var profiles: [KitchenProfile]
     @Query private var items: [PantryItem]
+    @Query private var kitchenEvents: [KitchenEvent]
     @Query private var plan: [MealPlanEntry]
     @AppStorage("gmail.autoImport") private var gmailAuto = false
     @AppStorage("onboarded") private var onboarded = false
@@ -48,6 +49,7 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { onboarded && whatsNewSeen != WhatsNew.version }, set: { if !$0 { whatsNewSeen = WhatsNew.version } })) {
             NavigationStack { WhatsNewView { whatsNewSeen = WhatsNew.version } }
         }
+        .onChange(of: kitchenEvents.count) { _, _ in try? KitchenStock.reconcileAmounts(context: context) }
         .task {
             KitchenProfile.merge(context: context)
             if profiles.isEmpty { context.insert(KitchenProfile()) }
@@ -55,7 +57,13 @@ struct RootView: View {
             DemoData.seedIfAsked(context: context)
             if UserDefaults.standard.object(forKey: "startTab") != nil { router.tab = UserDefaults.standard.integer(forKey: "startTab") }
             #endif
+            try? KitchenStock.reconcileAmounts(context: context)
             EmailReceipt.purgeJunk(context: context)
+            if let all = try? context.fetch(FetchDescriptor<PantryItem>()),
+               let events = try? context.fetch(FetchDescriptor<KitchenEvent>()) {
+                for item in all { KitchenStock.baseline(item, context: context, existingEvents: events) }
+                try? context.save()
+            }
             if !UserDefaults.standard.bool(forKey: "recat.v296"), let all = try? context.fetch(FetchDescriptor<PantryItem>()) {
                 // New categories (sweets, candy, coffee & tea, baking): re-sort things that were filed as Other or as dairy plant milks.
                 for i in all where i.category == .other || (i.category == .dairy && ShoppingBrain.isPlantMilk(i.name)) {

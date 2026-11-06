@@ -103,10 +103,11 @@ struct MealPlanView: View {
                 let r = d.recipe
                 context.insert(MealPlanEntry(day: day, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                                              ingredients: r.ingredients, steps: r.steps, needToBuy: d.needToBuy))
-                ShoppingBrain.add(needToBuy: d.needToBuy, for: r.title, day: day, context: context)
+
                 bought += d.needToBuy.count
             }
             Notifier.scheduleThawReminders(plan: (try? context.fetch(FetchDescriptor<MealPlanEntry>())) ?? [], items: items)
+            try MealShopping.reconcile(context: context)
             message = "Planned \(out.dinners.count) dinners. \(Plural.items(bought)) added to your List."
                 + (out.blocked > 0 ? " \(out.blocked) dropped for allergens." : "")
         } catch {

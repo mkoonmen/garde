@@ -122,6 +122,8 @@ struct ScanReviewView: View {
     let image: UIImage?
     var onDone: () -> Void
     @State private var date = Date()
+    @Query private var existingItems: [PantryItem]
+    @Query private var existingReceipts: [Receipt]
     @Query private var profiles: [KitchenProfile]
     private var allergies: [String] { profiles.flatMap(\.allergies) }
 
@@ -134,6 +136,9 @@ struct ScanReviewView: View {
                         DatePicker("Date", selection: $date, displayedComponents: .date)
                         if let total = scan.total { LabeledContent("Total", value: total, format: .currency(code: "USD")) }
                     }
+                }
+                if alreadyImported {
+                    Section { Label("This receipt is already in your Kitchen.", systemImage: "checkmark.circle") }
                 }
                 Section {
                     if scan.items.isEmpty {
@@ -159,6 +164,10 @@ struct ScanReviewView: View {
                                         .padding(.horizontal, 10).padding(.vertical, 4)
                                         .background(item.opened ? Theme.copper.opacity(0.3) : Color.secondary.opacity(0.15), in: .capsule)
                                 }.buttonStyle(.plain)
+                            }
+                            if existingItems.contains(where: { !$0.isUsedUp && FoodIdentity.productKey($0.name) == FoodIdentity.productKey(item.name) }) {
+                                Text("A matching product is already in your Kitchen.").font(.caption).foregroundStyle(.orange)
+                                Button("Already counted — skip this item") { item.include = false }.font(.caption)
                             }
                             let hits = AllergenGuard.violations(in: [item.name], allergies: allergies)
                             if !hits.isEmpty {
@@ -186,13 +195,18 @@ struct ScanReviewView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss(); onDone() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add \(scan.items.filter(\.include).count)") { save() }
-                        .disabled(scan.items.filter(\.include).isEmpty && !isReceipt)
+                        .disabled(alreadyImported || (scan.items.filter(\.include).isEmpty && !isReceipt))
                 }
             }
         }
     }
 
+    private var alreadyImported: Bool {
+        isReceipt && !rawText.isEmpty && existingReceipts.contains { $0.rawText == rawText }
+    }
+
     private func save() {
+        guard !alreadyImported else { return }
         var receipt: Receipt?
         if isReceipt {
             let r = Receipt(store: scan.store, date: date, total: scan.total, rawText: rawText, image: image?.storageJPEG())
@@ -208,7 +222,7 @@ struct ScanReviewView: View {
                                   price: p.price, store: scan.store.isEmpty ? nil : scan.store)
             if !isReceipt { item.photo = image?.storageJPEG(maxDimension: 600) }
             item.receipt = receipt
-            context.insert(item)
+            KitchenStock.register(item, context: context)
             if p.opened { item.open() }
         }
         ShoppingBrain.checkOff(names: scan.items.filter { $0.include && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }.map(\.name), context: context)

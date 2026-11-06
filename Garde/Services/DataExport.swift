@@ -24,13 +24,43 @@ struct KitchenExport: Codable {
         var isLeftover: Bool?
         var usedUpDate: Date?
         var frozenDate: Date?
+        var id: UUID?
+        var stock: PantrySnapshot?
+        var lastCheckedDate: Date?
+        var barcode: String?
     }
     struct ReceiptRow: Codable { var store: String; var date: Date; var total: Double?; var rawText: String }
     struct SpiceRow: Codable { var name, level, shelfSpot: String; var purchaseDate: Date; var isWholeSpice: Bool }
     struct RecipeRow: Codable { var title, summary: String; var minutes, servings: Int; var ingredients, steps: [String]; var isFavorite: Bool }
     struct ProfileRow: Codable { var allergies, dislikes, loves: [String]; var dietNotes: String; var householdSize: Int; var skillLevel: String; var expirationWarningDays: Int }
 
-    struct ShoppingRow: Codable { var name, category, quantityNote, reason: String; var isChecked: Bool }
+    struct ShoppingRow: Codable {
+        var name, category, quantityNote, reason: String
+        var isChecked: Bool
+        var sourceItemID: UUID?
+        var isSpecificProduct: Bool?
+        var wasAutoChecked: Bool?
+        var planDemandKey: String?
+        var planSourcesKey: String?
+        var mealNote: String?
+        var isDismissed: Bool?
+    }
+    struct EventRow: Codable {
+        var id, itemID: UUID
+        var date: Date
+        var action, explanation: String
+        var before, after: Data?
+        var undone: Bool
+        var operationID: UUID?
+    }
+    struct MemoryRow: Codable {
+        var weeknightMinutes: Int
+        var spicePreference, leftoverPreference: String
+        var preferredBrands, householdMemory, ignoredFeedbackIDs: [String]
+        var preferredStore: String
+        var allowExtraStore: Bool
+        var minimumExtraStoreSavings: Double
+    }
     struct PlanRow: Codable { var day: Date; var title, summary: String; var minutes, servings: Int; var ingredients, steps, needToBuy: [String]; var isCooked: Bool }
     struct CookRow: Codable { var title: String; var date: Date; var rating: Int; var wouldChange: String; var neverAgain: Bool; var cost: Double? }
     struct BottleRow: Codable {
@@ -40,7 +70,9 @@ struct KitchenExport: Codable {
     }
     struct TakeoutRow: Codable { var restaurant, cuisine, service: String; var date: Date; var dishes: [String]; var total: Double?; var sourceID: String? }
 
-    var format = "garde/v2"
+    var format = "garde/v3"
+    var events: [EventRow]?
+    var memory: MemoryRow?
     var exportedAt = Date()
     var items: [Item]
     var receipts: [ReceiptRow]
@@ -78,7 +110,7 @@ enum DataExport {
                                      unopenedExpiration: $0.unopenedExpiration, unopenedExpirationIsEstimated: $0.unopenedExpirationIsEstimated,
                                      unopenedLocationRaw: $0.unopenedLocationRaw, didRestockExpired: $0.didRestockExpired,
                                      didRestockUsedUp: $0.didRestockUsedUp, wasTossed: $0.wasTossed, isLeftover: $0.isLeftover,
-                                     usedUpDate: $0.usedUpDate, frozenDate: $0.frozenDate) },
+                                     usedUpDate: $0.usedUpDate, frozenDate: $0.frozenDate, id: $0.id, stock: PantrySnapshot($0), lastCheckedDate: $0.lastCheckedDate, barcode: $0.barcode) },
             receipts: receipts.map { .init(store: $0.store, date: $0.date, total: $0.total, rawText: $0.rawText) },
             spices: spices.map { .init(name: $0.name, level: $0.levelRaw, shelfSpot: $0.shelfSpot, purchaseDate: $0.purchaseDate, isWholeSpice: $0.isWholeSpice) },
             recipes: recipes.map { .init(title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings,
@@ -86,7 +118,9 @@ enum DataExport {
             profile: profile.map { .init(allergies: $0.allergies, dislikes: $0.dislikes, loves: $0.loves, dietNotes: $0.dietNotes,
                                          householdSize: $0.householdSize, skillLevel: $0.skillLevel, expirationWarningDays: $0.expirationWarningDays) })
 
-        export.shopping = try context.fetch(FetchDescriptor<ShoppingItem>()).map { .init(name: $0.name, category: $0.categoryRaw, quantityNote: $0.quantityNote, reason: $0.reason, isChecked: $0.isChecked) }
+        export.shopping = try context.fetch(FetchDescriptor<ShoppingItem>()).map { .init(name: $0.name, category: $0.categoryRaw, quantityNote: $0.quantityNote, reason: $0.reason, isChecked: $0.isChecked,
+            sourceItemID: $0.sourceItemID, isSpecificProduct: $0.isSpecificProduct, wasAutoChecked: $0.wasAutoChecked,
+            planDemandKey: $0.planDemandKey, planSourcesKey: $0.planSourcesKey, mealNote: $0.mealNote, isDismissed: $0.isDismissed) }
         export.mealPlan = try context.fetch(FetchDescriptor<MealPlanEntry>()).map { .init(day: $0.day, title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings, ingredients: $0.ingredients, steps: $0.steps, needToBuy: $0.needToBuy, isCooked: $0.isCooked) }
         export.cookLog = try context.fetch(FetchDescriptor<CookLog>()).map { .init(title: $0.title, date: $0.date, rating: $0.rating, wouldChange: $0.wouldChange, neverAgain: $0.neverAgain, cost: $0.cost) }
         export.takeout = try context.fetch(FetchDescriptor<TakeoutOrder>()).map { .init(restaurant: $0.restaurant, cuisine: $0.cuisine, service: $0.service, date: $0.date, dishes: $0.dishes, total: $0.total, sourceID: $0.sourceID) }
@@ -94,6 +128,17 @@ enum DataExport {
         export.monthlyBudget = profile?.monthlyBudget
         export.bar = try context.fetch(FetchDescriptor<BarBottle>()).map { .init(name: $0.name, kind: $0.kindRaw, vintage: $0.vintage, region: $0.region, notes: $0.notes, count: $0.count, style: $0.style, format: $0.format) }
 
+        export.events = try context.fetch(FetchDescriptor<KitchenEvent>()).map {
+            .init(id: $0.id, itemID: $0.itemID, date: $0.date, action: $0.action, explanation: $0.explanation,
+                  before: $0.before, after: $0.after, undone: $0.undone, operationID: $0.operationID)
+        }
+        if let profile {
+            export.memory = .init(weeknightMinutes: profile.weeknightMinutes, spicePreference: profile.spicePreference,
+                                  leftoverPreference: profile.leftoverPreference, preferredBrands: profile.preferredBrands,
+                                  householdMemory: profile.householdMemory, ignoredFeedbackIDs: profile.ignoredFeedbackIDs,
+                                  preferredStore: profile.preferredStore, allowExtraStore: profile.allowExtraStore,
+                                  minimumExtraStoreSavings: profile.minimumExtraStoreSavings)
+        }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("garde-\(Date.now.formatted(.iso8601.year().month().day())).json")
         try encoder.encode(export).write(to: url)
         return url
@@ -105,7 +150,9 @@ enum DataExport {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let data = try decoder.decode(KitchenExport.self, from: Data(contentsOf: url))
+        let existingIDs = Set(try context.fetch(FetchDescriptor<PantryItem>()).map(\.id))
         for i in data.items {
+            if let id = i.id, existingIDs.contains(id) { continue }
             let item = PantryItem(name: i.name, category: FoodCategory(rawValue: i.category) ?? .other,
                                   location: StorageLocation(rawValue: i.location) ?? .fridge, quantity: i.quantity, unit: i.unit,
                                   purchaseDate: i.purchaseDate, expirationDate: i.expirationDate,
@@ -121,7 +168,18 @@ enum DataExport {
             item.isLeftover = i.isLeftover ?? false
             item.usedUpDate = i.usedUpDate
             item.frozenDate = i.frozenDate
+            if let id = i.id { item.id = id }
+            i.stock?.apply(to: item)
+            item.lastCheckedDate = i.lastCheckedDate; item.barcode = i.barcode
             context.insert(item)
+        }
+        let eventIDs = Set(try context.fetch(FetchDescriptor<KitchenEvent>()).map(\.id))
+        for row in data.events ?? [] where !eventIDs.contains(row.id) {
+            guard let after = row.after, let snapshot = try? JSONDecoder().decode(PantrySnapshot.self, from: after) else { continue }
+            let event = KitchenEvent(itemID: row.itemID, action: row.action, explanation: row.explanation,
+                                     before: nil, after: snapshot, operationID: row.operationID)
+            event.id = row.id; event.date = row.date; event.before = row.before; event.undone = row.undone
+            context.insert(event)
         }
         for r in data.receipts { context.insert(Receipt(store: r.store, date: r.date, total: r.total, rawText: r.rawText)) }
         for s in data.spices {
@@ -136,7 +194,10 @@ enum DataExport {
         }
         for r in data.shopping ?? [] {
             let i = ShoppingItem(name: r.name, category: FoodCategory(rawValue: r.category) ?? .other, quantityNote: r.quantityNote, reason: r.reason)
-            i.isChecked = r.isChecked; context.insert(i)
+            i.isChecked = r.isChecked
+            i.sourceItemID = r.sourceItemID; i.isSpecificProduct = r.isSpecificProduct ?? false; i.wasAutoChecked = r.wasAutoChecked ?? false
+            i.planDemandKey = r.planDemandKey ?? ""; i.planSourcesKey = r.planSourcesKey ?? ""; i.mealNote = r.mealNote ?? ""; i.isDismissed = r.isDismissed ?? false
+            context.insert(i)
         }
         for r in data.mealPlan ?? [] {
             let e = MealPlanEntry(day: r.day, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps, needToBuy: r.needToBuy)
@@ -163,6 +224,13 @@ enum DataExport {
             existing.loves = Array(Set(existing.loves + p.loves)).sorted()
             if existing.dietNotes.isEmpty { existing.dietNotes = p.dietNotes }
             if existing.monthlyBudget == 0, let b = data.monthlyBudget { existing.monthlyBudget = b }
+            if let memory = data.memory {
+                existing.weeknightMinutes = memory.weeknightMinutes; existing.spicePreference = memory.spicePreference
+                existing.leftoverPreference = memory.leftoverPreference; existing.preferredBrands = memory.preferredBrands
+                existing.householdMemory = memory.householdMemory; existing.ignoredFeedbackIDs = memory.ignoredFeedbackIDs
+                existing.preferredStore = memory.preferredStore; existing.allowExtraStore = memory.allowExtraStore
+                existing.minimumExtraStoreSavings = memory.minimumExtraStoreSavings
+            }
         }
         try context.save()
         return data.items.count + data.spices.count + data.receipts.count + data.recipes.count

@@ -2,68 +2,108 @@ import Foundation
 import SwiftData
 import WidgetKit
 
-/// One dinner idea a day, built around what expires first. Made once per day on the phone and kept until tomorrow.
 @MainActor
 @Observable
 final class DailyPick {
     static let shared = DailyPick()
-
-    struct Pick: Codable, Equatable {
+    enum Mode: String, Codable, CaseIterable, Identifiable {
+        case useHere = "Use what’s here", quick = "Quick and easy", loved = "Something you’ll love"
+        var id: String { rawValue }
+    }
+    struct Pick: Codable, Equatable, Identifiable {
         var day: String
         var title, summary: String
         var minutes, servings: Int
         var ingredients, steps: [String]
+        var id: String { day + title }
+        var recipe: RecipeIdea { RecipeIdea(title: title, summary: summary, minutes: minutes, servings: servings, ingredients: ingredients, steps: steps, usesFromKitchen: []) }
     }
-
-    private(set) var pick: Pick? = {
-        guard let d = UserDefaults.standard.data(forKey: "dailyPick") else { return nil }
-        return try? JSONDecoder().decode(Pick.self, from: d)
-    }()
+    struct Choice: Identifiable {
+        var id: Mode { mode }
+        let mode: Mode
+        let pick: Pick
+        let explanation: String
+    }
+    private(set) var pick: Pick?
+    private(set) var choices: [Choice] = []
     private(set) var working = false
     private(set) var problem: String?
-    private var seenToday: [String] = []   // titles already shown today, so Refresh brings something new
+    private var generated: [RecipeIdea] = []
+    var isFresh: Bool { pick?.day == GardeStore.dayKey }
 
-    private static var today: String { GardeStore.dayKey }
-    var isFresh: Bool { pick?.day == Self.today }
-
-    func refreshIfNeeded(items: [PantryItem], spices: [Spice], profile: KitchenProfile?, logs: [CookLog], force: Bool = false) async {
+    func refreshIfNeeded(items: [PantryItem], spices: [Spice], profile: KitchenProfile?, logs: [CookLog], force: Bool = false, easier: Bool = false) async {
+        guard let profile else { return }
+        let saved = (try? GardeStore.container.mainContext.fetch(FetchDescriptor<SavedRecipe>())) ?? []
+        let local = RecipeFoundation.candidates(items: items, profile: profile, logs: logs, saved: saved)
+        let limit = easier ? min(20, profile.weeknightMinutes) : profile.weeknightMinutes
+        buildChoices(pool: local + generated, items: items, profile: profile, logs: logs, limit: limit)
+        guard !working else { return }
         let tried = UserDefaults.standard.string(forKey: "dailyPick.tried")
-        guard force || (!isFresh && tried != Self.today), !working else { return }
-        guard let profile else { if force { problem = "Set up your kitchen profile in More first." }; return }
-        let fresh = items.filter { ($0.daysLeft ?? 99) >= 0 }
-        problem = nil
-        // A near-empty kitchen still gets an idea: one built on common staples you'd pick up.
-        let sparse = fresh.count < 3
+        guard force || tried != GardeStore.dayKey else { return }
         let chef = ChefAI()
         guard chef.state == .available else {
-            if force, case .unavailable(let why) = chef.state { problem = why }
+            problem = choices.isEmpty ? "Add a saved recipe or adjust your preferences to find dinner." : "Showing saved recipes and Garde basic methods."
             return
         }
-        working = true; defer { working = false }
-        if !force {   // let launch finish first, and only try once a day if it fails
-            try? await Task.sleep(for: .seconds(3))
-            if Task.isCancelled { return }
-            UserDefaults.standard.set(Self.today, forKey: "dailyPick.tried")
+        working = true
+        defer { working = false }
+        UserDefaults.standard.set(GardeStore.dayKey, forKey: "dailyPick.tried")
+        let soon = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) >= 0 && ($0.daysLeft ?? 99) <= 3 }
+            .sorted { ($0.daysLeft ?? 99) < ($1.daysLeft ?? 99) }.prefix(3).map(\.name)
+        do {
+            let request = ChefAI.RecipeRequest(mood: "Three practical dinner choices: use what is here, quick and easy, and a household favorite.", maxMinutes: easier ? limit : max(limit, 45), mustUse: Array(soon))
+            let out = try await chef.suggestRecipes(items: items, spices: spices, profile: profile, logs: logs, request: request)
+            guard !Task.isCancelled else { return }
+            generated = out.recipes
+            problem = nil
+            buildChoices(pool: local + generated, items: items, profile: profile, logs: logs, limit: limit)
+        } catch is CancellationError { return }
+        catch { problem = "Fresh ideas couldn’t load. Your available recipes are ready below." }
+    }
+
+    private func buildChoices(pool: [RecipeIdea], items: [PantryItem], profile: KitchenProfile, logs: [CookLog], limit: Int) {
+        var seen: Set<String> = []
+        let never = Set(logs.filter(\.neverAgain).map { $0.title.lowercased() })
+        let safe = pool.filter { r in
+            seen.insert(r.title.lowercased()).inserted && !never.contains(r.title.lowercased()) && RecipeFoundation.check(r).valid &&
+            AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: profile.allergies).isEmpty
         }
-        let soon = fresh.filter { ($0.daysLeft ?? 99) <= 3 }.sorted { ($0.daysLeft ?? 99) < ($1.daysLeft ?? 99) }.prefix(3).map(\.name)
-        if let t = pick?.title, !seenToday.contains(t) { seenToday.append(t) }
-        let styles = ["weeknight easy", "something different from usual", "cozy", "bright and fresh", "restaurant-style", "one-pan"]
-        let avoid = seenToday.isEmpty ? "" : " Not any of these: \(seenToday.joined(separator: ", "))."
-        let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, \(force ? styles.randomElement()! : styles[0]).\(sparse ? " The kitchen is nearly empty, so use a short list of everyday groceries." : "")\(avoid)", maxMinutes: 45, mustUse: Array(soon))
-        let out: (recipes: [RecipeIdea], blocked: Int)
-        do { out = try await chef.suggestRecipes(items: fresh, spices: spices, profile: profile, logs: logs, request: req) }
-        catch { problem = "The chef couldn't come up with one just now. Try again."; return }
-        guard let r = out.recipes.first(where: { !seenToday.contains($0.title) }) ?? out.recipes.first else {
-            problem = out.blocked > 0 ? "Those ideas used one of your allergens, so they were skipped. Try again." : "No idea came back. Try again."
-            return
+        let loved = Set(logs.filter { $0.rating >= 4 }.map { $0.title.lowercased() })
+        var chosen: Set<String> = []
+        choices = Mode.allCases.compactMap { mode in
+            let candidates = mode == .quick ? safe.filter { $0.minutes <= limit } : safe
+            let ordered = candidates.sorted { a, b in
+                func score(_ r: RecipeIdea) -> Double {
+                    let needs = KitchenStock.plan(r.ingredients, items: items)
+                    let covered = needs.filter(\.covered).count
+                    let soon = needs.flatMap(\.allocations).filter { ($0.item.daysLeft ?? 99) <= 3 }.count
+                    switch mode {
+                    case .useHere: return Double(covered * 8 + soon * 12 - needs.filter { !$0.covered }.count * 5)
+                    case .quick: return Double(covered * 2 - r.minutes)
+                    case .loved:
+                        let favoriteIngredients = r.ingredients.filter { line in profile.loves.contains { FoodIdentity.contains($0, in: line) } }.count
+                        return Double((loved.contains(r.title.lowercased()) ? 100 : 0) + favoriteIngredients * 10 + covered)
+                    }
+                }
+                let x = score(a), y = score(b)
+                return x == y ? a.title < b.title : x > y
+            }
+            guard let recipe = ordered.first(where: { !chosen.contains($0.title) }) ?? ordered.first else { return nil }
+            chosen.insert(recipe.title)
+            let needs = KitchenStock.plan(recipe.ingredients, items: items)
+            let missing = needs.filter { !$0.covered }
+            let soon = needs.flatMap(\.allocations).filter { ($0.item.daysLeft ?? 99) <= 3 }.map { $0.item.name }
+            var why = missing.isEmpty ? "Recorded amounts cover the ingredients." : "\(missing.count) ingredient\(missing.count == 1 ? "" : "s") to buy or check."
+            if let first = soon.first { why += " Uses \(first), which needs using soon." }
+            if mode == .loved && loved.contains(recipe.title.lowercased()) { why += " You rated this highly." }
+            let p = Pick(day: GardeStore.dayKey, title: recipe.title, summary: recipe.summary, minutes: recipe.minutes,
+                         servings: recipe.servings, ingredients: recipe.ingredients, steps: recipe.steps)
+            return Choice(mode: mode, pick: p, explanation: why)
         }
-        let p = Pick(day: Self.today, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
-                     ingredients: r.ingredients, steps: r.steps)
-        pick = p
-        if let d = try? JSONEncoder().encode(p) { UserDefaults.standard.set(d, forKey: "dailyPick") }
-        // The widget shows tonight's idea when nothing is planned.
+        pick = choices.first?.pick
         let shared = UserDefaults(suiteName: GardeStore.appGroup)
-        shared?.set(p.title, forKey: "dailyPick.title"); shared?.set(p.day, forKey: "dailyPick.day")
+        shared?.set(pick?.title, forKey: "dailyPick.title")
+        shared?.set(pick?.day, forKey: "dailyPick.day")
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

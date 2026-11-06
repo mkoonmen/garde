@@ -174,7 +174,7 @@ struct CookModeView: View {
             }.presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $finishing) {
-            FinishCookingView(title: title, usedItems: usedItems, estimatedCost: estimatedCost) {
+            FinishCookingView(title: title, ingredients: ingredients, usedItems: usedItems, estimatedCost: estimatedCost) {
                 onFinished(); finishing = false; dismiss()
             }
         }
@@ -225,69 +225,95 @@ struct CookModeView: View {
 struct FinishCookingView: View {
     @Environment(\.modelContext) private var context
     let title: String
+    let ingredients: [String]
     let usedItems: [PantryItem]
     let estimatedCost: Double?
     var onDone: () -> Void
-
     @State private var rating = 0
     @State private var change = ""
     @State private var neverAgain = false
-    @State private var markUsed: Set<UUID> = []
+    @State private var selected: Set<Int> = []
+    @State private var finished: Set<UUID> = []
+    @State private var requirements: [IngredientRequirement] = []
     @State private var saveLeftovers = false
     @State private var leftoverServings = 1
+    @State private var operationID = UUID()
+    @State private var saved = false
+    @State private var problem: String?
 
     var body: some View {
         NavigationStack {
-            Form { Group {
+            Form {
                 Section("How was it?") {
-                    HStack {
-                        ForEach(1...5, id: \.self) { n in
-                            Button { rating = n } label: {
-                                Image(systemName: n <= rating ? "star.fill" : "star").font(.title)
-                                    .foregroundStyle(n <= rating ? Theme.gold : .secondary)
-                                    .symbolEffect(.bounce, value: rating == n)
-                            }.buttonStyle(.borderless).accessibilityLabel("\(n) star\(n == 1 ? "" : "s")")
-                        }
-                    }.frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityValue("\(rating) of 5 stars")
-                    TextField("Anything you'd change? (saltier, less garlic, crispier…)", text: $change, axis: .vertical)
+                    Picker("Rating", selection: $rating) {
+                        Text("Unrated").tag(0)
+                        ForEach(1...5, id: \.self) { Text("\($0) stars").tag($0) }
+                    }
+                    TextField("What would you change next time?", text: $change, axis: .vertical)
                     Toggle("Never suggest this again", isOn: $neverAgain)
                 }
-                if !usedItems.isEmpty {
-                    Section("Used up") {
-                        ForEach(usedItems) { item in
-                            Toggle(item.name, isOn: Binding(get: { markUsed.contains(item.id) },
-                                                            set: { if $0 { markUsed.insert(item.id) } else { markUsed.remove(item.id) } }))
+                Section {
+                    ForEach(requirements.filter { !$0.allocations.isEmpty }) { need in
+                        Toggle(isOn: Binding(get: { selected.contains(need.id) }, set: { if $0 { selected.insert(need.id) } else { selected.remove(need.id) } })) {
+                            VStack(alignment: .leading) {
+                                Text(need.line)
+                                Text(need.allocations.map { $0.amount.label + " from " + $0.item.name }.joined(separator: "; "))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                         }
+                    }
+                    ForEach(requirements.filter { $0.needsCheck && !$0.isBasic }) { need in
+                        Text("Check manually: " + need.line).font(.caption).foregroundStyle(.orange)
+                    }
+                } header: { Text("Amounts used") } footer: {
+                    Text("Selected amounts are deducted from the recorded packages. Unknown amounts need a quick check in the Kitchen.")
+                }
+                Section("Packages completely finished") {
+                    ForEach(usedItems) { item in
+                        Toggle(item.name, isOn: Binding(get: { finished.contains(item.id) }, set: { if $0 { finished.insert(item.id) } else { finished.remove(item.id) } }))
                     }
                 }
                 Section {
                     Toggle("Save leftovers", isOn: $saveLeftovers)
-                    if saveLeftovers { Stepper("\(leftoverServings) serving\(leftoverServings == 1 ? "" : "s")", value: $leftoverServings, in: 1...12) }
-                } footer: { Text("Leftovers go in the fridge with a 4-day countdown, and the chef can remix them.") }
-            }.listRowBackground(RowGlass()) }
-            .gardePage()
-            .navigationTitle("Nice work")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } } }
-            .onAppear { markUsed = Set(usedItems.map(\.id)) }
+                    if saveLeftovers { Stepper("\(leftoverServings) servings", value: $leftoverServings, in: 1...12) }
+                }
+                if let problem { Text(problem).foregroundStyle(.red) }
+            }
+            .gardePage().navigationTitle("Nice work")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.disabled(saved) } }
+            .onAppear {
+                requirements = KitchenStock.plan(ingredients, items: usedItems)
+                selected = Set(requirements.filter { !$0.allocations.isEmpty }.map(\.id))
+            }
         }
     }
 
     private func save() {
-        if rating > 0 || neverAgain || !change.isEmpty {
-            context.insert(CookLog(title: title, rating: rating, wouldChange: change, neverAgain: neverAgain, cost: estimatedCost))
+        guard !saved else { return }
+        do {
+            try KitchenStock.consume(requirements, selected: selected, operationID: operationID, context: context)
+            for item in usedItems where finished.contains(item.id) { item.markUsed() }
+            let log = CookLog(title: title, rating: rating, wouldChange: change, neverAgain: neverAgain, cost: estimatedCost)
+            log.id = operationID
+            context.insert(log)
+            var leftover: PantryItem?
+            if saveLeftovers {
+                let item = PantryItem(name: "\(title) (leftovers)", category: .other, location: .fridge,
+                                      quantity: Double(leftoverServings), unit: "serving",
+                                      expirationDate: Calendar.current.date(byAdding: .day, value: 4, to: .now))
+                item.isLeftover = true
+                KitchenStock.register(item, context: context)
+                leftover = item
+            }
+            try context.save()
+            if let leftover { Notifier.leftoverLunch(title: title, itemID: leftover.id) }
+            saved = true
+            onDone()
+        } catch {
+            context.rollback()
+            problem = error.localizedDescription
+            requirements = KitchenStock.plan(ingredients, items: usedItems)
         }
-        usedItems.filter { markUsed.contains($0.id) }.forEach { $0.markUsed() }
-        if saveLeftovers {
-            let left = PantryItem(name: "\(title) (leftovers)", category: .other, location: .fridge, quantity: Double(leftoverServings),
-                                  unit: "serving", expirationDate: Calendar.current.date(byAdding: .day, value: 4, to: .now), expirationIsEstimated: true)
-            left.isLeftover = true
-            context.insert(left)
-            Notifier.leftoverLunch(title: title, itemID: left.id)
-        }
-        onDone()
     }
 }
 

@@ -140,7 +140,7 @@ struct LiveScanView: View {
                                   expirationDate: c.expiration ?? ShelfLife.estimatedExpiration(name: c.name, category: c.category, in: loc),
                                   expirationIsEstimated: c.expiration == nil)
             item.barcode = c.code
-            context.insert(item)
+            KitchenStock.register(item, context: context)
             if c.opened { item.open() }
         }
         ShoppingBrain.checkOff(names: captured.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }, context: context)

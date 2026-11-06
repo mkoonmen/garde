@@ -8,9 +8,12 @@ struct InventoryView: View {
     @State private var kind: FoodCategory?
     @State private var search = ""
     @State private var editing: PantryItem?
+    @State private var adjusting: PantryItem?
     @State private var adding = false
     @State private var daily = DailyPick.shared
     @State private var quickAdding = false
+    @State private var checkingKitchen = false
+    @AppStorage("kitchen.check.snoozed") private var checkSnoozed = 0.0
     @State private var pendingExpired: (items: [PantryItem], tossed: Bool)?
     @Query private var spices: [Spice]
     @Query private var profiles: [KitchenProfile]
@@ -23,6 +26,10 @@ struct InventoryView: View {
     private var visible: [PantryItem] {
         items.filter { (filter == nil || $0.location == filter) && (kind == nil || $0.category == kind) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
             .sorted { ($0.daysLeft ?? 9999) < ($1.daysLeft ?? 9999) }
+    }
+    private var uncheckedItems: [PantryItem] {
+        items.filter { ($0.lastCheckedDate ?? $0.purchaseDate) < Date.now.addingTimeInterval(-7 * 86_400) }
+            .sorted { ($0.lastCheckedDate ?? $0.purchaseDate) < ($1.lastCheckedDate ?? $1.purchaseDate) }
     }
     private var expiringSoon: [PantryItem] { items.filter { ($0.daysLeft ?? 99) <= 2 } }
 
@@ -37,33 +44,8 @@ struct InventoryView: View {
                 if GardeStore.storeIsTemporary {
                     Section { Label("Garde couldn't open your saved kitchen this time, so nothing you add will be kept. Close Garde fully and reopen it.", systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red) }
                 }
-                if search.isEmpty && filter == nil && kind == nil, let problem = daily.problem {
-                    Section { Label(problem, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(.orange) }
-                }
                 if search.isEmpty && filter == nil && kind == nil {
-                    Section {
-                        if let p = daily.pick, daily.isFresh,
-                           AllergenGuard.violations(in: [p.title] + p.ingredients + p.steps, allergies: profiles.first?.allergies ?? []).isEmpty {
-                            NavigationLink {
-                                RecipeDetailView(title: p.title, summary: p.summary, minutes: p.minutes, servings: p.servings,
-                                                 ingredients: p.ingredients, steps: p.steps)
-                            } label: { RecipeRow(title: p.title, summary: p.summary, minutes: p.minutes) }
-                        } else if daily.working {
-                            Label("Thinking up tonight's dinner…", systemImage: "sparkles").foregroundStyle(.secondary)
-                        } else {
-                            Button { Task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs, force: true) } } label: {
-                                Label("Get an idea for tonight", systemImage: "sparkles")
-                            }
-                        }
-                    } header: {
-                        HStack {
-                            Text("Tonight's idea")
-                            Spacer()
-                            Button { Task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs, force: true) } } label: {
-                                if daily.working { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.clockwise") }
-                            }.disabled(daily.working)
-                        }
-                    }
+                    TonightChoicesView(items: items, spices: spices, profile: profiles.first, logs: logs)
                 }
                 if !expiringSoon.isEmpty && filter == nil && search.isEmpty {
                     Section {
@@ -146,6 +128,12 @@ struct InventoryView: View {
                     }
                 }
 
+                if search.isEmpty && filter == nil && checkSnoozed < Date.now.timeIntervalSince1970 && !uncheckedItems.isEmpty {
+                    Section {
+                        Button("Check a few items", systemImage: "checkmark.circle") { checkingKitchen = true }
+                        Button("Later") { checkSnoozed = Date.now.addingTimeInterval(3 * 86_400).timeIntervalSince1970 }
+                    } header: { Text("Keep your Kitchen current") }
+                }
                 Section("\(Plural.items(visible.count))") {
                     if visible.isEmpty {
                         ContentUnavailableView("Nothing here yet", systemImage: "cart",
@@ -153,6 +141,9 @@ struct InventoryView: View {
                     }
                     ForEach(visible) { item in
                         Button { editing = item } label: { ItemRow(item: item) }.buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Amount & history", systemImage: "scalemass") { adjusting = item }
+                            }
                             .swipeActions(edge: .trailing) {
                                 Button("Ate it", systemImage: "checkmark") { item.markUsed() }.tint(.green)
                                 Button("Tossed", systemImage: "trash.slash") { item.markUsed(tossed: true) }.tint(.gray)
@@ -184,14 +175,21 @@ struct InventoryView: View {
                     pendingExpired = nil
                 }
             } message: { Text("You can bring any back from More → Used-up history.") }
-            .task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs) }
+
             .toolbar {
                 Menu {
                     Button("Add one item", systemImage: "plus") { adding = true }
                     Button("Quick add several (type or talk)", systemImage: "text.badge.plus") { quickAdding = true }
                 } label: { Label("Add", systemImage: "plus") } primaryAction: { adding = true }
             }
+            .sheet(isPresented: $checkingKitchen) { KitchenCheckView(items: uncheckedItems) }
             .sheet(isPresented: $quickAdding) { QuickAddView() }
+            .sheet(item: $adjusting) { item in
+                NavigationStack {
+                    List { StockLevelControls(item: item) }.gardePage().navigationTitle(item.name)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { adjusting = nil } } }
+                }
+            }
             .sheet(item: $editing) { ItemEditView(item: $0) }
             .sheet(isPresented: $adding) { ItemEditView(item: nil) }
         }
@@ -257,10 +255,24 @@ struct ItemEditView: View {
     @State private var notes = ""
     @State private var photo: Data?
     @State private var loaded = false
+    @State private var ingredientOverride = ""
+    @State private var packageAmount = 0.0
+    @State private var packageUnit = "ml"
 
     var body: some View {
         NavigationStack {
             Form { Group {
+                if let item { Section { NavigationLink("Item history & Undo") { KitchenHistoryView(item: item) } } }
+                Section("Recipe matching & package size") {
+                    TextField("Recipe ingredient (optional)", text: $ingredientOverride)
+                    Text("Use a simple ingredient name, such as milk or almond milk. The product name above keeps its brand.").font(.caption).foregroundStyle(.secondary)
+                    TextField("Amount per package", value: $packageAmount, format: .number).keyboardType(.decimalPad)
+                    Picker("Package unit", selection: $packageUnit) {
+                        ForEach(["ml", "l", "fl oz", "pint", "cup", "g", "kg", "oz", "lb", "each"], id: \.self) { Text($0).tag($0) }
+                    }
+                    Text("Leave package amount at zero to use the label or recorded quantity.").font(.caption).foregroundStyle(.secondary)
+                }
+
                 Section {
                     TextField("Name", text: $name)
                         .onSubmit { if item == nil && storage.expirationIsEstimated { chooseDefaultLocation() } }
@@ -372,6 +384,7 @@ struct ItemEditView: View {
         defer { loaded = true }
         guard let item else { reestimate(); return }
         name = item.name; category = item.category; storage = item.storage
+        ingredientOverride = item.ingredientOverride; packageAmount = item.packageAmount; packageUnit = item.packageUnit
         quantity = item.quantity; unit = item.unit
         price = item.price.map { String(format: "%.2f", $0) } ?? ""
         store = item.store ?? ""; notes = item.notes; photo = item.photo
@@ -390,13 +403,23 @@ struct ItemEditView: View {
 
     private func save() {
         let target = item ?? { let n = PantryItem(name: name); context.insert(n); return n }()
+        let before = PantrySnapshot(target)
         target.name = name.trimmingCharacters(in: .whitespaces)
         target.category = category; target.storage = storage
         if storage.location != .freezer { target.frozenDate = nil } else if target.frozenDate == nil { target.frozenDate = .now }
+        if target.quantity != quantity || target.unit != unit { target.remainingAmount = nil }
         target.quantity = quantity; target.unit = unit
         target.price = Double(price); target.store = store.isEmpty ? nil : store
         target.notes = notes; target.photo = photo
-        dismiss()
+        target.ingredientOverride = ingredientOverride.trimmingCharacters(in: .whitespaces)
+        if target.packageAmount != packageAmount || target.packageUnit != packageUnit { target.remainingAmount = nil }
+        target.packageAmount = max(0, packageAmount); target.packageUnit = packageUnit
+        if item == nil { KitchenStock.baseline(target, context: context) }
+        else if before != PantrySnapshot(target) {
+            context.insert(KitchenEvent(itemID: target.id, action: "Edited", explanation: "You updated this item.", before: before, after: PantrySnapshot(target)))
+        }
+        do { try context.save(); dismiss() }
+        catch { context.rollback() }
     }
 }
 

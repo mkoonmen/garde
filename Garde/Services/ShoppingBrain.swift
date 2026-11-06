@@ -45,8 +45,8 @@ enum ShoppingBrain {
         guard let items = try? context.fetch(FetchDescriptor<PantryItem>()),
               let list = try? context.fetch(FetchDescriptor<ShoppingItem>()),
               let spices = try? context.fetch(FetchDescriptor<Spice>()) else { return }
-        var onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
-        let inStock = Set(items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover }.map { key($0.name) })
+        var onList = Set(list.filter { !$0.isChecked && !$0.isDismissed }.map { key($0.name) })
+        let inStock = Set(items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) > 1 && !$0.isLeftover && $0.remainingFraction > 0.15 }.map { key($0.name) })
 
         // Keep a deleted restock off the list, including when the same product also qualifies as a habitual purchase.
         let expired = items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) < 0 }
@@ -63,7 +63,9 @@ enum ShoppingBrain {
             if !previousIDs.contains(id) {
                 guard !inStock.contains(name) else { continue }
                 if onList.insert(name).inserted {
-                    context.insert(ShoppingItem(name: item.name, category: item.category, reason: "Expired, restock"))
+                    let entry = ShoppingItem(name: item.name, category: item.category, reason: "Expired, restock")
+                    entry.isSpecificProduct = true; entry.sourceItemID = item.id
+                    context.insert(entry)
                 }
             }
             // Save the marker in the same SwiftData transaction as the new list entry (also syncs with the item).
@@ -76,9 +78,13 @@ enum ShoppingBrain {
         let remaining = Set(items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 }.map { key($0.name) })
         for item in finished where !item.didRestockUsedUp {
             let name = key(item.name)
-            guard !name.isEmpty, !remaining.contains(name) else { continue }
+            guard !name.isEmpty, !remaining.contains(name), !items.contains(where: {
+                !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 && $0.remainingFraction > 0.15 && FoodIdentity.matches(item.ingredientName, $0.ingredientName)
+            }) else { continue }
             if onList.insert(name).inserted {
-                context.insert(ShoppingItem(name: item.name, category: item.category, reason: "Ran out"))
+                let entry = ShoppingItem(name: item.name, category: item.category, reason: "Ran out")
+                    entry.isSpecificProduct = true; entry.sourceItemID = item.id
+                    context.insert(entry)
             }
             item.didRestockUsedUp = true
         }
@@ -88,6 +94,21 @@ enum ShoppingBrain {
             if since >= p.days * 0.85 {
                 context.insert(ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days"))
                 onList.insert(k)
+            }
+        }
+        for item in items where !item.isUsedUp && !item.isLeftover && item.remainingFraction > 0 && item.remainingFraction <= 0.15 {
+            let k = key(item.name)
+            if !onList.contains(k) {
+                let entry = ShoppingItem(name: item.name, category: item.category, reason: "Almost gone")
+                entry.isSpecificProduct = true; entry.sourceItemID = item.id
+                context.insert(entry); onList.insert(k)
+            }
+        }
+        // Undoing an automatic stock action removes only its own generated suggestion.
+        for entry in list where entry.sourceItemID != nil && !entry.isChecked {
+            if let source = items.first(where: { $0.id == entry.sourceItemID }), !source.isUsedUp,
+               (source.daysLeft ?? 0) >= 0, source.remainingFraction > 0.15 {
+                context.delete(entry)
             }
         }
         for s in spices where (s.level == .empty || s.level == .low) && !onList.contains(key(s.name)) {
@@ -105,7 +126,7 @@ enum ShoppingBrain {
     @MainActor
     static func add(needToBuy: [String], for dish: String, day: Date, context: ModelContext) {
         let list = (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []
-        var onList = Set(list.filter { !$0.isChecked }.map { key($0.name) })
+        var onList = Set(list.filter { !$0.isChecked && !$0.isDismissed }.map { key($0.name) })
         let dayName = day.formatted(.dateTime.weekday(.abbreviated))
         for n in needToBuy where !onList.contains(key(n)) {
             context.insert(ShoppingItem(name: n.capitalized, category: guessCategory(n), reason: "For \(dayName): \(dish)"))
@@ -119,11 +140,14 @@ enum ShoppingBrain {
         // Ignore blanks and placeholders; match whole words so "egg" never ticks off "Eggplant".
         let keys = Set(names.map(key).filter { $0.count >= 3 && !$0.hasPrefix("looking up") })
         guard !keys.isEmpty else { return }
-        for item in (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? [] where !item.isChecked {
+        for item in (try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? [] where !item.isChecked && !item.isDismissed {
             let k = key(item.name)
             guard k.count >= 3 else { continue }
             // Only when every word of the list item is in what was bought: "Butter" bought never ticks off "Peanut butter".
-            if keys.contains(k) || keys.contains(where: { sameItem(list: k, bought: $0) }) { item.isChecked = true }
+            let matched = item.isSpecificProduct
+                ? names.contains { FoodIdentity.productKey($0) == FoodIdentity.productKey(item.name) }
+                : keys.contains(k) || names.contains { sameItem(list: item.name, bought: $0) || FoodIdentity.matches(item.name, $0) }
+            if matched { item.isChecked = true; item.wasAutoChecked = true }
         }
     }
 

@@ -9,13 +9,15 @@ struct ShoppingListView: View {
     @State private var deals = DealsService.shared
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
     @FocusState private var typing: Bool
+    @Query private var mealPlans: [MealPlanEntry]
+    @Query private var profiles: [KitchenProfile]
     @Query private var everything: [PantryItem]
     @State private var prices: [PriceBook.Entry] = []
     @State private var addedUsuals = false
     @State private var shopping = false
 
-    private var open: [ShoppingItem] { list.filter { !$0.isChecked } }
-    private var done: [ShoppingItem] { list.filter(\.isChecked) }
+    private var open: [ShoppingItem] { list.filter { !$0.isChecked && !$0.isDismissed } }
+    private var done: [ShoppingItem] { list.filter { $0.isChecked && !$0.isDismissed } }
     private var grouped: [(FoodCategory, [ShoppingItem])] {
         let g = Dictionary(grouping: open, by: \.category)
         return ShoppingBrain.aisleOrder.compactMap { c in g[c].map { (c, $0) } }
@@ -24,17 +26,13 @@ struct ShoppingListView: View {
     var body: some View {
         NavigationStack {
             List { Group {
+                ShoppingTripSection(names: open.map(\.name), prices: prices, profile: profiles.first)
                 Section {
                     HStack {
                         TextField("Add item", text: $draft).focused($typing).submitLabel(.done).onSubmit(add)
                         Button("Add", systemImage: "plus.circle.fill", action: add).labelStyle(.iconOnly).font(.title2).disabled(draft.isEmpty)
                     }
-                    if let pick = PriceBook.bestStore(for: open.map(\.name), in: prices) {
-                        Label {
-                            Text("Shop at **\(pick.store)**: cheapest for \(pick.cheapestFor) of \(pick.known) items you've bought before\(pick.savings >= 1 ? ", about \(pick.savings.formatted(.currency(code: "USD").precision(.fractionLength(0)))) less" : "").")
-                                .font(.subheadline)
-                        } icon: { Image(systemName: "storefront").foregroundStyle(Theme.copper) }
-                    }
+
                     let usuals = missingUsuals
                     if !usuals.isEmpty && !addedUsuals {
                         Button {
@@ -54,7 +52,7 @@ struct ShoppingListView: View {
                         if deals.matchedDeals.isEmpty {
                             Text("Nothing on your list is on sale this week.").font(.subheadline).foregroundStyle(.secondary)
                         }
-                        ForEach(deals.matchedDeals.prefix(8)) { d in
+                        ForEach(tripDeals.prefix(8)) { d in
                             // Only compare like with like: every word you buy it as must be in the deal, and not per-pound deals.
                             let perLb = d.name.lowercased().contains("/lb") || d.name.lowercased().contains("per lb") || d.priceText.lowercased().contains("lb")
                             DealRow(deal: d, usual: perLb ? nil : prices.first { !$0.key.isEmpty && ShoppingBrain.sameItem(list: $0.key, bought: d.name) }?.average)
@@ -101,15 +99,26 @@ struct ShoppingListView: View {
             .refreshable { ShoppingBrain.refreshRunningLow(context: context); await forceRefreshDeals() }
             .task {
                 ShoppingBrain.refreshRunningLow(context: context)
+                try? MealShopping.reconcile(context: context)
                 prices = PriceBook.entries(everything)
                 await refreshDeals()
             }
             .onChange(of: open.map(\.name)) { _, _ in deals.match(DealsService.terms(list: open, pantry: pantry)) }
         }
         .onChange(of: finishedItemIDs) { _, _ in ShoppingBrain.refreshRunningLow(context: context) }
-        .onChange(of: pantry.map(\.id)) { _, _ in ShoppingBrain.refreshRunningLow(context: context) }
+        .onChange(of: stockSignature) { _, _ in
+            ShoppingBrain.refreshRunningLow(context: context)
+            try? MealShopping.reconcile(context: context)
+        }
+        .onChange(of: planSignature) { _, _ in try? MealShopping.reconcile(context: context) }
     }
 
+    private var tripDeals: [DealsService.Deal] {
+        guard let profile = profiles.first, !profile.preferredStore.isEmpty, !profile.allowExtraStore else { return deals.matchedDeals }
+        return deals.matchedDeals.filter { $0.store.localizedCaseInsensitiveContains(profile.preferredStore) }
+    }
+    private var stockSignature: String { pantry.map { "\($0.id)/\($0.availableLabel)/\($0.ingredientName)" }.sorted().joined(separator: "|") }
+    private var planSignature: String { mealPlans.map { "\($0.id)/\($0.isCooked)/" + $0.ingredients.joined(separator: "|") }.sorted().joined(separator: "|") }
     private var finishedItemIDs: [UUID] {
         everything.filter { $0.isUsedUp && !$0.wasTossed && !$0.isLeftover }.map(\.id)
     }
@@ -132,12 +141,15 @@ struct ShoppingListView: View {
     }
 
     private func row(_ item: ShoppingItem) -> some View {
-        Button { withAnimation { item.isChecked.toggle() } } label: {
+        Button { withAnimation { item.isChecked.toggle(); item.wasAutoChecked = false } } label: {
             HStack {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle").foregroundStyle(item.isChecked ? .green : Theme.accent).font(.title3)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name + (item.quantityNote.isEmpty ? "" : " · \(item.quantityNote)")).strikethrough(item.isChecked)
                     if !item.reason.isEmpty && item.reason != "Added by you" { Text(item.reason).font(.caption).foregroundStyle(.secondary) }
+                    if item.isSpecificProduct { Text("Your usual product").font(.caption2).foregroundStyle(.secondary) }
+                    if !item.mealNote.isEmpty { Text(item.mealNote).font(.caption).foregroundStyle(.secondary) }
+                    if item.wasAutoChecked { Text("Matched to purchased groceries · tap to undo").font(.caption).foregroundStyle(.secondary) }
                     if !item.isChecked, let p = PriceBook.hint(for: item.name, in: prices) {
                         Text(p).font(.caption2).foregroundStyle(.secondary)
                     }
@@ -148,7 +160,7 @@ struct ShoppingListView: View {
             }.contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .swipeActions { Button("Delete", systemImage: "trash", role: .destructive) { context.delete(item) } }
+        .swipeActions { Button("Delete", systemImage: "trash", role: .destructive) { if item.planDemandKey.isEmpty { context.delete(item) } else { item.isDismissed = true } } }
     }
 
     private var shareText: String {
