@@ -15,7 +15,7 @@ enum AllergenGuard {
         "peanut": ["peanut", "groundnut", "satay"],
         "tree nut": ["almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia", "brazil nut", "pine nut",
                      "praline", "marzipan", "nutella", "pesto", "frangipane", "gianduja", "nut butter", "amaretto",
-                     "nut", "nuts", "chestnut", "nut oil", "nocino", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
+                     "nut", "nuts", "chestnut", "nut oil", "nocino", "nocello", "noix", "pignoli", "pili nut", "piñon", "pinon", "hickory nut", "nougat", "baklava", "romesco", "dukkah", "muhammara"],
         "dairy": ["milk", "butter", "cream", "creme", "crème", "cheese", "yogurt", "yoghurt", "ghee", "whey", "casein", "mozzarella",
                   "parmesan", "parmigiano", "pecorino", "brie", "cheddar", "gouda", "ricotta", "boursin", "mascarpone", "burrata",
                   "feta", "stracciatella", "half-and-half", "custard", "queso", "paneer", "kefir", "alfredo"],
@@ -47,8 +47,8 @@ enum AllergenGuard {
         "hazelnut": ["hazelnut", "nutella", "gianduja", "filbert"],
         "peanut": ["peanut", "groundnut", "satay"],
         "coconut": ["coconut"],
-        "pistachio": ["pistachio"], "cashew": ["cashew"], "walnut": ["walnut", "nocino"], "pecan": ["pecan", "praline"],
-        "macadamia": ["macadamia"], "pine nut": ["pine nut", "pignoli", "pesto"], "brazil nut": ["brazil nut"], "chestnut": ["chestnut"],
+        "pistachio": ["pistachio"], "cashew": ["cashew"], "walnut": ["walnut", "nocino", "nocello", "noix"], "pecan": ["pecan", "praline"],
+        "macadamia": ["macadamia"], "pine nut": ["pine nut", "pignoli", "pesto", "piñon", "pinon"], "brazil nut": ["brazil nut"], "chestnut": ["chestnut"],
     ]
 
     /// Splits "Tree nuts except almonds, hazelnuts" into ("tree nuts", ["almond", "hazelnut"]).
@@ -102,10 +102,19 @@ enum AllergenGuard {
         "roe": ["romaine"],
         "sole": ["console"],
         "rye": ["dryer"],
+        "noix": ["noix de coco"],
+        "pinon": ["pinot"],
     ]
 
     /// Returns the allergen words found in the text (empty = safe).
+    /// Each allergy is checked on its own, so one person's exception ("except almonds") never cancels
+    /// someone else's allergy (a guest allergic to almonds).
     static func violations(in texts: [String], allergies: [String]) -> [String] {
+        Array(Set(allergies.flatMap { violations(in: texts, single: $0) })).sorted()
+    }
+
+    private static func violations(in texts: [String], single allergy: String) -> [String] {
+        let allergies = [allergy]
         let haystack = texts.joined(separator: " ").lowercased()
         let safe = safeWords(for: allergies)
         // Peanuts and coconut aren't tree nuts: unless listed as allergies, "peanut"/"coconut" never count as "nut".

@@ -8,12 +8,18 @@ import SwiftData
 enum Takeout {
     /// Delivery service if this email is a restaurant order (grocery orders through these apps are skipped here
     /// and handled as groceries instead).
+    /// Whole-word match so "Rinaldi's Pizza" isn't mistaken for ALDI.
+    nonisolated static func isGrocery(subject: String) -> Bool {
+        let s = " " + subject.lowercased().replacingOccurrences(of: "[^a-z0-9&]+", with: " ", options: .regularExpression) + " "
+        return groceryWords.contains { s.contains(" " + $0.replacingOccurrences(of: "-", with: " ") + " ") }
+    }
+
     nonisolated static let groceryWords = ["dashmart", "grocery", "groceries", "safeway", "costco", "aldi", "cvs", "walgreens", "7-eleven", "convenience", "wegmans", "stop & shop", "sprouts"]
 
     nonisolated static func service(from: String, subject: String) -> String? {
         let f = " " + from.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression) + " "
+        if isGrocery(subject: subject) { return nil }
         let s = subject.lowercased()
-        if groceryWords.contains(where: { s.contains($0) }) { return nil }
         if f.contains("doordash") { return "DoorDash" }
         if f.contains("uber") && (s.contains("eats") || s.contains("order") || s.contains("receipt")) && !s.contains("trip") && !s.contains("ride") { return "Uber Eats" }
         if f.contains("grubhub") { return "Grubhub" }

@@ -9,6 +9,8 @@ struct InsightsView: View {
     @Query private var receipts: [Receipt]
     @State private var range = 30
     @Query private var profiles: [KitchenProfile]
+    @State private var budgetText = ""
+    @FocusState private var editingBudget: Bool
     private var monthSpent: Double {
         let start = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
         return receipts.filter { $0.date >= start }.compactMap(\.total).reduce(0, +)
@@ -33,10 +35,16 @@ struct InsightsView: View {
             if let profile = profiles.first {
                 Section {
                     LabeledContent("Monthly budget") {
-                        TextField("Off", value: Binding(get: { profile.monthlyBudget }, set: { profile.monthlyBudget = max(0, $0) }),
-                                  format: .currency(code: "USD").precision(.fractionLength(0)))
-                            .multilineTextAlignment(.trailing).keyboardType(.decimalPad).frame(maxWidth: 120)
+                        HStack(spacing: 2) {
+                            Text("$").foregroundStyle(.secondary)
+                            TextField("Off", text: $budgetText)
+                                .keyboardType(.decimalPad).focused($editingBudget).frame(maxWidth: 90)
+                                .onChange(of: budgetText) { _, t in
+                                    profile.monthlyBudget = max(0, Double(t.filter { $0.isNumber || $0 == "." }) ?? 0)
+                                }
+                        }.multilineTextAlignment(.trailing)
                     }
+                    .onAppear { budgetText = profile.monthlyBudget > 0 ? String(Int(profile.monthlyBudget)) : "" }
                     if profile.monthlyBudget > 0 {
                         let used = monthSpent / profile.monthlyBudget
                         ProgressView(value: min(used, 1)) {
@@ -44,7 +52,8 @@ struct InsightsView: View {
                         }.tint(used > 1 ? .red : used > 0.85 ? .orange : .green)
                         let day = Double(Calendar.current.component(.day, from: .now))
                         let days = Double(Calendar.current.range(of: .day, in: .month, for: .now)?.count ?? 30)
-                        let pace = monthSpent / day * days
+                        // Early in the month one big shop would project wildly, so blend with the budget's daily rate.
+                        let pace = day < 7 ? monthSpent + profile.monthlyBudget / days * (days - day) : monthSpent / day * days
                         Text(pace > profile.monthlyBudget
                              ? "On pace for \(pace.formatted(.currency(code: "USD").precision(.fractionLength(0)))), over budget."
                              : "On pace to stay under budget.")
@@ -96,6 +105,7 @@ struct InsightsView: View {
             }
         }.listRowBackground(RowGlass()) }
         .gardePage()
+        .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { editingBudget = false } } }
         .navigationTitle("Insights")
     }
 }

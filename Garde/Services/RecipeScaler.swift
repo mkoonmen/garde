@@ -45,7 +45,20 @@ enum RecipeScaler {
 
     static func scale(_ line: String, by factor: Double) -> String {
         guard factor != 1, let (v, end) = leadingAmount(line) else { return line }
-        let rest = line[end...]
+        var rest = String(line[end...])
+        // Ranges: "2-3 cloves", "2 to 3 cloves", "1–2 tbsp" scale both ends.
+        for sep in ["-", "–", " to ", "to "] where rest.hasPrefix(sep) {
+            let after = String(rest.dropFirst(sep.count))
+            guard let (v2, end2) = leadingAmount(after) else { return line }
+            let tail = after[end2...]
+            if sep == "-", v2 < 1, after.prefix(while: { $0 != " " }).contains("/") {   // "1-1/2 cups" is one and a half
+                return format((v + v2) * factor) + (tail.first == " " || tail.isEmpty ? "" : " ") + tail
+            }
+            let joiner = sep.trimmingCharacters(in: .whitespaces) == "to" ? " to " : "-"
+            return format(v * factor) + joiner + format(v2 * factor) + (tail.first == " " || tail.isEmpty ? "" : " ") + tail
+        }
+        if rest.hasPrefix("/") { return line }   // something we didn't understand
+        if rest.first == "-" { rest.removeFirst() }
         return format(v * factor) + (rest.first == " " || rest.isEmpty ? "" : " ") + rest
     }
 }

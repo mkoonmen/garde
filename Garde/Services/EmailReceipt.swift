@@ -103,7 +103,7 @@ enum EmailReceipt {
     static func groceryStore(from: String, subject: String) -> String? {
         let sub = subject.lowercased()
         if let s = store(from: from, subject: subject), ["DoorDash", "Uber Eats"].contains(s),
-           Takeout.groceryWords.contains(where: { sub.contains($0) }) { return s + " groceries" }
+           Takeout.isGrocery(subject: sub) { return s + " groceries" }
         guard let s = store(from: from, subject: subject), !["DoorDash", "Uber Eats", "Amazon"].contains(s) else {
             let t = (from + " " + subject).lowercased()
             return t.contains("whole foods") || t.contains("amazon fresh") ? "Amazon Fresh" : nil
@@ -114,8 +114,10 @@ enum EmailReceipt {
     /// Shipping/status emails that list an item but aren't a receipt.
     static func isNotice(_ subject: String) -> Bool {
         let s = subject.lowercased()
-        return ["shipped", "on its way", "out for delivery", "delivered", "arriving", "is ready", "ready for pickup", "substitut",
-                "review", "rate your", "how did we do", "survey", "cancel", "refund", "return", "track"].contains { s.contains($0) }
+        if s.contains("receipt") { return false }   // "Your receipt: order delivered" is still a receipt
+        return ["has shipped", "shipped", "on its way", "out for delivery", "arriving", "is ready", "ready for pickup", "substitution",
+                "review your", "rate your", "how did we do", "survey", "cancelled", "canceled", "refund", "return started", "your return",
+                "track your", "tracking"].contains { s.contains($0) }
     }
 
     /// Removes receipts imported by older versions that don't pass today's rules (non-grocery senders, empty one-liners).
@@ -127,7 +129,8 @@ enum EmailReceipt {
             let subject = head.components(separatedBy: "\n").dropFirst().first ?? ""
             let n = r.items?.count ?? 0
             if groceryStore(from: from + " " + r.store, subject: subject) == nil || isNotice(subject) || (r.total == nil && n < 3) {
-                for i in r.items ?? [] { context.delete(i) }
+                // Items you edited (notes) stay in the kitchen; untouched junk lines go.
+                for i in r.items ?? [] { if i.notes.isEmpty { context.delete(i) } else { i.receipt = nil } }
                 context.delete(r)
             }
         }

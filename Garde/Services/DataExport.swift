@@ -24,7 +24,7 @@ struct KitchenExport: Codable {
     struct PlanRow: Codable { var day: Date; var title, summary: String; var minutes, servings: Int; var ingredients, steps, needToBuy: [String]; var isCooked: Bool }
     struct CookRow: Codable { var title: String; var date: Date; var rating: Int; var wouldChange: String; var neverAgain: Bool; var cost: Double? }
     struct BottleRow: Codable { var name, kind, vintage, region, notes: String; var count: Int }
-    struct TakeoutRow: Codable { var restaurant, cuisine, service: String; var date: Date; var dishes: [String]; var total: Double? }
+    struct TakeoutRow: Codable { var restaurant, cuisine, service: String; var date: Date; var dishes: [String]; var total: Double?; var sourceID: String? }
 
     var format = "garde/v2"
     var exportedAt = Date()
@@ -71,7 +71,7 @@ enum DataExport {
         export.shopping = try context.fetch(FetchDescriptor<ShoppingItem>()).map { .init(name: $0.name, category: $0.categoryRaw, quantityNote: $0.quantityNote, reason: $0.reason, isChecked: $0.isChecked) }
         export.mealPlan = try context.fetch(FetchDescriptor<MealPlanEntry>()).map { .init(day: $0.day, title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings, ingredients: $0.ingredients, steps: $0.steps, needToBuy: $0.needToBuy, isCooked: $0.isCooked) }
         export.cookLog = try context.fetch(FetchDescriptor<CookLog>()).map { .init(title: $0.title, date: $0.date, rating: $0.rating, wouldChange: $0.wouldChange, neverAgain: $0.neverAgain, cost: $0.cost) }
-        export.takeout = try context.fetch(FetchDescriptor<TakeoutOrder>()).map { .init(restaurant: $0.restaurant, cuisine: $0.cuisine, service: $0.service, date: $0.date, dishes: $0.dishes, total: $0.total) }
+        export.takeout = try context.fetch(FetchDescriptor<TakeoutOrder>()).map { .init(restaurant: $0.restaurant, cuisine: $0.cuisine, service: $0.service, date: $0.date, dishes: $0.dishes, total: $0.total, sourceID: $0.sourceID) }
         export.recipeNotes = Dictionary(recipes.filter { !$0.notes.isEmpty }.map { ($0.title, $0.notes) }, uniquingKeysWith: { a, _ in a })
         export.monthlyBudget = profile?.monthlyBudget
         export.bar = try context.fetch(FetchDescriptor<BarBottle>()).map { .init(name: $0.name, kind: $0.kindRaw, vintage: $0.vintage, region: $0.region, notes: $0.notes, count: $0.count) }
@@ -123,7 +123,9 @@ enum DataExport {
             b.notes = r.notes; context.insert(b)
         }
         for r in data.takeout ?? [] {
-            context.insert(TakeoutOrder(restaurant: r.restaurant, cuisine: r.cuisine, date: r.date, dishes: r.dishes, total: r.total, service: r.service))
+            let o = TakeoutOrder(restaurant: r.restaurant, cuisine: r.cuisine, date: r.date, dishes: r.dishes, total: r.total, service: r.service)
+            o.sourceID = r.sourceID
+            context.insert(o)
         }
         if let p = data.profile {
             let existing = try context.fetch(FetchDescriptor<KitchenProfile>()).first ?? { let n = KitchenProfile(); context.insert(n); return n }()

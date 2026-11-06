@@ -31,7 +31,7 @@ struct CookModeView: View {
     private var stepSeconds: Int? { CookVoice.duration(in: step) }
 
     @State private var mise = true
-    @State private var gathered: Set<String> = []
+    @State private var gathered: Set<Int> = []
 
     var body: some View {
         if mise && !ingredients.isEmpty { miseView } else { cookBody }
@@ -47,14 +47,14 @@ struct CookModeView: View {
                 Spacer()
                 Button("Skip") { withAnimation { mise = false } }
             }.padding()
-            List(ingredients, id: \.self) { line in
+            List(Array(ingredients.enumerated()), id: \.offset) { i, line in
                 Button {
-                    if gathered.contains(line) { gathered.remove(line) } else { gathered.insert(line) }
+                    if gathered.contains(i) { gathered.remove(i) } else { gathered.insert(i) }
                 } label: {
                     HStack {
-                        Image(systemName: gathered.contains(line) ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(gathered.contains(line) ? .green : Theme.accent).font(.title2)
-                        Text(line).font(.title3).strikethrough(gathered.contains(line))
+                        Image(systemName: gathered.contains(i) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(gathered.contains(i) ? .green : Theme.accent).font(.title2)
+                        Text(line).font(.title3).strikethrough(gathered.contains(i))
                     }.contentShape(.rect)
                 }.buttonStyle(.plain).listRowBackground(RowGlass())
             }

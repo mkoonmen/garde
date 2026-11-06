@@ -50,7 +50,7 @@ struct InventoryView: View {
                     } header: { Text("Use these first") }
                 }
 
-                let longFrozen = items.filter { ($0.frozenDate ?? .now) < Date.now.addingTimeInterval(-90 * 86_400) }
+                let longFrozen = items.filter { $0.location == .freezer && ($0.frozenDate ?? .now) < Date.now.addingTimeInterval(-90 * 86_400) }
                     .sorted { ($0.frozenDate ?? .now) < ($1.frozenDate ?? .now) }
                 if !longFrozen.isEmpty {
                     Section {
@@ -232,6 +232,7 @@ struct ItemEditView: View {
         let target = item ?? { let n = PantryItem(name: name); context.insert(n); return n }()
         target.name = name.trimmingCharacters(in: .whitespaces)
         target.category = category; target.location = location
+        if location != .freezer { target.frozenDate = nil } else if target.frozenDate == nil { target.frozenDate = .now }
         target.quantity = quantity; target.unit = unit
         target.expirationDate = hasExpiration ? expiration : nil
         target.expirationIsEstimated = estimated

@@ -48,8 +48,9 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             guard !set.contains(id) else { return }
             set.insert(id); list.append(id)
             if list.count > 5000 { list.removeFirst(list.count - 5000); set = Set(list) }
-            UserDefaults.standard.set(list, forKey: "gmail.processed")
+            if list.count % 25 == 0 { save() }
         }
+        func save() { UserDefaults.standard.set(list, forKey: "gmail.processed") }
         mutating func reset() { list = []; set = []; UserDefaults.standard.removeObject(forKey: "gmail.processed") }
     }
 
@@ -119,7 +120,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         if isImporting { throw GmailError.api("An import is already running. Try again in a moment.") }
         guard isSignedIn, !clientID.isEmpty, let refresh = Keychain.get("gmail.refresh") else { return report }
         isImporting = true
-        defer { isImporting = false }
+        defer { isImporting = false; processed.save() }
         processed = ProcessedIDs()   // pick up any reset done elsewhere
         let tokens = try await tokenRequest(["refresh_token": refresh, "grant_type": "refresh_token"])
         guard let access = tokens["access_token"] as? String else { throw GmailError.auth("Please reconnect Gmail (Google sign-ins in testing expire weekly).") }
@@ -164,7 +165,6 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             // Only real grocery stores become grocery receipts; everything else (software, subscriptions, shipping notices) is ignored.
             guard let knownStore = EmailReceipt.groceryStore(from: from, subject: subject),
                   !EmailReceipt.isNotice(subject) else { report.skipped += 1; processed.insert(id); continue }
-            guard brainReady else { report.skipped += 1; continue }
             let focus = EmailReceipt.focus(body)
             guard focus.priceLines >= 1 else { report.skipped += 1; processed.insert(id); continue }   // no prices = not a receipt
 

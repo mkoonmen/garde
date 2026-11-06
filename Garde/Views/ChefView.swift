@@ -238,16 +238,15 @@ struct RecipeDetailView: View {
     @State private var chef = ChefAI()
     @Query private var profiles: [KitchenProfile]
     @State private var people = 0
-    @State private var swapFor: String?
-    @State private var swaps: [String: Swaps] = [:]
-    @State private var swapping: String?
+    @State private var swaps: [Int: Swaps] = [:]
+    @State private var swapping: Int?
     @State private var swapError: String?
 
     private var serves: Int { people == 0 ? servings : people }
     private var factor: Double { servings > 0 ? Double(serves) / Double(servings) : 1 }
     private var shownIngredients: [String] { ingredients.map { RecipeScaler.scale($0, by: factor) } }
 
-    private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: ingredients, items: allItems) }
+    private var cost: (total: Double, matched: Int) { CostCalculator.estimate(ingredients: shownIngredients, items: allItems) }
     private var nutrition: Nutrition.Totals { Nutrition.estimate(ingredients: ingredients).perServing(servings) }
 
     private var usedItems: [PantryItem] {
@@ -302,18 +301,18 @@ struct RecipeDetailView: View {
                 }
             }
             Section {
-                ForEach(shownIngredients, id: \.self) { line in
+                ForEach(Array(shownIngredients.enumerated()), id: \.offset) { i, line in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("• \(line)")
                             Spacer()
-                            if swapping == line { ProgressView().controlSize(.small) }
+                            if swapping == i { ProgressView().controlSize(.small) }
                             else {
-                                Button { Task { await swap(line) } } label: { Image(systemName: "arrow.left.arrow.right.circle") }
+                                Button { Task { await swap(i, line) } } label: { Image(systemName: "arrow.left.arrow.right.circle") }
                                     .buttonStyle(.borderless).foregroundStyle(Theme.accent).accessibilityLabel("Substitute")
                             }
                         }
-                        if let s = swaps[line] {
+                        if let s = swaps[i] {
                             ForEach(s.options, id: \.self) { Text("↳ \($0)").font(.subheadline).foregroundStyle(Theme.copper) }
                             if !s.note.isEmpty { Text(s.note).font(.caption).foregroundStyle(.secondary) }
                         }
@@ -370,13 +369,13 @@ struct RecipeDetailView: View {
 }
 
 extension RecipeDetailView {
-    fileprivate func swap(_ line: String) async {
-        if swaps[line] != nil { swaps[line] = nil; return }
+    fileprivate func swap(_ i: Int, _ line: String) async {
+        if swaps[i] != nil { swaps[i] = nil; return }
         guard let profile = profiles.first else { return }
-        swapping = line; swapError = nil
+        swapping = i; swapError = nil
         defer { swapping = nil }
         do {
-            if let s = try await chef.substitute(line, dish: title, items: items, profile: profile) { swaps[line] = s }
+            if let s = try await chef.substitute(line, dish: title, items: items, profile: profile) { swaps[i] = s }
             else { swapError = "No safe substitute for that one." }
         } catch { swapError = "The chef couldn't think of a swap. Try again." }
     }

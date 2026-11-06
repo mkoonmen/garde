@@ -26,6 +26,12 @@ enum PriceBook {
         return words.map { $0.count > 3 && $0.hasSuffix("s") && !$0.hasSuffix("ss") ? String($0.dropLast()) : $0 }.joined(separator: " ")
     }
 
+    /// Receipt lines are totals; for countable items, compare the price of one.
+    static func unitPrice(_ i: PantryItem) -> Double {
+        let p = i.price ?? 0
+        return i.unit == "each" && i.quantity > 1 && i.quantity == i.quantity.rounded() ? p / i.quantity : p
+    }
+
     static func entries(_ items: [PantryItem]) -> [Entry] {
         let priced = items.filter { ($0.price ?? 0) > 0 }
         return Dictionary(grouping: priced) { key($0.name) }
@@ -33,7 +39,7 @@ enum PriceBook {
             .map { k, list in
                 let sorted = list.sorted { $0.purchaseDate > $1.purchaseDate }
                 return Entry(key: k, name: sorted[0].name,
-                             paid: sorted.map { (date: $0.purchaseDate, store: $0.store ?? "Unknown", price: $0.price ?? 0) })
+                             paid: sorted.map { (date: $0.purchaseDate, store: $0.store ?? "Unknown", price: unitPrice($0)) })
             }
             .sorted { $0.paid.count == $1.paid.count ? $0.name < $1.name : $0.paid.count > $1.paid.count }
     }
@@ -41,7 +47,11 @@ enum PriceBook {
     /// Short hint for a shopping-list row: "last $3.49 · cheapest at ALDI".
     static func hint(for name: String, in entries: [Entry]) -> String? {
         let k = key(name)
-        guard !k.isEmpty, let e = entries.first(where: { $0.key == k || $0.key.contains(k) || k.contains($0.key) }) else { return nil }
+        let words = Set(k.split(separator: " "))
+        guard !k.isEmpty, let e = entries.first(where: { $0.key == k }) ?? entries.first(where: { e in
+            let w = Set(e.key.split(separator: " "))
+            return w.isSuperset(of: words) || words.isSuperset(of: w)   // whole words: "egg" never matches "eggplant"
+        }) else { return nil }
         var s = "last " + e.last.formatted(.currency(code: "USD"))
         if let c = e.cheapestStore { s += " · cheapest at \(c)" }
         return s
