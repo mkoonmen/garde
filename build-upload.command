@@ -12,9 +12,9 @@ mkdir -p build
   xcrun metal -v >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
   BUILD=$(date +%Y%m%d%H%M)
   rm -rf build/Garde.xcarchive
-  xcodebuild archive -jobs 2 -project Garde.xcodeproj -scheme Garde -destination "generic/platform=iOS" \
+  xcodebuild archive -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "generic/platform=iOS" \
     -archivePath build/Garde.xcarchive -allowProvisioningUpdates \
-    DEVELOPMENT_TEAM=T3893TN44X CURRENT_PROJECT_VERSION=$BUILD > build/xcodebuild-full.log 2>&1
+    DEVELOPMENT_TEAM=T3893TN44X CURRENT_PROJECT_VERSION=$BUILD COMPILER_INDEX_STORE_ENABLE=NO > build/xcodebuild-full.log 2>&1
   archive_result=$?
   grep -E "error:|\*\* ARCHIVE|requires a provisioning|No profiles|entitlement|capabilit" build/xcodebuild-full.log | sort -u | head -150
   (( archive_result == 0 )) || { echo "ARCHIVE FAILED"; tail -40 build/xcodebuild-full.log; exit 1; }

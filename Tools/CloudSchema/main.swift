@@ -30,7 +30,7 @@ container.loadPersistentStores { _, error in
         fflush(stdout)
         DispatchQueue.global().asyncAfter(deadline: .now() + 10) {
             do { try container.initializeCloudKitSchema(options: CommandLine.arguments.contains("--initialize") ? [.printSchema] : [.dryRun, .printSchema]); print("SCHEMA VALID") }
-            catch { print("SCHEMA ERROR: \(error)") }
+            catch { print("SCHEMA ERROR: \(error)"); exit(1) }
             exit(0)
         }
     }
