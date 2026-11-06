@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Full compiler validation: dinner ranking captures favorite titles before its scoring closure, preserving Swift concurrency isolation.
 - 2026-11-06 — Usual purchases added manually or by learned buying cadence retain their specific-product identity, so a different product cannot silently check them off.
 - 2026-11-06 — Ingredient matching keeps common prepared products separate from their namesake ingredients, including garlic bread, chips, soups, dips, nut flours, flavored milk and bottled citrus juice. Regression cases cover the most misleading matches.
 - 2026-11-06 — Test runs use one build job, the active simulator architecture and no index store or Swift batch compilation to reduce memory pressure on this Mac. Simulator cleanup still runs when the script exits.

@@ -72,6 +72,7 @@ final class DailyPick {
             AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: profile.allergies).isEmpty
         }
         let loved = Set(logs.filter { $0.rating >= 4 }.map { $0.title.lowercased() })
+        let favorites = favoriteTitles
         var chosen: Set<String> = []
         choices = Mode.allCases.compactMap { mode in
             let candidates = mode == .quick ? safe.filter { $0.minutes <= limit } : safe
@@ -85,7 +86,7 @@ final class DailyPick {
                     case .quick: return Double(covered * 2 - r.minutes)
                     case .loved:
                         let favoriteIngredients = r.ingredients.filter { line in profile.loves.contains { FoodIdentity.contains($0, in: line) } }.count
-                        return Double((loved.contains(r.title.lowercased()) || favoriteTitles.contains(r.title.lowercased()) ? 100 : 0) + favoriteIngredients * 10 + covered)
+                        return Double((loved.contains(r.title.lowercased()) || favorites.contains(r.title.lowercased()) ? 100 : 0) + favoriteIngredients * 10 + covered)
                     }
                 }
                 let x = score(a), y = score(b)
