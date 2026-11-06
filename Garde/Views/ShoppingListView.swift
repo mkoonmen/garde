@@ -12,6 +12,7 @@ struct ShoppingListView: View {
     @Query private var everything: [PantryItem]
     @State private var prices: [PriceBook.Entry] = []
     @State private var addedUsuals = false
+    @State private var shopping = false
 
     private var open: [ShoppingItem] { list.filter { !$0.isChecked } }
     private var done: [ShoppingItem] { list.filter(\.isChecked) }
@@ -88,9 +89,11 @@ struct ShoppingListView: View {
             .navigationTitle("List")
             .toolbar {
                 if !open.isEmpty {
+                    Button("Shop", systemImage: "cart") { shopping = true }
                     ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             }
+            .fullScreenCover(isPresented: $shopping) { ShoppingModeView(prices: prices) }
             .refreshable { ShoppingBrain.refreshRunningLow(context: context); await forceRefreshDeals() }
             .task {
                 prices = PriceBook.entries(everything)

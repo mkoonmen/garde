@@ -332,6 +332,12 @@ struct KitchenHero: View {
                 Text(expiring == 0 ? "Everything's fresh." : "\(expiring) thing\(expiring == 1 ? "" : "s") to use soon")
                     .font(.system(.title2, design: .serif).weight(.bold))
                     .contentTransition(.numericText())
+                let value = items.compactMap(\.price).reduce(0, +)
+                let atRisk = items.filter { ($0.daysLeft ?? 99) <= 2 }.compactMap(\.price).reduce(0, +)
+                if value >= 5 {
+                    Text("\(value.formatted(.currency(code: "USD").precision(.fractionLength(0)))) of food on hand\(atRisk >= 1 ? " · \(atRisk.formatted(.currency(code: "USD").precision(.fractionLength(0)))) at risk" : "")")
+                        .font(.caption).foregroundStyle(atRisk >= 1 ? Color.orange : Color.secondary)
+                }
             }
             .padding(.horizontal, 4)
 
