@@ -117,7 +117,7 @@ enum EmailReceipt {
         if s.contains("receipt") { return false }   // "Your receipt: order delivered" is still a receipt
         return ["has shipped", "shipped", "on its way", "out for delivery", "arriving", "is ready", "ready for pickup", "substitution",
                 "review your", "rate your", "how did we do", "survey", "cancelled", "canceled", "refund", "return started", "your return",
-                "track your", "tracking"].contains { s.contains($0) }
+                "track your", "tracking", "was delivered", "been delivered", "package delivered"].contains { s.contains($0) }
     }
 
     /// Removes receipts imported by older versions that don't pass today's rules (non-grocery senders, empty one-liners).
