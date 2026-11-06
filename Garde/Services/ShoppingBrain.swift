@@ -130,20 +130,27 @@ enum ShoppingBrain {
         return x.isSubset(of: y) || y.isSubset(of: x)
     }
 
+    static func isPlantMilk(_ name: String) -> Bool {
+        let words = name.lowercased().split { !$0.isLetter }
+        let bases: Set<Substring> = ["almond", "oat", "soy", "cashew", "coconut", "rice", "hemp", "pea", "macadamia"]
+        return zip(words, words.dropFirst()).contains { bases.contains($0.0) && $0.1 == "milk" }
+    }
+
     static func guessCategory(_ name: String) -> FoodCategory {
         let n = name.lowercased()
+        let hasTea = words(n).contains("tea")
         let map: [(FoodCategory, [String])] = [
             // packaged look-alikes first ("chicken broth" is canned, not poultry)
             (.canned, ["broth", "stock", "canned", "beans", "chickpea", "tomato paste", "crushed tomato"]),
-            (.condiments, ["sauce", "vinegar", "mustard", "mayo", "dressing", "peanut butter", "ketchup", "salsa", "honey"]),
+            (.condiments, ["sauce", "vinegar", "mustard", "mayo", "dressing", "ketchup", "salsa", "honey"]),
             (.frozen, ["frozen", "ice cream", "gelato", "sorbet", "popsicle"]),
-            (.coffee, ["coffee", "espresso", "k-cup", "kcup", "nespresso", "cold brew", "hot cocoa", "cocoa mix", "hot chocolate", "matcha", " tea", "tea bags", "chai"]),
+            (.coffee, ["coffee", "espresso", "k-cup", "kcup", "nespresso", "cold brew", "hot cocoa", "cocoa mix", "hot chocolate", "matcha", "chai"]),
             (.baking, ["baking", "vanilla extract", "pure vanilla", "baking vanilla", "chocolate chip", "cocoa powder", "brownie mix", "cake mix", "muffin mix", "cookie mix", "frosting", "sprinkles", "yeast", "brown sugar", "powdered sugar", "confectioner", "granulated sugar", "cane sugar", "flour", "cornstarch", "triple chocolate", "baking chocolate", "pie crust"]),
             (.candy, ["candy", "gummy", "gummies", "lollipop", "licorice", "jelly bean", "m&m", "skittles", "reese", "hershey", "kit kat", "snickers", "twix", "sour patch", "starburst", "chocolate bar", "truffle", "caramels", "marshmallow", "peeps", "mints"]),
             (.bakery, ["english muffin", "bagel", "croissant"]),
             (.sweets, ["cookie", "brownie", "cake", "cupcake", "apple pie", "pumpkin pie", "cream pie", "pastry", "donut", "doughnut", "muffin", "pudding", "cannoli", "tiramisu", "cheesecake", "macaron", "dessert", "churro"]),
-            (.beverages, ["almond milk", "oat milk", "coconut milk beverage", "dairy free", "dairy-free", "soy milk"]),
-            (.beverages, ["juice", "wine", "soda", "seltzer", "coffee", "tea", "beer"]),
+            (.condiments, ["peanut butter"]),
+            (.beverages, ["juice", "wine", "soda", "seltzer", "beer"]),
             (.seafood, ["shrimp", "salmon", "fish", "cod", "tuna", "scallop", "clam", "mussel", "crab", "lobster"]),
             (.poultry, ["chicken", "turkey", "duck"]),
             (.meat, ["beef", "steak", "pork", "lamb", "bacon", "sausage", "veal", "ground"]),
@@ -157,8 +164,13 @@ enum ShoppingBrain {
             (.canned, ["can", "broth", "stock", "beans", "chickpea", "tomato paste"]),
             (.condiments, ["sauce", "vinegar", "mustard", "mayo", "honey", "oil", "ketchup", "salsa"]),
             (.frozen, ["frozen"]),
-            (.beverages, ["wine", "juice", "soda", "water", "coffee", "tea", "beer"]),
+            (.beverages, ["wine", "juice", "soda", "water", "beer"]),
         ]
-        return map.first { $0.1.contains(where: { n.contains($0) }) }?.0 ?? .other
+        for (category, keywords) in map {
+            if category == .coffee && hasTea { return .coffee }
+            if category == .beverages && isPlantMilk(n) { return .beverages }
+            if keywords.contains(where: { n.contains($0) }) { return category }
+        }
+        return .other
     }
 }

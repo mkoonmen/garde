@@ -52,11 +52,13 @@ struct RootView: View {
             EmailReceipt.purgeJunk(context: context)
             if !UserDefaults.standard.bool(forKey: "recat.v296"), let all = try? context.fetch(FetchDescriptor<PantryItem>()) {
                 // New categories (sweets, candy, coffee & tea, baking): re-sort things that were filed as Other or as dairy plant milks.
-                for i in all where i.category == .other || i.category == .dairy {
+                for i in all where i.category == .other || (i.category == .dairy && ShoppingBrain.isPlantMilk(i.name)) {
                     let g = ShoppingBrain.guessCategory(i.name)
                     if g != .other && (i.category == .other || g == .beverages) { i.category = g }
                 }
-                UserDefaults.standard.set(true, forKey: "recat.v296")
+                if (try? context.save()) != nil {
+                    UserDefaults.standard.set(true, forKey: "recat.v296")
+                }
             }
             // First launch asks at the end of onboarding (with context), not on top of the welcome screen.
             #if DEBUG
