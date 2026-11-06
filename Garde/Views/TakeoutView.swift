@@ -3,6 +3,7 @@ import SwiftData
 
 /// What you order on DoorDash / Uber Eats / Grubhub, and one tap to cook it at home.
 struct TakeoutView: View {
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \TakeoutOrder.date, order: .reverse) private var orders: [TakeoutOrder]
     @Query private var profiles: [KitchenProfile]
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
@@ -45,7 +46,16 @@ struct TakeoutView: View {
                     }
                 } header: { Text("Your favorite dishes") } footer: { Text("Tap Cook it for a homemade version, checked against your allergies and built around what's in your kitchen.") }
                 Section("Cuisines") {
-                    ForEach(fav.cuisines.prefix(6), id: \.0) { c, n in LabeledContent(c, value: "\(n) orders") }
+                    ForEach(fav.cuisines.prefix(6), id: \.0) { c, n in
+                        Button {
+                            NotificationRouter.shared.mood = "A homemade \(c) dinner as good as takeout"
+                            NotificationRouter.shared.tab = 2
+                            dismiss()   // back to the Chef with the mood filled in
+                        } label: {
+                            HStack { Text(c); Spacer(); Text("\(n) orders").foregroundStyle(.secondary); Image(systemName: "frying.pan").foregroundStyle(Theme.copper) }
+                                .contentShape(.rect)
+                        }.buttonStyle(.plain)
+                    }
                 }
                 Section("Recent orders") {
                     ForEach(orders.prefix(25)) { o in
