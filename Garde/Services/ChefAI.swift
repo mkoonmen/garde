@@ -156,6 +156,7 @@ final class ChefAI {
     enum State: Equatable { case available, unavailable(String) }
 
     var state: State {
+        if ChefEngine.shared.usingLocal { return .available }
         switch SystemLanguageModel.default.availability {
         case .available: return .available
         case .unavailable(let reason):
@@ -173,7 +174,7 @@ final class ChefAI {
     /// Turns OCR text (+ optional Vision labels) into structured grocery items.
     func parseScan(text: String, labels: [String]) async -> ParsedScan {
         guard state == .available else { return HeuristicParser.parse(text) }
-        let session = LanguageModelSession(instructions: """
+        let session = ChefEngine.shared.session(instructions: """
         You read grocery receipts, food labels and photos of food, and extract the food items.
         Receipts use cryptic abbreviations; expand them to normal names (e.g. 'BNLS SKNLS CHKN THGH' -> 'Boneless skinless chicken thighs').
         Never invent items that are not in the text or labels.

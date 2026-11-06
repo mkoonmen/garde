@@ -8,20 +8,27 @@ import SwiftData
 enum Takeout {
     /// Delivery service if this email is a restaurant order (grocery orders through these apps are skipped here
     /// and handled as groceries instead).
-    static func service(from: String, subject: String) -> String? {
-        let f = from.lowercased(), s = subject.lowercased()
-        let grocery = ["dashmart", "grocery", "groceries", "safeway", "costco", "aldi", "cvs", "walgreens", "7-eleven", "convenience"]
-        if grocery.contains(where: { s.contains($0) }) { return nil }
+    nonisolated static let groceryWords = ["dashmart", "grocery", "groceries", "safeway", "costco", "aldi", "cvs", "walgreens", "7-eleven", "convenience", "wegmans", "stop & shop", "sprouts"]
+
+    nonisolated static func service(from: String, subject: String) -> String? {
+        let f = " " + from.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression) + " "
+        let s = subject.lowercased()
+        if groceryWords.contains(where: { s.contains($0) }) { return nil }
         if f.contains("doordash") { return "DoorDash" }
         if f.contains("uber") && (s.contains("eats") || s.contains("order") || s.contains("receipt")) && !s.contains("trip") && !s.contains("ride") { return "Uber Eats" }
         if f.contains("grubhub") { return "Grubhub" }
         if f.contains("seamless") { return "Seamless" }
         if f.contains("caviar") { return "Caviar" }
         if f.contains("postmates") { return "Postmates" }
-        let restaurants = ["mcdonald", "wendy", "chipotle", "starbucks", "dunkin", "chick-fil-a", "chickfila", "burger king", "taco bell",
-                           "domino", "papa john", "pizza hut", "panera", "sweetgreen", "shake shack", "five guys", "subway", "popeyes",
-                           "kfc", "cava", "panda express", "jersey mike", "wingstop", "sonic", "arby", "dairy queen", "grubhub", "toasttab", "toast"]
-        if let r = restaurants.first(where: { f.contains($0) }) { return r == "toasttab" || r == "toast" ? "Restaurant" : "Restaurant app" }
+        let chains: [(String, String)] = [("mcdonald", "McDonald's"), ("mcdonalds", "McDonald's"), ("wendy", "Wendy's"), ("wendys", "Wendy's"),
+            ("chipotle", "Chipotle"), ("starbucks", "Starbucks"), ("dunkin", "Dunkin'"), ("chick fil a", "Chick-fil-A"), ("chickfila", "Chick-fil-A"),
+            ("burger king", "Burger King"), ("taco bell", "Taco Bell"), ("domino", "Domino's"), ("dominos", "Domino's"), ("papa john", "Papa John's"),
+            ("papajohns", "Papa John's"), ("pizza hut", "Pizza Hut"), ("pizzahut", "Pizza Hut"), ("panera", "Panera"), ("sweetgreen", "Sweetgreen"),
+            ("shake shack", "Shake Shack"), ("shakeshack", "Shake Shack"), ("five guys", "Five Guys"), ("subway", "Subway"), ("popeyes", "Popeyes"),
+            ("kfc", "KFC"), ("cava", "CAVA"), ("panda express", "Panda Express"), ("jersey mike", "Jersey Mike's"), ("wingstop", "Wingstop"),
+            ("arbys", "Arby's"), ("dairy queen", "Dairy Queen"), ("toasttab", "Toast"), ("toast", "Toast")]
+        // Whole words of the sender only, so "Supersonic" or "Cavalier" don't count.
+        if let c = chains.first(where: { f.contains(" " + $0.0 + " ") || f.contains(" " + $0.0 + "s ") }) { return c.1 }
         return nil
     }
 

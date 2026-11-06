@@ -65,6 +65,7 @@ struct TakeoutView: View {
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Takeout favorites")
+        .onAppear { connected = GmailImporter.shared.isSignedIn }
         .navigationDestination(item: $result) { r in
             RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps, idea: r)
         }
@@ -80,7 +81,8 @@ struct TakeoutView: View {
     private func makeAtHome(_ dish: String) async {
         cooking = dish; error = nil
         defer { cooking = nil }
-        guard let profile = profiles.first else { return }
+        guard let profile = profiles.first else { error = "Set up your kitchen profile first (More → Allergies & tastes)."; return }
+        if case .unavailable(let why) = ChefAI().state { error = why; return }
         let restaurant = orders.first { $0.dishes.contains { $0.caseInsensitiveCompare(dish) == .orderedSame } }?.restaurant ?? ""
         do {
             let out = try await ChefAI().suggestRecipes(items: pantry, spices: [], profile: profile,
@@ -93,7 +95,7 @@ struct TakeoutView: View {
 }
 
 extension RecipeIdea: Hashable, Identifiable {
-    public var id: String { title }
-    public static func == (a: RecipeIdea, b: RecipeIdea) -> Bool { a.title == b.title && a.steps == b.steps }
-    public func hash(into h: inout Hasher) { h.combine(title) }
+    var id: String { title + "|" + summary }
+    static func == (a: RecipeIdea, b: RecipeIdea) -> Bool { a.title == b.title && a.summary == b.summary && a.ingredients == b.ingredients && a.steps == b.steps }
+    func hash(into h: inout Hasher) { h.combine(title); h.combine(summary) }
 }

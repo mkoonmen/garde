@@ -51,7 +51,7 @@ enum EmailReceipt {
             cur += line + "\n"
         }
         if !cur.isEmpty { out.append(cur) }
-        return Array(out.prefix(6))
+        return Array(out.prefix(10))
     }
 
     static func dedupe(_ items: [ParsedItem]) -> [ParsedItem] {
@@ -77,7 +77,7 @@ enum EmailReceipt {
 
     /// Store name from the sender/subject ("Instacart <...>", "Your Stop & Shop order").
     static func store(from: String, subject: String) -> String? {
-        let t = (from + " " + subject).lowercased()
+        let t = " " + (from + " " + subject).lowercased().replacingOccurrences(of: "[^a-z0-9&']+", with: " ", options: .regularExpression) + " "
         let known: [(String, String)] = [("instacart", "Instacart"), ("whole foods", "Whole Foods"), ("wholefoods", "Whole Foods"),
             ("stop & shop", "Stop & Shop"), ("stopandshop", "Stop & Shop"), ("king kullen", "King Kullen"), ("wegmans", "Wegmans"),
             ("costco", "Costco"), ("trader joe", "Trader Joe's"), ("shoprite", "ShopRite"), ("bjs", "BJ's Wholesale Club"),
@@ -85,14 +85,27 @@ enum EmailReceipt {
             ("freshdirect", "FreshDirect"), ("aldi", "ALDI"), ("lidl", "Lidl"), ("peapod", "Peapod"), ("fine fare", "Fine Fare"),
             ("finefare", "Fine Fare"), ("sprouts", "Sprouts"), ("sam's club", "Sam's Club"), ("samsclub", "Sam's Club"), ("publix", "Publix"),
             ("key food", "Key Food"), ("keyfood", "Key Food"), ("foodtown", "Foodtown"), ("h mart", "H Mart"), ("hmart", "H Mart"),
-            ("thrive market", "Thrive Market"), ("gopuff", "Gopuff"), ("doordash", "DoorDash"), ("uber eats", "Uber Eats"), ("amazon", "Amazon")]
-        return known.first { t.contains($0.0) }?.1
+            ("thrive market", "Thrive Market"), ("gopuff", "Gopuff"),
+            ("kroger", "Kroger"), ("safeway", "Safeway"), ("acme markets", "Acme"), ("giant food", "Giant"), ("heb", "H-E-B"), ("meijer", "Meijer"),
+            ("hannaford", "Hannaford"), ("harris teeter", "Harris Teeter"), ("food lion", "Food Lion"), ("ctown", "C-Town"), ("c town", "C-Town"),
+            ("western beef", "Western Beef"), ("price chopper", "Price Chopper"), ("shopwell", "ShopWell"), ("dashmart", "DashMart"), ("doordash", "DoorDash"), ("uber eats", "Uber Eats"), ("amazon", "Amazon")]
+        // Whole words only, so "target" doesn't match "targeted" or "aldi" match "Rinaldi".
+        return known.first { key, _ in
+            // Short or common words must be whole words ("target" not "targeted"); longer names may run into a domain ("wholefoodsmarket").
+            let strict: Set<String> = ["target", "heb", "bjs", "bj's", "aldi", "lidl", "sprouts", "amazon", "safeway", "kroger", "meijer"]
+            return strict.contains(key)
+                ? [" ", "'s ", "s ", ".com "].contains { t.contains(" " + key + $0) }
+                : t.contains(" " + key)
+        }?.1
     }
 
     /// Grocery store for this email, or nil if it isn't from a grocery/big-box store (restaurants and delivery apps excluded).
     static func groceryStore(from: String, subject: String) -> String? {
+        let sub = subject.lowercased()
+        if let s = store(from: from, subject: subject), ["DoorDash", "Uber Eats"].contains(s),
+           Takeout.groceryWords.contains(where: { sub.contains($0) }) { return s + " groceries" }
         guard let s = store(from: from, subject: subject), !["DoorDash", "Uber Eats", "Amazon"].contains(s) else {
-            let t = (from + subject).lowercased()
+            let t = (from + " " + subject).lowercased()
             return t.contains("whole foods") || t.contains("amazon fresh") ? "Amazon Fresh" : nil
         }
         return s
