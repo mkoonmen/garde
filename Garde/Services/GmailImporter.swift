@@ -155,6 +155,13 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 // Without the AI, leave it unread so it's picked up once the model is ready.
                 guard brainReady else { report.waiting += 1; continue }
                 if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
+                    // The same meal often arrives as a confirmation and a receipt: keep one.
+                    let day = Calendar.current.startOfDay(for: date)
+                    let dupes = ((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).contains {
+                        Calendar.current.startOfDay(for: $0.date) == day && $0.restaurant.caseInsensitiveCompare(order.restaurant) == .orderedSame
+                            && Set($0.dishes.map { $0.lowercased() }) == Set(order.dishes.map { $0.lowercased() })
+                    }
+                    if dupes { report.skipped += 1; processed.insert(id); continue }
                     order.sourceID = "gmail:" + id
                     context.insert(order)
                     report.takeout += 1
