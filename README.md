@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — Finished and discarded items also open their item history from More → Used up, alongside the existing Restore button. History can be reviewed without restoring stock first.
 - 2026-11-06 — v3.0 verification: 81 tests in 31 suites passed using the revised simulator script, which completed and shut the simulator down. Direct Cook this choices also pass their measured ingredient-cost estimate into the cooking log.
 - 2026-11-06 — Recipe-book accuracy: Can make now requires every measured ingredient to be covered, and availability updates when amounts, ingredient identity, expiration or saved ingredients change. Unknown amounts are labeled to buy or check.
 - 2026-11-06 — Test-script coordination: compile before using the simulator, wait for another app's active simulator tests, and shut the simulator down only after Garde actually uses it. A compile failure no longer shuts down another app's test run.

@@ -237,7 +237,10 @@ struct UsedUpView: View {
         List { Group {
             if used.isEmpty { Text("Items you mark used up land here.").foregroundStyle(.secondary) }
             ForEach(used) { i in
-                HStack { Text(i.name); Spacer(); Button("Restore") { i.restore() }.buttonStyle(.borderless) }
+                HStack {
+                    NavigationLink { KitchenHistoryView(item: i) } label: { Text(i.name) }
+                    Button("Restore") { i.restore() }.buttonStyle(.borderless)
+                }
             }
             .onDelete { offsets in offsets.forEach { context.delete(used[$0]) } }
         }.listRowBackground(RowGlass()) }
