@@ -19,6 +19,10 @@ struct KitchenExport: Codable {
         var unopenedExpirationIsEstimated: Bool?
         var unopenedLocationRaw: String?
         var didRestockExpired: Bool?
+        var didRestockUsedUp: Bool?
+        var wasTossed: Bool?
+        var isLeftover: Bool?
+        var usedUpDate: Date?
         var frozenDate: Date?
     }
     struct ReceiptRow: Codable { var store: String; var date: Date; var total: Double?; var rawText: String }
@@ -72,7 +76,9 @@ enum DataExport {
                                      expirationIsEstimated: $0.expirationIsEstimated, price: $0.price, store: $0.store,
                                      notes: $0.notes, isUsedUp: $0.isUsedUp, openedDate: $0.openedDate,
                                      unopenedExpiration: $0.unopenedExpiration, unopenedExpirationIsEstimated: $0.unopenedExpirationIsEstimated,
-                                     unopenedLocationRaw: $0.unopenedLocationRaw, didRestockExpired: $0.didRestockExpired, frozenDate: $0.frozenDate) },
+                                     unopenedLocationRaw: $0.unopenedLocationRaw, didRestockExpired: $0.didRestockExpired,
+                                     didRestockUsedUp: $0.didRestockUsedUp, wasTossed: $0.wasTossed, isLeftover: $0.isLeftover,
+                                     usedUpDate: $0.usedUpDate, frozenDate: $0.frozenDate) },
             receipts: receipts.map { .init(store: $0.store, date: $0.date, total: $0.total, rawText: $0.rawText) },
             spices: spices.map { .init(name: $0.name, level: $0.levelRaw, shelfSpot: $0.shelfSpot, purchaseDate: $0.purchaseDate, isWholeSpice: $0.isWholeSpice) },
             recipes: recipes.map { .init(title: $0.title, summary: $0.summary, minutes: $0.minutes, servings: $0.servings,
@@ -110,6 +116,10 @@ enum DataExport {
             item.unopenedExpirationIsEstimated = i.unopenedExpirationIsEstimated
             item.unopenedLocationRaw = i.unopenedLocationRaw
             item.didRestockExpired = i.didRestockExpired ?? false
+            item.didRestockUsedUp = i.didRestockUsedUp ?? false
+            item.wasTossed = i.wasTossed ?? false
+            item.isLeftover = i.isLeftover ?? false
+            item.usedUpDate = i.usedUpDate
             item.frozenDate = i.frozenDate
             context.insert(item)
         }

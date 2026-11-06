@@ -71,19 +71,24 @@ enum ShoppingBrain {
             restocked.insert(id)
         }
 
-        for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) && !expiredNames.contains(k) {
+        let finished = items.filter { $0.isUsedUp && !$0.wasTossed && !$0.isLeftover }
+        let finishedNames = Set(finished.map { key($0.name) })
+        let remaining = Set(items.filter { !$0.isUsedUp && !$0.isLeftover && ($0.daysLeft ?? 0) >= 0 }.map { key($0.name) })
+        for item in finished where !item.didRestockUsedUp {
+            let name = key(item.name)
+            guard !name.isEmpty, !remaining.contains(name) else { continue }
+            if onList.insert(name).inserted {
+                context.insert(ShoppingItem(name: item.name, category: item.category, reason: "Ran out"))
+            }
+            item.didRestockUsedUp = true
+        }
+
+        for (k, p) in paces(items) where !onList.contains(k) && !inStock.contains(k) && !expiredNames.contains(k) && !finishedNames.contains(k) {
             let since = Date.now.timeIntervalSince(p.last) / 86_400
             if since >= p.days * 0.85 {
                 context.insert(ShoppingItem(name: p.name, category: p.category, reason: "You usually rebuy every \(Int(p.days.rounded())) days"))
                 onList.insert(k)
             }
-        }
-        // Things you finished recently with nothing left in stock (buy-again candidates).
-        let recentlyFinished = items.filter { $0.isUsedUp && !$0.wasTossed && ($0.usedUpDate ?? .distantPast) > .now.addingTimeInterval(-3 * 86_400) }
-        let staples: Set<FoodCategory> = [.eggs, .dairy, .bakery]
-        for i in recentlyFinished where staples.contains(i.category) && !onList.contains(key(i.name)) && !inStock.contains(key(i.name)) && !expiredNames.contains(key(i.name)) {
-            context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Ran out"))
-            onList.insert(key(i.name))
         }
         for s in spices where (s.level == .empty || s.level == .low) && !onList.contains(key(s.name)) {
             context.insert(ShoppingItem(name: s.name, category: .condiments, reason: s.level == .empty ? "Spice is empty" : "Spice is low"))

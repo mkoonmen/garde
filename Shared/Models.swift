@@ -107,6 +107,7 @@ final class PantryItem {
     var notes: String = ""
     @Attribute(.externalStorage) var photo: Data?
     var didRestockExpired: Bool = false
+    var didRestockUsedUp: Bool = false
     var isUsedUp: Bool = false
     var usedUpDate: Date?
     var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
@@ -197,6 +198,7 @@ final class PantryItem {
     }
 
     func markUsed(tossed: Bool = false) {
+        if !isUsedUp { didRestockUsedUp = false }
         isUsedUp = true
         wasTossed = tossed
         usedUpDate = .now
