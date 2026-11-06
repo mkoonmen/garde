@@ -51,8 +51,9 @@ struct TonightChoicesView: View {
         .task(id: inventorySignature) { await daily.refreshIfNeeded(items: items, spices: spices, profile: profile, logs: logs) }
         .fullScreenCover(item: $cooking) { pick in
             let matched = items.filter { item in pick.ingredients.contains { FoodIdentity.matches(RecipeScaler.foodName($0), item.ingredientName) } }
+            let cost = CostCalculator.estimate(ingredients: pick.ingredients, items: items)
             CookModeView(title: pick.title, steps: pick.steps, ingredients: pick.ingredients, servings: pick.servings,
-                         usedItems: matched, estimatedCost: nil) { cooking = nil }
+                         usedItems: matched, estimatedCost: cost.matched > 0 ? cost.total : nil) { cooking = nil }
         }
     }
     private func refresh(easier: Bool = false) {
