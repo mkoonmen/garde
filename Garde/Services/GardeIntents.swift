@@ -18,6 +18,32 @@ struct WhatsExpiringIntent: AppIntent {
     }
 }
 
+// "Hey Siri, how's my grocery budget in Garde?"
+struct BudgetIntent: AppIntent {
+    static let title: LocalizedStringResource = "Grocery budget"
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let ctx = GardeStore.container.mainContext
+        let start = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+        let spent = try ctx.fetch(FetchDescriptor<Receipt>()).filter { $0.date >= start }.compactMap(\.total).reduce(0, +)
+        let budget = try ctx.fetch(FetchDescriptor<KitchenProfile>()).first?.monthlyBudget ?? 0
+        let money = spent.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+        guard budget > 0 else { return .result(dialog: "You've spent \(money) on groceries this month. Set a budget in Garde's Insights.") }
+        let left = (budget - spent).formatted(.currency(code: "USD").precision(.fractionLength(0)))
+        return .result(dialog: spent <= budget ? "You've spent \(money) this month, \(left) left in your budget." : "You've spent \(money) this month, over your budget.")
+    }
+}
+
+// "Hey Siri, what's in season in Garde?"
+struct InSeasonIntent: AppIntent {
+    static let title: LocalizedStringResource = "What's in season"
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        .result(dialog: "In season around here now: \(Seasonal.now().prefix(6).joined(separator: ", ")).")
+    }
+}
+
 // "Hey Siri, add eggs to my Garde list"
 struct AddToListIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to shopping list"
@@ -125,6 +151,10 @@ struct GardeShortcuts: AppShortcutsProvider {
                     shortTitle: "I bought", systemImageName: "bag")
         AppShortcut(intent: HaveItemIntent(), phrases: ["Do I have something in \(.applicationName)", "Check my \(.applicationName) kitchen"],
                     shortTitle: "Do I have", systemImageName: "magnifyingglass")
+        AppShortcut(intent: BudgetIntent(), phrases: ["How's my grocery budget in \(.applicationName)", "Grocery spending in \(.applicationName)"],
+                    shortTitle: "Grocery budget", systemImageName: "dollarsign.circle")
+        AppShortcut(intent: InSeasonIntent(), phrases: ["What's in season in \(.applicationName)"],
+                    shortTitle: "In season", systemImageName: "leaf")
         AppShortcut(intent: AddToListIntent(), phrases: ["Add to my \(.applicationName) list", "Add something to \(.applicationName)"],
                     shortTitle: "Add to list", systemImageName: "cart.badge.plus")
     }

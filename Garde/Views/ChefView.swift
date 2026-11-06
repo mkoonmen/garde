@@ -341,6 +341,12 @@ struct RecipeDetailView: View {
         .gardePage()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ShareLink(item: "\(title)\n\(summary)\n\nServes \(serves) · \(minutes) min\n\nINGREDIENTS\n" + shownIngredients.map { "• " + $0 }.joined(separator: "\n")
+                      + "\n\nSTEPS\n" + steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n") + "\n\nFrom Garde") {
+                Label("Share recipe", systemImage: "square.and.arrow.up")
+            }
+        }
         .fullScreenCover(isPresented: $cooking) {
             CookModeView(title: title, steps: steps, ingredients: shownIngredients, servings: serves, usedItems: usedItems,
                          estimatedCost: cost.matched > 0 ? cost.total : nil) { saved?.timesCooked += 1 }

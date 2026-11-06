@@ -33,6 +33,10 @@ struct MoreView: View {
                     NavigationLink { ResetView() } label: { Label("Reset / start over", systemImage: "arrow.counterclockwise") }
                 }
                 Section {
+                    NavigationLink { WhatsNewView() } label: { Label("What's new", systemImage: "sparkles") }
+                    Link(destination: WhatsNew.feedbackURL) { Label("Send feedback (TestFlight)", systemImage: "envelope.badge") }
+                } footer: { Text("Or take a screenshot anywhere in Garde and tap Share Beta Feedback.") }
+                Section {
                     NavigationLink { DeveloperOptionsView() } label: { Label("Developer options", systemImage: "lock") }
                 } header: { Text("Your data") } footer: {
                     Text("Plain JSON, readable by any app or AI. Everything stays on this iPhone unless you share it.")

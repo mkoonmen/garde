@@ -23,6 +23,7 @@ struct RootView: View {
     @Query private var plan: [MealPlanEntry]
     @AppStorage("gmail.autoImport") private var gmailAuto = false
     @AppStorage("onboarded") private var onboarded = false
+    @AppStorage("whatsNew.seen") private var whatsNewSeen = ""
 
     var body: some View {
         TabView {
@@ -33,7 +34,10 @@ struct RootView: View {
             Tab("More", systemImage: "ellipsis.circle") { MoreView() }
         }
         .fullScreenCover(isPresented: Binding(get: { !onboarded }, set: { if !$0 { onboarded = true } })) {
-            OnboardingView { onboarded = true }
+            OnboardingView { onboarded = true; whatsNewSeen = WhatsNew.version }
+        }
+        .sheet(isPresented: Binding(get: { onboarded && whatsNewSeen != WhatsNew.version }, set: { if !$0 { whatsNewSeen = WhatsNew.version } })) {
+            NavigationStack { WhatsNewView { whatsNewSeen = WhatsNew.version } }
         }
         .task {
             if profiles.isEmpty { context.insert(KitchenProfile()) }
