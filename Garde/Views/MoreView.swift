@@ -156,21 +156,48 @@ struct ReceiptsView: View {
 
 struct ReceiptDetailView: View {
     let receipt: Receipt
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @State private var showText = false
+    @State private var editing: PantryItem?
+    @State private var confirmDelete = false
     var body: some View {
         List { Group {
             if let data = receipt.image, let img = UIImage(data: data) {
                 Section { Image(uiImage: img).resizable().scaledToFit() }
             }
-            Section("Items") {
-                ForEach(receipt.items ?? []) { i in
-                    HStack { Text(i.name); Spacer(); if let p = i.price { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary) } }
+            Section {
+                LabeledContent("Store") { TextField("Store", text: Binding(get: { receipt.store }, set: { receipt.store = $0 })).multilineTextAlignment(.trailing) }
+                LabeledContent("Total") {
+                    TextField("–", value: Binding(get: { receipt.total }, set: { receipt.total = $0 }), format: .number.precision(.fractionLength(2)))
+                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                 }
             }
+            Section {
+                ForEach(receipt.items ?? []) { i in
+                    Button { editing = i } label: {
+                        HStack { Text(i.name); Spacer(); if let p = i.price { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary) } }
+                            .contentShape(.rect)
+                    }.buttonStyle(.plain)
+                }
+                .onDelete { offsets in let list = receipt.items ?? []; offsets.forEach { context.delete(list[$0]) } }
+            } header: { Text("Items") } footer: { Text("Tap to fix an item, swipe to remove it.") }
             Section { DisclosureGroup("Raw text", isExpanded: $showText) { Text(receipt.rawText).font(.caption.monospaced()) } }
+            Section {
+                Button("Not a grocery receipt: remove it", systemImage: "trash", role: .destructive) { confirmDelete = true }
+            }
         }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle(receipt.store.isEmpty ? "Receipt" : receipt.store)
+        .sheet(item: $editing) { ItemEditView(item: $0) }
+        .confirmationDialog("Remove this receipt and its \(Plural.items(receipt.items?.count ?? 0))?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                (receipt.items ?? []).forEach(context.delete)
+                context.delete(receipt)
+                try? context.save()
+                dismiss()
+            }
+        }
     }
 }
 
