@@ -17,7 +17,7 @@ A private kitchen assistant with on-device AI using Apple's model or an optional
 Full screen, big text, screen stays on. Steps can be read aloud; say **"next", "back", "repeat", "start timer", "how long"** (speech recognized on-device). Steps with a time get a one-tap timer (with a backup notification if the phone locks). When you finish: rate it (1–5, "what I'd change", "never again"), confirm measured ingredient deductions or packages finished, and save leftovers with a 4-day countdown. Item history explains stock changes and allows Undo while the recorded state is still current.
 
 ### Taste memory
-Ratings and cooking notes feed the chef and week planner. Loved dishes steer suggestions, and "never again" dishes are filtered out in code. More → Household memory lets you edit weeknight time, spice and leftover preferences, favorite brands, store preferences and household notes. Review or edit a cooking note, or stop using it in suggestions.
+Ratings and cooking notes feed the chef and week planner. Loved dishes steer suggestions, and "never again" dishes are filtered out in code. More → What the chef remembers (Chef memory) lets you edit weeknight time, spice and leftover preferences, favorite brands, store preferences and household notes. Review or edit a cooking note, or stop using it in suggestions.
 
 ### Siri & widgets
 - "What's expiring in Garde" · "What's for dinner in Garde" · "Add to my Garde list" · "How's my grocery budget in Garde" · "What's in season in Garde" · used / bought / do I have
@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — v3.0 final release: build 202611061836 archived and uploaded successfully, completed Apple processing, and is Testing in the Me internal group. Validation includes two successful iOS runs of 81 tests, two additional shared-core Swift Testing checks, and live simulator checks of Chef memory and Half → history → Undo (1 → 0.5 → 1). The final build includes the consistent available-stock rules across Chef tools. Garde's simulator and preview helper were shut down after verification.
 - 2026-11-06 — Final chef consistency check: all cooking prompts use the same measured inventory, excluding expired, finished and zero-stock items. Hosting, meal prep, cocktails, substitutions and chat now share those rules. Added lightweight Swift Testing checks for the shared core that run on this Mac without starting a simulator.
 - 2026-11-06 — Amount-check history includes the estimated percentage remaining, so Full, Half, Almost gone and Finished checks can be distinguished later.
 - 2026-11-06 — Basic-method ingredient lists include the cooking water called for in their directions, including pasta water and the measured additions to the chickpea and chicken skillets. Water remains an assumed kitchen staple for shopping.
