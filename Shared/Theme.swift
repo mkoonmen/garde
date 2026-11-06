@@ -115,9 +115,9 @@ struct GardeBackground: View {
                 // Gentle vignette so edges fall off into deep navy.
                 RadialGradient(colors: [.clear, (dark ? Color.black : Color(red: 0.85, green: 0.80, blue: 0.72)).opacity(dark ? 0.45 : 0.25)],
                                center: .center, startRadius: 200, endRadius: 650)
-                GrainOverlay(opacity: dark ? 0.05 : 0.04)
             }
         }
+        .overlay { GrainOverlay(opacity: dark ? 0.05 : 0.04) }   // outside the timeline so the grain doesn't flicker
         .ignoresSafeArea()
     }
 
