@@ -23,15 +23,20 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
     private var isImporting = false
 
     /// Searches that catch grocery receipts and orders.
-    /// Grocery receipts and grocery orders only (not every Walmart/Target/Amazon shipment).
+    /// Every order and receipt from grocery stores and big-box stores over the past year.
+    /// Shipping/delivery status emails are skipped because they repeat the original order.
+    static let stores = ["target", "walmart", "costco", "bjs", "\"bj's\"", "kingkullen", "\"king kullen\"", "stopandshop", "\"stop & shop\"",
+                         "finefare", "\"fine fare\"", "wholefoods", "wholefoodsmarket", "\"whole foods\"", "sprouts", "traderjoes", "\"trader joe's\"",
+                         "wegmans", "shoprite", "aldi", "lidl", "publix", "kroger", "safeway", "acme", "giant", "foodtown", "keyfood", "\"key food\"",
+                         "c-town", "ctown", "\"western beef\"", "\"h mart\"", "hmart", "samsclub", "\"sam's club\"", "instacart", "freshdirect",
+                         "peapod", "amazon", "\"amazon fresh\"", "doordash", "ubereats", "gopuff", "thrivemarket", "\"thrive market\"",
+                         "harristeeter", "\"harris teeter\"", "foodlion", "\"food lion\"", "heb", "meijer", "hannaford", "pricechopper", "shopwell"]
     static let defaultQuery = """
-    newer_than:90d -subject:(shipped OR "out for delivery" OR "on its way" OR return OR refund OR survey OR "rate your") \
-    (from:(instacart OR wholefoodsmarket OR stopandshop OR kingkullen OR wegmans OR costco OR traderjoes OR shoprite OR bjs \
-    OR freshdirect OR peapod OR aldi OR lidl OR kroger OR publix OR "amazon fresh") \
-    OR (from:(walmart OR target OR amazon) subject:(grocery OR groceries OR pickup OR "delivery order" OR "fresh" OR receipt)) \
-    OR subject:("grocery receipt" OR "your groceries" OR "grocery order" OR "e-receipt" OR "digital receipt"))
+    newer_than:1y -subject:(shipped OR "out for delivery" OR "on its way" OR "has been delivered" OR "was delivered" OR "arriving" \
+    OR return OR refund OR survey OR "rate your" OR "review your" OR "weekly ad" OR "% off" OR sale) \
+    (from:(\(stores.joined(separator: " OR "))) OR subject:(receipt OR "your order" OR "order confirmation" OR "order #" OR "e-receipt" OR "digital receipt")) \
+    (receipt OR order OR total)
     """
-
     private var processed: Set<String> {
         get { Set(UserDefaults.standard.stringArray(forKey: "gmail.processed") ?? []) }
         set { UserDefaults.standard.set(Array(newValue.suffix(2000)), forKey: "gmail.processed") }
@@ -116,7 +121,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             let json = try await get(list.url!, token: access)
             ids += ((json["messages"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String }
             page = json["nextPageToken"] as? String
-        } while page != nil && ids.count < 300
+        } while page != nil && ids.count < 1500
 
         let known = Set(((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).compactMap(\.sourceID))
         let fresh = ids.filter { !processed.contains($0) && !known.contains("gmail:" + $0) }

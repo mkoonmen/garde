@@ -220,7 +220,7 @@ struct GmailSettingsView: View {
                     } label: { Label("Connect Gmail", systemImage: "envelope.badge").font(.headline) }
                 }
             } footer: {
-                Text("Sign in with any Google account. Garde asks for read-only access and only reads grocery receipts and grocery orders from the last 90 days (Instacart, Whole Foods, Stop & Shop, Costco, Walmart/Target grocery orders and more). Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen.")
+                Text("Sign in with any Google account. Garde asks for read-only access and reads your order and receipt emails from the past year (Target, Walmart, Costco, BJ's, King Kullen, Stop & Shop, Fine Fare, Whole Foods, Sprouts, Trader Joe's, Wegmans, Instacart, Amazon and more) and keeps the food. The first import of a full year can take several minutes; keep Garde open, and it picks up where it left off if interrupted. Emails are read on this iPhone; nothing is sent anywhere else. Orders older than 3 weeks go into your history instead of your kitchen.")
             }
 
             if let message { Section { Text(message) } }
@@ -246,7 +246,7 @@ struct GmailSettingsView: View {
                 Section {
                     Button("Re-read all Gmail receipts", systemImage: "arrow.clockwise") { confirmReimport = true }.disabled(working)
                     Button("Disconnect Gmail", role: .destructive) { GmailImporter.shared.signOut(); signedIn = false; auto = false }
-                } footer: { Text("Re-reading deletes what was imported from Gmail and reads the last 90 days again with the latest reader.") }
+                } footer: { Text("Re-reading deletes what was imported from Gmail and reads the past year again with the latest reader.") }
             }
             Section {
                 Label("No Gmail? Share a receipt email from the Mail app to Garde, or snap a paper receipt in Scan.", systemImage: "square.and.arrow.up")

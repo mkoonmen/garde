@@ -81,7 +81,10 @@ enum EmailReceipt {
             ("stop & shop", "Stop & Shop"), ("stopandshop", "Stop & Shop"), ("king kullen", "King Kullen"), ("wegmans", "Wegmans"),
             ("costco", "Costco"), ("trader joe", "Trader Joe's"), ("shoprite", "ShopRite"), ("bjs", "BJ's Wholesale Club"),
             ("bj's", "BJ's Wholesale Club"), ("walmart", "Walmart"), ("target", "Target"), ("amazon fresh", "Amazon Fresh"),
-            ("freshdirect", "FreshDirect"), ("aldi", "ALDI"), ("lidl", "Lidl"), ("peapod", "Peapod")]
+            ("freshdirect", "FreshDirect"), ("aldi", "ALDI"), ("lidl", "Lidl"), ("peapod", "Peapod"), ("fine fare", "Fine Fare"),
+            ("finefare", "Fine Fare"), ("sprouts", "Sprouts"), ("sam's club", "Sam's Club"), ("samsclub", "Sam's Club"), ("publix", "Publix"),
+            ("key food", "Key Food"), ("keyfood", "Key Food"), ("foodtown", "Foodtown"), ("h mart", "H Mart"), ("hmart", "H Mart"),
+            ("thrive market", "Thrive Market"), ("gopuff", "Gopuff"), ("doordash", "DoorDash"), ("uber eats", "Uber Eats"), ("amazon", "Amazon")]
         return known.first { t.contains($0.0) }?.1
     }
 }
