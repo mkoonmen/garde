@@ -316,7 +316,7 @@ struct RecipeDetailView: View {
                           systemImage: "dollarsign.circle").font(.caption).foregroundStyle(.secondary)
                 }
                 Button { cooking = true } label: {
-                    Label("Start cook mode", systemImage: "play.circle.fill").frame(maxWidth: .infinity).font(.headline)
+                    Label("Start cook mode", systemImage: "play.circle.fill").labelStyle(.titleAndIcon).foregroundStyle(.white).frame(maxWidth: .infinity).font(.headline)
                 }.buttonStyle(.borderedProminent).tint(Theme.copper).controlSize(.large)
             }
             Section("Pairing") {
