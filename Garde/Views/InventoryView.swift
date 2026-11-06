@@ -155,6 +155,10 @@ struct ItemRow: View {
 }
 
 struct ItemEditView: View {
+    /// "5 days", "3 mo", "1 yr"
+    static func keeps(_ d: Int) -> String {
+        d >= 365 ? "\(d / 365) yr" : d >= 60 ? "\(d / 30) mo" : "\(d) day\(d == 1 ? "" : "s")"
+    }
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     let item: PantryItem?
@@ -194,6 +198,20 @@ struct ItemEditView: View {
                         DatePicker("Expires", selection: Binding(get: { expiration }, set: { expiration = $0; estimated = false }),
                                    displayedComponents: .date)
                         if estimated { Text("Estimated from typical shelf life. Change it if the package says otherwise.").font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
+                if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Section("How long it keeps") {
+                        HStack {
+                            ForEach([StorageLocation.fridge, .freezer, .pantry], id: \.self) { loc in
+                                let d = ShelfLife.days(name: name, category: category, location: loc)
+                                VStack(spacing: 2) {
+                                    Image(systemName: loc.symbol).foregroundStyle(loc == location ? Theme.copper : .secondary)
+                                    Text(Self.keeps(d)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                                    Text(loc.label).font(.caption2).foregroundStyle(.secondary)
+                                }.frame(maxWidth: .infinity)
+                            }
+                        }
                     }
                 }
                 Section("Purchase") {
