@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — v3.0 validation: ingredient matching reuses normalized aliases to reduce repeated work, Tonight's choices refresh after edited ratings and dislikes, and recipe cost documentation reflects measured package shares.
 - 2026-11-06 — v3.0 release review: scanning saves atomically and prevents repeated confirmation, zero stock no longer counts as available, usual-product restocks absorb matching meal shortages without duplicate list rows, reset removes related item history, and What's new explains the six connected upgrades.
 - 2026-11-06 — v2.9.3: Tonight's idea refresh now brings a different dish each tap (avoids ones already shown today, varies the style) and says why if the chef can't make one.
 - 2026-11-06 — v2.9.4 (from TestFlight feedback): Bar now picks Liquor / Wine / Beer & cider / Hard seltzer first, then a type (20 liquors, 7 wines, 12 beers…) and a style (red & white varietals, tequila ages, IPA styles…); beer and seltzer get Bottle/Can/Draft. Old bottles keep their type. Qwen download shows real GB progress (the library only reported 0% until the 4.5 GB file finished), keeps the screen awake, survives leaving Settings, and warns if it stalls.

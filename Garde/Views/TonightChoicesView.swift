@@ -13,7 +13,12 @@ struct TonightChoicesView: View {
     @State private var plannedID: UUID?
     private var inventorySignature: String {
         let food = items.map { "\($0.id)/\($0.availableLabel)/\($0.ingredientName)/\($0.daysLeft ?? 999)" }.sorted().joined(separator: "|")
-        return food + (profile?.allergies.joined(separator: "|") ?? "") + (profile?.householdMemory.joined(separator: "|") ?? "") + String(profile?.weeknightMinutes ?? 30) + logs.map { $0.id.uuidString }.joined()
+        let preferences = [profile?.allergies.joined(separator: "|") ?? "",
+                           profile?.dislikes.joined(separator: "|") ?? "",
+                           profile?.householdMemory.joined(separator: "|") ?? "",
+                           String(profile?.weeknightMinutes ?? 30)].joined(separator: "/")
+        let feedback = logs.map { "\($0.id)/\($0.rating)/\($0.neverAgain)/\($0.wouldChange)" }.joined()
+        return food + preferences + feedback
     }
     var body: some View {
         Section {

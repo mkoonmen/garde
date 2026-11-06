@@ -47,13 +47,19 @@ enum FoodIdentity {
         (" " + words(name).joined(separator: " ") + " ").contains(" " + words(phrase).joined(separator: " ") + " ")
     }
 
+    private static let normalizedAliases = aliases.map { key, names in
+        (key, names.map { " " + words($0).joined(separator: " ") + " " })
+    }
+
     static func ingredient(_ name: String) -> String {
-        if words(name) == ["cream"] { return "heavy cream" }
-        if contains("milk chocolate", in: name) { return "milk chocolate" }
-        if contains("ice cream", in: name) { return "ice cream" }
-        for (key, names) in aliases where names.contains(where: { contains($0, in: name) }) { return key }
+        let tokens = words(name)
+        let normalized = " " + tokens.joined(separator: " ") + " "
+        if tokens == ["cream"] { return "heavy cream" }
+        if normalized.contains(" milk chocolate ") { return "milk chocolate" }
+        if normalized.contains(" ice cream ") { return "ice cream" }
+        for (key, names) in normalizedAliases where names.contains(where: { normalized.contains($0) }) { return key }
         let ignored: Set<String> = ["organic", "fresh", "large", "small", "medium", "boneless", "skinless", "chopped", "diced", "sliced", "minced", "of"]
-        return words(name).filter { !ignored.contains($0) && !$0.allSatisfy(\.isNumber) }.joined(separator: " ")
+        return tokens.filter { !ignored.contains($0) && !$0.allSatisfy(\.isNumber) }.joined(separator: " ")
     }
 
     static func matches(_ requested: String, _ available: String) -> Bool {

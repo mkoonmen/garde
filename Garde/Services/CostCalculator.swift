@@ -3,7 +3,7 @@ import Foundation
 /// Money math: what a dinner cost and what got thrown away.
 enum CostCalculator {
     /// Rough cost of a recipe from what you paid for matching kitchen items.
-    /// Uses the per-unit price of each matched item, one unit per ingredient line (an estimate, not an invoice).
+    /// Uses the measured share of each purchased package. Unknown amounts remain unpriced.
     static func estimate(ingredients: [String], items: [PantryItem]) -> (total: Double, matched: Int) {
         var total = 0.0, matched = 0
         for need in KitchenStock.plan(ingredients, items: items) {
