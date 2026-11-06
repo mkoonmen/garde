@@ -66,7 +66,7 @@ GardeTests/GardeTests.swift     automated tests (run in CI before upload)
 ```
 
 ## Building & installing (TestFlight)
-**Main route (Mac, ~/Developer/garde):** double-click `build-upload.command`. It regenerates the Xcode project, archives, and uploads to TestFlight using the Apple account signed in to Xcode; the log goes to `build-log.txt`. `setup-xcode.command` only regenerates the project and opens it in Xcode. App Store Connect record: "Garde Kitchen" (bundle ID `com.michaelkoonmen.garde`, TestFlight internal group "Me"). Home-screen name stays "Garde".
+**Main route (Mac, ~/Developer/garde):** double-click `build-upload.command`. It regenerates the Xcode project, archives, and uploads to TestFlight using the Apple account signed in to Xcode; the log goes to `build-log.txt`. `setup-xcode.command` only regenerates the project and opens it in Xcode. `build-check.command` compiles without uploading (log: `check-log.txt`). `run-tests.command` runs the automated tests on the newest iPhone simulator and shuts it down after (log: `test-log.txt`). `screenshots.command` builds a Debug simulator copy with sample data (`-demoData YES`, simulator only, never in TestFlight builds) and saves screenshots of each tab to `build/shots/`. App Store Connect record: "Garde Kitchen" (bundle ID `com.michaelkoonmen.garde`, TestFlight internal group "Me"). Home-screen name stays "Garde".
 
 **Optional cloud route:** the GitHub workflow builds and uploads, but only when run by hand from the Actions tab. Repo secrets:
 
