@@ -499,6 +499,20 @@ final class ChefAI {
         return f
     }
 
+    /// The same dish, changed one way ("lighter", "spicier", "vegetarian", "for the grill"). Allergen-checked in code.
+    func remix(title: String, ingredients: [String], steps: [String], how: String, profile: KitchenProfile, logs: [CookLog]) async throws -> RecipeIdea? {
+        guard state == .available else { return nil }
+        let session = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
+        let prompt = """
+        Rewrite this recipe to be \(how). Keep what makes the dish good; change only what's needed. Give it a fitting new title.
+        Recipe: \(title)
+        Ingredients: \(ingredients.joined(separator: "; "))
+        Steps: \(steps.joined(separator: " | "))
+        """
+        let r = try await session.respond(to: prompt, generating: RecipeIdea.self).content
+        return AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: profile.allergies).isEmpty ? r : nil
+    }
+
     /// How to plate a dish like a restaurant. Allergen-checked in code.
     func plating(dish: String, ingredients: [String], profile: KitchenProfile) async throws -> Plating? {
         guard state == .available else { return nil }

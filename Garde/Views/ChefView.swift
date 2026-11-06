@@ -263,6 +263,10 @@ struct RecipeDetailView: View {
     @State private var plating: Plating?
     @State private var platingLoading = false
     @State private var platingError: String?
+    @State private var remixed: RecipeIdea?
+    @State private var remixing: String?
+    @Query private var cookLogs: [CookLog]
+    private let remixes = ["lighter", "higher in protein", "spicier", "vegetarian", "faster (under 30 minutes)", "for the grill", "kid-friendly", "dinner-party fancy"]
     @State private var need: [String] = []
 
     private var serves: Int { people == 0 ? servings : people }
@@ -362,6 +366,19 @@ struct RecipeDetailView: View {
             } header: { Text("Ingredients") } footer: {
                 Text(factor == 1 ? "Tap ⇄ next to an ingredient for a substitute." : "Amounts scaled from \(servings) to \(serves) servings.")
             }
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(remixes, id: \.self) { how in
+                            Button {
+                                Task { await remix(how) }
+                            } label: {
+                                if remixing == how { ProgressView().controlSize(.small) } else { Text(how.prefix(1).uppercased() + how.dropFirst()) }
+                            }.buttonStyle(.bordered).disabled(remixing != nil)
+                        }
+                    }
+                }
+            } header: { Text("Remix it") } footer: { Text("Same dish, changed one way. Still checked against your allergies.") }
             Section("Plate it like a restaurant") {
                 if let plating {
                     ForEach(Array(plating.steps.enumerated()), id: \.offset) { i, s in
@@ -416,6 +433,9 @@ struct RecipeDetailView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: shownIngredients, initial: true) { _, _ in need = computeMissing(); addedMissing = false }
+        .navigationDestination(item: $remixed) { r in
+            RecipeDetailView(title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings, ingredients: r.ingredients, steps: r.steps, idea: r)
+        }
         .onChange(of: items.count) { _, _ in need = computeMissing() }
         .toolbar {
             ShareLink(item: "\(title)\n\(summary)\n\nServes \(serves) · \(minutes) min\n\nINGREDIENTS\n" + shownIngredients.map { "• " + $0 }.joined(separator: "\n")
@@ -434,6 +454,15 @@ struct RecipeDetailView: View {
 }
 
 extension RecipeDetailView {
+    fileprivate func remix(_ how: String) async {
+        guard let profile = profiles.first else { return }
+        if case .unavailable(let why) = chef.state { platingError = why; return }
+        remixing = how; defer { remixing = nil }
+        if let r = try? await chef.remix(title: title, ingredients: shownIngredients, steps: steps, how: how, profile: profile, logs: cookLogs) {
+            remixed = r
+        } else { platingError = "Couldn't remix that one safely. Try another." }
+    }
+
     fileprivate func swap(_ i: Int, _ line: String) async {
         if swaps[i] != nil { swaps[i] = nil; return }
         guard let profile = profiles.first else { return }
