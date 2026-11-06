@@ -26,7 +26,7 @@ struct RootView: View {
 
     var body: some View {
         TabView {
-            Tab("Kitchen", systemImage: "refrigerator") { InventoryView() }
+            Tab("Kitchen", systemImage: "refrigerator") { KitchenSceneView() }
             Tab("Scan", systemImage: "barcode.viewfinder") { ScanView() }
             Tab("Chef", systemImage: "frying.pan") { ChefView() }
             Tab("List", systemImage: "checklist") { ShoppingListView() }

@@ -88,37 +88,35 @@ extension View {
 
 // MARK: - Living background & glass
 
-/// Slowly drifting mesh gradient: deep navy with a copper glow and a hint of cream.
-/// Animates at a low frame rate so it stays light on battery.
+/// The kitchen wall behind every screen: navy (or cream) subway-tile backsplash with a warm pendant-light glow.
+/// Static drawing, so it costs nothing while scrolling.
 struct GardeBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 20)) { ctx in
-            let t = Float(ctx.date.timeIntervalSinceReferenceDate)
-            let d: (Float, Float) -> Float = { speed, phase in sin(t * speed + phase) * 0.12 }
-            MeshGradient(
-                width: 3, height: 3,
-                points: [
-                    [0, 0], [0.5 + d(0.11, 0), 0], [1, 0],
-                    [0, 0.5 + d(0.09, 1)], [0.5 + d(0.13, 2), 0.5 + d(0.07, 3)], [1, 0.5 + d(0.1, 4)],
-                    [0, 1], [0.5 + d(0.08, 5), 1], [1, 1],
-                ],
-                colors: scheme == .dark ? Self.night : Self.day
-            )
+        let dark = scheme == .dark
+        ZStack {
+            LinearGradient(colors: dark ? [Color(red: 0.13, green: 0.20, blue: 0.42), Color(red: 0.07, green: 0.11, blue: 0.27)]
+                                        : [Color(red: 0.97, green: 0.94, blue: 0.88), Color(red: 0.91, green: 0.86, blue: 0.78)],
+                           startPoint: .top, endPoint: .bottom)
+            Canvas { ctx, size in
+                let tw: CGFloat = 34, th: CGFloat = 17
+                var row = 0
+                var y: CGFloat = 0
+                while y < size.height {
+                    var x: CGFloat = row.isMultiple(of: 2) ? 0 : -tw / 2
+                    while x < size.width {
+                        ctx.fill(Path(roundedRect: CGRect(x: x + 1, y: y + 1, width: tw - 2, height: th - 2), cornerRadius: 3),
+                                 with: .color(dark ? .white.opacity(0.045) : .white.opacity(0.55)))
+                        x += tw
+                    }
+                    y += th; row += 1
+                }
+            }
+            RadialGradient(colors: [Color(red: 1, green: 0.8, blue: 0.5).opacity(dark ? 0.28 : 0.35), .clear],
+                           center: .init(x: 0.5, y: 0.0), startRadius: 0, endRadius: 280)
         }
         .ignoresSafeArea()
     }
-
-    static let night: [Color] = [
-        Color(red: 0.06, green: 0.09, blue: 0.22), Color(red: 0.08, green: 0.13, blue: 0.31), Color(red: 0.16, green: 0.10, blue: 0.24),
-        Color(red: 0.08, green: 0.14, blue: 0.34), Color(red: 0.42, green: 0.22, blue: 0.14), Color(red: 0.10, green: 0.16, blue: 0.36),
-        Color(red: 0.05, green: 0.08, blue: 0.20), Color(red: 0.12, green: 0.11, blue: 0.27), Color(red: 0.04, green: 0.07, blue: 0.18),
-    ]
-    static let day: [Color] = [
-        Color(red: 0.98, green: 0.94, blue: 0.86), Color(red: 0.99, green: 0.89, blue: 0.78), Color(red: 0.93, green: 0.91, blue: 0.97),
-        Color(red: 0.97, green: 0.90, blue: 0.82), Color(red: 1.00, green: 0.80, blue: 0.64), Color(red: 0.90, green: 0.92, blue: 0.99),
-        Color(red: 0.99, green: 0.96, blue: 0.90), Color(red: 0.95, green: 0.90, blue: 0.95), Color(red: 0.97, green: 0.94, blue: 0.88),
-    ]
 }
 
 /// Frosted-glass row background so the living background shows through.
