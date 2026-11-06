@@ -20,7 +20,7 @@ struct InsightsView: View {
     }
 
     var body: some View {
-        List {
+        List { Group {
             Picker("Range", selection: $range) {
                 Text("30 days").tag(30); Text("90 days").tag(90); Text("Year").tag(365)
             }.pickerStyle(.segmented).listRowBackground(Color.clear)
@@ -66,7 +66,7 @@ struct InsightsView: View {
                 let top = logs.filter { $0.rating == 5 }.prefix(5)
                 if !top.isEmpty { ForEach(top) { Text("★ \($0.title)") } }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Insights")
     }

@@ -14,7 +14,7 @@ struct InboxView: View {
     @State private var receiptNote: String?
 
     var body: some View {
-        List {
+        List { Group {
             if let receiptNote { Section { Label(receiptNote, systemImage: "checkmark.circle.fill").foregroundStyle(.green) } }
             if items.isEmpty {
                 ContentUnavailableView("Nothing shared yet", systemImage: "square.and.arrow.down",
@@ -25,7 +25,7 @@ struct InboxView: View {
                     row(item)
                 }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Shared recipes")
         .task { await processAll() }

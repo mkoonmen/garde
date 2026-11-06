@@ -116,7 +116,7 @@ struct ScanReviewView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 if isReceipt {
                     Section("Receipt") {
                         TextField("Store", text: $scan.store)
@@ -154,7 +154,7 @@ struct ScanReviewView: View {
                 } header: { Text("Check these before saving") } footer: {
                     Text("Expiration dates are estimated from typical shelf life unless a package date was read. You can edit any item later.")
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("Review")
             .navigationBarTitleDisplayMode(.inline)

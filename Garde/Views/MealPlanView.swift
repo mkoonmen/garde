@@ -25,7 +25,7 @@ struct MealPlanView: View {
     private var upcoming: [MealPlanEntry] { plan.filter { $0.day >= Calendar.current.startOfDay(for: .now) } }
 
     var body: some View {
-        List {
+        List { Group {
             Section {
                 Stepper("Plan \(days) dinners", value: $days, in: 2...7)
                 TextField("This week… (e.g. out Friday, steak night Saturday)", text: $notes, axis: .vertical)
@@ -68,7 +68,7 @@ struct MealPlanView: View {
                     }
                 }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Week plan")
     }

@@ -17,7 +17,12 @@ struct InventoryView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { Group {
+                if search.isEmpty {
+                    Section { KitchenHero(items: items, filter: $filter) }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
                 if !expiringSoon.isEmpty && filter == nil && search.isEmpty {
                     Section {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -33,8 +38,10 @@ struct InventoryView: View {
                                                 }.buttonStyle(.bordered).controlSize(.mini).tint(.blue)
                                             }
                                         }
-                                        .padding(10).frame(width: 140, alignment: .leading)
-                                        .background(Theme.card, in: .rect(cornerRadius: 12))
+                                        .padding(12).frame(width: 150, alignment: .leading)
+                                        .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+                                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.expiryColor(item.daysLeft).opacity(0.6), lineWidth: 1))
+                                        .shadow(color: Theme.expiryColor(item.daysLeft).opacity(0.35), radius: 10, y: 4)
                                     }.buttonStyle(.plain)
                                 }
                             }
@@ -71,7 +78,7 @@ struct InventoryView: View {
                             }
                     }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("Kitchen")
             .searchable(text: $search, prompt: "Search food")
@@ -130,7 +137,7 @@ struct ItemEditView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section {
                     TextField("Name", text: $name)
                         .onSubmit { if item == nil && estimated { location = ShelfLife.defaultLocation(for: category, name: name); reestimate() } }
@@ -180,7 +187,7 @@ struct ItemEditView: View {
                         Button("Delete", role: .destructive) { context.delete(item); dismiss() }
                     }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle(item == nil ? "Add food" : "Edit")
             .navigationBarTitleDisplayMode(.inline)
@@ -215,5 +222,62 @@ struct ItemEditView: View {
         target.price = Double(price); target.store = store.isEmpty ? nil : store
         target.notes = notes; target.photo = photo
         dismiss()
+    }
+}
+
+
+/// Kitchen dashboard: greeting + live counts. Tapping a tile filters the list.
+struct KitchenHero: View {
+    let items: [PantryItem]
+    @Binding var filter: StorageLocation?
+    @State private var appeared = false
+
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<12: "Good morning"
+        case 12..<17: "Good afternoon"
+        default: "Good evening"
+        }
+    }
+    private var expiring: Int { items.filter { ($0.daysLeft ?? 99) <= 2 }.count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(greeting).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                Text(expiring == 0 ? "Everything's fresh." : "\(expiring) thing\(expiring == 1 ? "" : "s") to use soon")
+                    .font(.system(.title2, design: .serif).weight(.bold))
+                    .contentTransition(.numericText())
+            }
+            .padding(.horizontal, 4)
+
+            HStack(spacing: 10) {
+                ForEach([StorageLocation.fridge, .freezer, .pantry], id: \.self) { loc in
+                    let n = items.filter { $0.location == loc }.count
+                    Button {
+                        withAnimation(.spring(duration: 0.35)) { filter = filter == loc ? nil : loc }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Image(systemName: loc.symbol).font(.title3)
+                                .foregroundStyle(LinearGradient(colors: [Theme.copper, Theme.cream], startPoint: .top, endPoint: .bottom))
+                                .symbolEffect(.bounce, value: filter == loc)
+                            Text("\(n)").font(.system(.title, design: .rounded).weight(.bold)).contentTransition(.numericText())
+                            Text(loc.label).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(.ultraThinMaterial, in: .rect(cornerRadius: 20))
+                        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(filter == loc ? Theme.copper : .white.opacity(0.12), lineWidth: filter == loc ? 1.5 : 1))
+                        .shadow(color: filter == loc ? Theme.copper.opacity(0.45) : .black.opacity(0.15), radius: 14, y: 6)
+                        .scaleEffect(filter == loc ? 1.03 : 1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 12)
+        .onAppear { withAnimation(.spring(duration: 0.6)) { appeared = true } }
+        .sensoryFeedback(.selection, trigger: filter)
     }
 }

@@ -44,7 +44,7 @@ struct ResetView: View {
     }
 
     var body: some View {
-        List {
+        List { Group {
             Section {
                 ForEach(Category.allCases.filter { $0 != .everything }) { c in
                     Button(role: .destructive) { pending = c } label: { Label(c.rawValue, systemImage: c.icon) }
@@ -56,7 +56,7 @@ struct ResetView: View {
                 }
             }
             if let done { Section { Label(done, systemImage: "checkmark.circle.fill").foregroundStyle(.green) } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Reset")
         .confirmationDialog(pending.map { "Reset \($0.rawValue.lowercased())?" } ?? "", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),

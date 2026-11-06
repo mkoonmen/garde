@@ -5,11 +5,10 @@ struct GardeSettingsView: View {
     @State private var engine = ChefEngine.shared
     @State private var brain = ChefEngine.shared.brain
     @State private var sync = GardeStore.syncEnabled
-    @State private var feed = KitchenFeed.enabled
     @State private var iCloudStatus = "Checking…"
 
     var body: some View {
-        Form {
+        Form { Group {
             Section {
                 Picker("Chef brain", selection: $brain) {
                     ForEach(ChefBrain.allCases) { Text($0.label).tag($0) }
@@ -46,15 +45,8 @@ struct GardeSettingsView: View {
                 Text("Keeps your kitchen, list, recipes and profile the same on every device signed in to your Apple ID, in your private iCloud. Takes effect next time Garde opens.")
             }
 
-            Section {
-                Toggle("Share kitchen with Koonmen OS", isOn: $feed).onChange(of: feed) { _, v in KitchenFeed.enabled = v }
-                LabeledContent("Feed", value: KitchenFeed.isAvailable ? "Ready" : "Needs iCloud Drive")
-            } header: { Text("TVs") } footer: {
-                Text("Publishes tonight's dinner, what to use first, and the live cook-mode step to your iCloud Drive, where the Koonmen OS bridge on the Mac picks it up for the TVs. Read-only.")
-            }
-
             Section("Deals") { NavigationLink("Weekly ads & stores") { DealsView() } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Settings")
         .task {

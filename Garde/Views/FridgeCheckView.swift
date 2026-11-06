@@ -25,7 +25,7 @@ struct FridgeCheckView: View {
     private var missing: [PantryItem] { inSpot.filter { !seen.contains($0.id) } }
 
     var body: some View {
-        List {
+        List { Group {
             Section {
                 Picker("Where", selection: $location) {
                     ForEach([StorageLocation.fridge, .freezer, .pantry]) { Text($0.label).tag($0) }
@@ -66,7 +66,7 @@ struct FridgeCheckView: View {
                 }
             }
             if let note { Section { Text(note) } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Fridge check-in")
         .fullScreenCover(isPresented: $showCamera) { CameraPicker { analyze($0) }.ignoresSafeArea() }

@@ -27,7 +27,8 @@ final class DealsService {
     var error: String?
 
     var zip: String {
-        get { UserDefaults.standard.string(forKey: "deals.zip") ?? "11960" }   // Remsenburg
+        // No default ZIP for testers; the owner's (developer options unlocked) defaults to Remsenburg.
+        get { UserDefaults.standard.string(forKey: "deals.zip") ?? (DeveloperMode.unlocked ? "11960" : "") }
         set { UserDefaults.standard.set(newValue, forKey: "deals.zip") }
     }
     /// Stores to include (empty = any grocery store found).
@@ -45,6 +46,7 @@ final class DealsService {
     /// Looks up each term (list items first, then things running low), keeps the best deal per term.
     func refresh(terms rawTerms: [String]) async {
         guard enabled else { return }
+        guard !zip.isEmpty else { error = "Add your ZIP code (List → All deals → Settings) to see sales near you."; return }
         let terms = Array(NSOrderedSet(array: rawTerms.map(ShoppingBrain.key).filter { $0.count >= 3 })).compactMap { $0 as? String }.prefix(25)
         guard !terms.isEmpty else { deals = []; return }
         refreshing = true; error = nil

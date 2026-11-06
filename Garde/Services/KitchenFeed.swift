@@ -22,7 +22,7 @@ enum KitchenFeed {
     }
 
     static var enabled: Bool {
-        get { UserDefaults.standard.object(forKey: "feed.enabled") as? Bool ?? true }
+        get { DeveloperMode.unlocked && (UserDefaults.standard.object(forKey: "feed.enabled") as? Bool ?? true) }
         set { UserDefaults.standard.set(newValue, forKey: "feed.enabled") }
     }
 

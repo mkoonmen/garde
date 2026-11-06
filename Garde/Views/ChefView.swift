@@ -23,7 +23,7 @@ struct ChefView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 if case .unavailable(let why) = chef.state {
                     Section { Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
                 }
@@ -92,10 +92,13 @@ struct ChefView: View {
 
                 Section {
                     Button { Task { await cook() } } label: {
-                        HStack { Spacer(); if working { ProgressView() } else { Label("Cook something", systemImage: "sparkles") }; Spacer() }
-                            .font(.headline).padding(.vertical, 6)
+                        HStack { Spacer(); if working { ProgressView().tint(.white) } else { Label("Cook something", systemImage: "sparkles").symbolEffect(.pulse, isActive: working) }; Spacer() }
+                            .font(.headline).foregroundStyle(.white).padding(.vertical, 14)
+                            .background(LinearGradient(colors: [Theme.copper, Color(red: 0.55, green: 0.22, blue: 0.35), Theme.navy], startPoint: .leading, endPoint: .trailing),
+                                        in: .rect(cornerRadius: 18))
+                            .shadow(color: Theme.copper.opacity(0.5), radius: 16, y: 6)
                     }
-                    .buttonStyle(.borderedProminent).listRowInsets(EdgeInsets()).disabled(working || chef.state != .available)
+                    .buttonStyle(.plain).listRowBackground(Color.clear).listRowInsets(EdgeInsets()).disabled(working || chef.state != .available)
                 }
 
                 if let error { Section { Text(error).foregroundStyle(.red) } }
@@ -125,7 +128,7 @@ struct ChefView: View {
                         .onDelete { offsets in offsets.forEach { context.delete(saved[$0]) } }
                     }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("Chef")
             .toolbar {
@@ -192,7 +195,7 @@ struct RecipeDetailView: View {
     }
 
     var body: some View {
-        List {
+        List { Group {
             Section {
                 HStack(spacing: 14) {
                     Image(systemName: Theme.dishSymbol(title)).font(.largeTitle).foregroundStyle(Theme.cream)
@@ -253,7 +256,7 @@ struct RecipeDetailView: View {
                     Button("I made this: mark ingredients used", systemImage: "checkmark.circle") { showUseUp = true }
                 }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)

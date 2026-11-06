@@ -56,7 +56,7 @@ struct OnboardingView: View {
                 .buttonStyle(.borderedProminent).controlSize(.large)
             }.padding()
         }
-        .background(Theme.page)
+        .background { GardeBackground() }
         .sensoryFeedback(.selection, trigger: page)
     }
 
@@ -88,7 +88,7 @@ struct OnboardingView: View {
     }
 
     private var aboutYou: some View {
-        Form {
+        Form { Group {
             Section { header("A little about how you cook", nil) }.listRowBackground(Color.clear)
             Section {
                 Stepper("Cooking for \(household)", value: $household, in: 1...12)
@@ -98,7 +98,7 @@ struct OnboardingView: View {
             }
             Section("Foods you love (optional)") { TextField("e.g. steak, seafood, Italian, spicy", text: $loves, axis: .vertical) }
             Section("Foods to avoid (optional)") { TextField("e.g. blue cheese, cilantro", text: $dislikes, axis: .vertical) }
-        }
+        }.listRowBackground(RowGlass()) }
         .scrollContentBackground(.hidden)
     }
 

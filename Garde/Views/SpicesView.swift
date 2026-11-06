@@ -13,7 +13,7 @@ struct SpicesView: View {
 
     var body: some View {
         Group {
-            List {
+            List { Group {
                 if !needs.isEmpty && search.isEmpty {
                     Section("Restock or replace") {
                         ForEach(needs) { s in
@@ -49,7 +49,7 @@ struct SpicesView: View {
                         }
                     }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("Spices")
             .searchable(text: $search)
@@ -92,7 +92,7 @@ struct SpiceEditView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 TextField("Name", text: $name)
                 Picker("Level", selection: $level) { ForEach(SpiceLevel.allCases) { Text($0.label).tag($0) } }.pickerStyle(.segmented)
                 DatePicker("Bought or opened", selection: $bought, displayedComponents: .date)
@@ -104,7 +104,7 @@ struct SpiceEditView: View {
                         Button("Delete", role: .destructive) { context.delete(spice); dismiss() }
                     }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle(spice == nil ? "Add spice" : "Edit spice")
             .navigationBarTitleDisplayMode(.inline)

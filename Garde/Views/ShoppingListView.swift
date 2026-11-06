@@ -19,7 +19,7 @@ struct ShoppingListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 Section {
                     HStack {
                         TextField("Add item", text: $draft).focused($typing).submitLabel(.done).onSubmit(add)
@@ -55,7 +55,7 @@ struct ShoppingListView: View {
                         Button("Clear checked", role: .destructive) { done.forEach { context.delete($0) } }
                     } header: { Text("In the cart") }
                 }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("List")
             .toolbar {
@@ -127,7 +127,7 @@ struct DealsView: View {
     @State private var deals = DealsService.shared
     @State private var newStore = ""
     var body: some View {
-        List {
+        List { Group {
             let grouped = Dictionary(grouping: deals.deals, by: \.store).sorted { $0.key < $1.key }
             ForEach(grouped, id: \.key) { store, items in
                 Section(store) { ForEach(items) { DealRow(deal: $0) } }
@@ -144,7 +144,7 @@ struct DealsView: View {
             } header: { Text("Settings") } footer: {
                 Text("Garde searches this week's grocery circulars for what's on your list and what's running low. Only the item word and ZIP code are sent; prices come from the stores' weekly ads and can change.")
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Deals")
     }

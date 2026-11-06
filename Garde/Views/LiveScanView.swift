@@ -41,7 +41,7 @@ struct LiveScanView: View {
                     ContentUnavailableView("Live scanning isn't available", systemImage: "camera.metering.unknown",
                                            description: Text("Allow camera access in Settings → Garde."))
                 }
-                List {
+                List { Group {
                     if captured.isEmpty { Text("Nothing scanned yet").foregroundStyle(.secondary) }
                     ForEach($captured) { $c in
                         VStack(alignment: .leading, spacing: 2) {
@@ -60,7 +60,7 @@ struct LiveScanView: View {
                         }
                     }
                     .onDelete { captured.remove(atOffsets: $0) }
-                }
+                }.listRowBackground(RowGlass()) }
                 .frame(height: 260)
             }
             .task {

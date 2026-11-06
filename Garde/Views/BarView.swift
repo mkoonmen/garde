@@ -14,7 +14,7 @@ struct BarView: View {
     }
 
     var body: some View {
-        List {
+        List { Group {
             if bottles.isEmpty {
                 ContentUnavailableView("Bar is empty", systemImage: "wineglass", description: Text("Add your bottles and recipes will pair from what you own."))
             }
@@ -39,7 +39,7 @@ struct BarView: View {
                     }
                 }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Bar & cellar")
         .toolbar { Button("Add", systemImage: "plus") { adding = true } }
@@ -62,7 +62,7 @@ struct BottleEditView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 TextField("Name (e.g. Woodford Reserve Double Oaked)", text: $name)
                 Picker("Type", selection: $kind) { ForEach(BottleKind.allCases) { Text($0.label).tag($0) } }
                 TextField("Vintage / age", text: $vintage)
@@ -71,7 +71,7 @@ struct BottleEditView: View {
                 TextField("Tasting notes", text: $notes, axis: .vertical)
                 Section { PhotoField(data: $photo) }
                 if let bottle { Button("Delete", role: .destructive) { context.delete(bottle); dismiss() } }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle(bottle == nil ? "Add bottle" : "Edit bottle").navigationBarTitleDisplayMode(.inline)
             .toolbar {

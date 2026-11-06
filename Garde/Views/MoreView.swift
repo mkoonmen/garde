@@ -10,9 +10,9 @@ struct MoreView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 Section {
-                    NavigationLink { GardeSettingsView() } label: { Label("Settings: chef brain, iCloud, TVs", systemImage: "gearshape") }
+                    NavigationLink { GardeSettingsView() } label: { Label("Settings: chef brain, iCloud, deals", systemImage: "gearshape") }
                     NavigationLink { SpicesView() } label: { Label("Spice rack", systemImage: "leaf") }
                     NavigationLink { BarView() } label: { Label("Bar & cellar", systemImage: "wineglass") }
                     NavigationLink { InsightsView() } label: { Label("Insights: cost & waste", systemImage: "chart.bar") }
@@ -30,11 +30,14 @@ struct MoreView: View {
                     if let exportURL { ShareLink("Share backup file", item: exportURL) }
                     Button("Import backup", systemImage: "square.and.arrow.down") { importing = true }
                     NavigationLink { ResetView() } label: { Label("Reset / start over", systemImage: "arrow.counterclockwise") }
+                }
+                Section {
+                    NavigationLink { DeveloperOptionsView() } label: { Label("Developer options", systemImage: "lock") }
                 } header: { Text("Your data") } footer: {
                     Text("Plain JSON, readable by any app or AI. Everything stays on this iPhone unless you share it.")
                 }
                 if let message { Section { Text(message) } }
-            }
+            }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("More")
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
@@ -59,7 +62,7 @@ struct ProfileView: View {
 private struct ProfileForm: View {
     @Bindable var profile: KitchenProfile
     var body: some View {
-        Form {
+        Form { Group {
             Section {
                 TagEditor(tags: $profile.allergies, placeholder: "Add allergy (e.g. shellfish)")
             } header: { Text("Allergies") } footer: {
@@ -78,7 +81,7 @@ private struct ProfileForm: View {
                 Stepper("Warn \(profile.expirationWarningDays) day\(profile.expirationWarningDays == 1 ? "" : "s") before expiring",
                         value: $profile.expirationWarningDays, in: 1...7)
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Allergies & tastes")
     }
@@ -116,7 +119,7 @@ struct ReceiptsView: View {
     }
 
     var body: some View {
-        List {
+        List { Group {
             Section {
                 LabeledContent("This month", value: thisMonth, format: .currency(code: "USD"))
                 ForEach(byStore.prefix(5), id: \.0) { LabeledContent($0.0, value: $0.1, format: .currency(code: "USD")) }
@@ -137,7 +140,7 @@ struct ReceiptsView: View {
                 }
                 .onDelete { offsets in offsets.forEach { context.delete(receipts[$0]) } }
             }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Receipts")
     }
@@ -147,7 +150,7 @@ struct ReceiptDetailView: View {
     let receipt: Receipt
     @State private var showText = false
     var body: some View {
-        List {
+        List { Group {
             if let data = receipt.image, let img = UIImage(data: data) {
                 Section { Image(uiImage: img).resizable().scaledToFit() }
             }
@@ -157,7 +160,7 @@ struct ReceiptDetailView: View {
                 }
             }
             Section { DisclosureGroup("Raw text", isExpanded: $showText) { Text(receipt.rawText).font(.caption.monospaced()) } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle(receipt.store.isEmpty ? "Receipt" : receipt.store)
     }
@@ -167,13 +170,13 @@ struct UsedUpView: View {
     @Query(filter: #Predicate<PantryItem> { $0.isUsedUp }, sort: \PantryItem.purchaseDate, order: .reverse) private var used: [PantryItem]
     @Environment(\.modelContext) private var context
     var body: some View {
-        List {
+        List { Group {
             if used.isEmpty { Text("Items you mark used up land here.").foregroundStyle(.secondary) }
             ForEach(used) { i in
                 HStack { Text(i.name); Spacer(); Button("Restore") { i.isUsedUp = false }.buttonStyle(.borderless) }
             }
             .onDelete { offsets in offsets.forEach { context.delete(used[$0]) } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Used up")
     }
@@ -188,7 +191,7 @@ struct GmailSettingsView: View {
     @State private var message: String?
 
     var body: some View {
-        Form {
+        Form { Group {
             Section {
                 if signedIn {
                     Label("Gmail connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
@@ -221,11 +224,8 @@ struct GmailSettingsView: View {
                 Label("No Gmail? Share a receipt email from the Mail app to Garde, or snap a paper receipt in Scan.", systemImage: "square.and.arrow.up")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            Section("Which emails (advanced)") {
-                TextField("Gmail search", text: $query, prompt: Text("Default: grocery stores and order receipts"), axis: .vertical).font(.footnote.monospaced())
-            }
             if let message { Section { Text(message) } }
-        }
+        }.listRowBackground(RowGlass()) }
         .gardePage()
         .navigationTitle("Gmail receipts")
     }
