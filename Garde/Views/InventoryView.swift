@@ -70,7 +70,17 @@ struct InventoryView: View {
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    } header: { Text("Use these first") }
+                    } header: {
+                        HStack {
+                            Text("Use these first")
+                            Spacer()
+                            Button("Cook with these", systemImage: "frying.pan") {
+                                let names = expiringSoon.sorted { ($0.daysLeft ?? 0) < ($1.daysLeft ?? 0) }.prefix(4).map(\.name)
+                                NotificationRouter.shared.mood = "Use up " + ListFormatter.localizedString(byJoining: names) + " before they go bad"
+                                NotificationRouter.shared.tab = 2
+                            }.font(.caption.weight(.semibold)).textCase(nil)
+                        }
+                    }
                 }
 
                 let expired = items.filter { ($0.daysLeft ?? 0) < -2 && $0.location != .freezer }

@@ -8,6 +8,13 @@ struct PriceBookView: View {
     @State private var query = ""
     @State private var entries: [PriceBook.Entry] = []
 
+    /// Every price paid, one row each, for a spreadsheet.
+    private var csv: String {
+        func q(_ s: String) -> String { "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        let rows = entries.flatMap { e in e.paid.map { [q(e.name), q($0.store), $0.date.formatted(.iso8601.year().month().day()), String(format: "%.2f", $0.price)].joined(separator: ",") } }
+        return (["item,store,date,price"] + rows).joined(separator: "\n")
+    }
+
     private var shown: [PriceBook.Entry] {
         query.isEmpty ? entries : entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
@@ -53,6 +60,11 @@ struct PriceBookView: View {
         .gardePage()
         .searchable(text: $query, prompt: "Search prices")
         .navigationTitle("Price book")
+        .toolbar {
+            if !entries.isEmpty {
+                ShareLink(item: csv, preview: SharePreview("Garde price book")) { Label("Export CSV", systemImage: "square.and.arrow.up") }
+            }
+        }
         .task { entries = PriceBook.entries(items) }
     }
 }
