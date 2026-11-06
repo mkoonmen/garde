@@ -29,7 +29,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                          "finefare", "\"fine fare\"", "wholefoods", "wholefoodsmarket", "\"whole foods\"", "sprouts", "traderjoes", "\"trader joe's\"",
                          "wegmans", "shoprite", "aldi", "lidl", "publix", "kroger", "safeway", "acme", "giant", "foodtown", "keyfood", "\"key food\"",
                          "c-town", "ctown", "\"western beef\"", "\"h mart\"", "hmart", "samsclub", "\"sam's club\"", "instacart", "freshdirect",
-                         "peapod", "amazon", "\"amazon fresh\"", "doordash", "ubereats", "gopuff", "thrivemarket", "\"thrive market\"",
+                         "peapod", "amazon", "\"amazon fresh\"", "doordash", "ubereats", "uber", "grubhub", "seamless", "caviar", "postmates", "gopuff", "thrivemarket", "\"thrive market\"",
                          "harristeeter", "\"harris teeter\"", "foodlion", "\"food lion\"", "heb", "meijer", "hannaford", "pricechopper", "shopwell"]
     static let defaultQuery = """
     newer_than:1y -subject:(shipped OR "out for delivery" OR "on its way" OR "has been delivered" OR "was delivered" OR "arriving" \
@@ -99,7 +99,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
 
     // MARK: Import
 
-    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0 }
+    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0, takeout = 0 }
 
     /// Imports grocery receipt emails not seen before. `progress(done, total)` is called as each email is read.
     @discardableResult
@@ -124,6 +124,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
         } while page != nil && ids.count < 1500
 
         let known = Set(((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).compactMap(\.sourceID))
+            .union(((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).compactMap(\.sourceID))
         let fresh = ids.filter { !processed.contains($0) && !known.contains("gmail:" + $0) }
         report.emails = fresh.count
 
@@ -132,6 +133,19 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             progress?(n + 1, fresh.count)
             guard let msg = try? await get(URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)?format=full")!, token: access) else { continue }
             let (subject, from, date, body) = Self.extract(msg)
+            // Restaurant delivery receipts become takeout history (for cooking inspiration), not groceries.
+            if let service = Takeout.service(from: from, subject: subject) {
+                if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
+                    order.sourceID = "gmail:" + id
+                    context.insert(order)
+                    report.takeout += 1
+                } else { report.skipped += 1 }
+                processed.insert(id); try? context.save()
+                continue
+            }
+            // Only real grocery stores become grocery receipts; everything else (software, subscriptions, shipping notices) is ignored.
+            guard let knownStore = EmailReceipt.groceryStore(from: from, subject: subject),
+                  !EmailReceipt.isNotice(subject) else { report.skipped += 1; processed.insert(id); continue }
             let focus = EmailReceipt.focus(body)
             guard focus.priceLines >= 1 else { report.skipped += 1; processed.insert(id); continue }   // no prices = not a receipt
 
@@ -145,9 +159,10 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 if aiTotal == nil { aiTotal = parsed.total }
             }
             items = EmailReceipt.dedupe(items).filter { EmailReceipt.isFood($0) }
-            guard !items.isEmpty else { report.skipped += 1; processed.insert(id); continue }
+            // A real receipt has a total, or at least a few food lines. "1 item, no total" is an order update.
+            guard !items.isEmpty, (focus.total ?? aiTotal) != nil || items.count >= 3 else { report.skipped += 1; processed.insert(id); continue }
 
-            let store = EmailReceipt.store(from: from, subject: subject) ?? (aiStore.isEmpty ? Self.storeName(from: from) : aiStore)
+            let store = knownStore; _ = aiStore
             let receipt = Receipt(store: store, date: date, total: focus.total ?? aiTotal, rawText: "From: \(from)\nSubject: \(subject)\n\n" + focus.text)
             receipt.sourceID = "gmail:" + id
             context.insert(receipt)
@@ -176,6 +191,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             (r.items ?? []).forEach(context.delete)
             context.delete(r)
         }
+        for t in (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? [] where t.sourceID?.hasPrefix("gmail:") == true { context.delete(t) }
         UserDefaults.standard.removeObject(forKey: "gmail.processed")
         try? context.save()
         return try await importNew(context: context, progress: progress)

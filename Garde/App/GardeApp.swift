@@ -37,6 +37,7 @@ struct RootView: View {
         }
         .task {
             if profiles.isEmpty { context.insert(KitchenProfile()) }
+            EmailReceipt.purgeJunk(context: context)
             await Notifier.requestPermission()
             if gmailAuto { _ = try? await GmailImporter.shared.importNew(context: context) }
             ShoppingBrain.refreshRunningLow(context: context)

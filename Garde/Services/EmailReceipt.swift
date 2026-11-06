@@ -1,3 +1,4 @@
+import SwiftData
 import Foundation
 
 /// Helpers that turn a long, marketing-heavy order email into just the part that matters
@@ -86,5 +87,39 @@ enum EmailReceipt {
             ("key food", "Key Food"), ("keyfood", "Key Food"), ("foodtown", "Foodtown"), ("h mart", "H Mart"), ("hmart", "H Mart"),
             ("thrive market", "Thrive Market"), ("gopuff", "Gopuff"), ("doordash", "DoorDash"), ("uber eats", "Uber Eats"), ("amazon", "Amazon")]
         return known.first { t.contains($0.0) }?.1
+    }
+
+    /// Grocery store for this email, or nil if it isn't from a grocery/big-box store (restaurants and delivery apps excluded).
+    static func groceryStore(from: String, subject: String) -> String? {
+        guard let s = store(from: from, subject: subject), !["DoorDash", "Uber Eats", "Amazon"].contains(s) else {
+            let t = (from + subject).lowercased()
+            return t.contains("whole foods") || t.contains("amazon fresh") ? "Amazon Fresh" : nil
+        }
+        return s
+    }
+
+    /// Shipping/status emails that list an item but aren't a receipt.
+    static func isNotice(_ subject: String) -> Bool {
+        let s = subject.lowercased()
+        return ["shipped", "on its way", "out for delivery", "delivered", "arriving", "is ready", "ready for pickup", "substitut",
+                "review", "rate your", "how did we do", "survey", "cancel", "refund", "return", "track"].contains { s.contains($0) }
+    }
+
+    /// Removes receipts imported by older versions that don't pass today's rules (non-grocery senders, empty one-liners).
+    @MainActor static func purgeJunk(context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: "gmail.purged.v27") else { return }
+        for r in (try? context.fetch(FetchDescriptor<Receipt>())) ?? [] where r.sourceID?.hasPrefix("gmail:") == true {
+            let head = r.rawText.prefix(400)
+            let from = head.components(separatedBy: "\n").first ?? ""
+            let subject = head.components(separatedBy: "\n").dropFirst().first ?? ""
+            let n = r.items?.count ?? 0
+            if groceryStore(from: from + " " + r.store, subject: subject) == nil || isNotice(subject) || (r.total == nil && n < 3) {
+                for i in r.items ?? [] { context.delete(i) }
+                context.delete(r)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: "gmail.processed")   // let the cleaned-up emails be reconsidered (takeout ones go to Takeout)
+        UserDefaults.standard.set(true, forKey: "gmail.purged.v27")
+        try? context.save()
     }
 }

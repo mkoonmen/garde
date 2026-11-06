@@ -268,7 +268,7 @@ struct GmailSettingsView: View {
                 let r = reimport ? try await GmailImporter.shared.reimport(context: context, progress: update)
                                  : try await GmailImporter.shared.importNew(context: context, progress: update)
                 message = r.emails == 0 ? "No new grocery emails."
-                    : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) receipt\(r.receipts == 1 ? "" : "s"), \(r.items) items\(r.skipped > 0 ? ", \(r.skipped) skipped (not grocery receipts)" : "")."
+                    : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) grocery receipt\(r.receipts == 1 ? "" : "s") (\(r.items) items)\(r.takeout > 0 ? ", \(r.takeout) takeout orders" : "")\(r.skipped > 0 ? ", \(r.skipped) skipped" : "")."
             } catch { message = error.localizedDescription }
             working = false
         }

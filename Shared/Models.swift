@@ -322,12 +322,35 @@ final class BarBottle {
     }
 }
 
+// MARK: - Takeout (DoorDash, Uber Eats, Grubhub… receipts from Gmail)
+
+@Model
+final class TakeoutOrder {
+    var id: UUID = UUID()
+    var restaurant: String = ""
+    var cuisine: String = ""
+    var date: Date = Date()
+    var dishes: [String] = []
+    var total: Double?
+    var service: String = ""        // DoorDash, Uber Eats…
+    var sourceID: String?
+
+    init(restaurant: String, cuisine: String, date: Date, dishes: [String], total: Double?, service: String) {
+        self.restaurant = restaurant
+        self.cuisine = cuisine
+        self.date = date
+        self.dishes = dishes
+        self.total = total
+        self.service = service
+    }
+}
+
 // MARK: - Shared container (app + widget + Siri)
 
 enum GardeStore {
     static let appGroup = "group.com.michaelkoonmen.garde"
     static let schema = Schema([PantryItem.self, Receipt.self, Spice.self, SavedRecipe.self, KitchenProfile.self,
-                                ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self])
+                                ShoppingItem.self, MealPlanEntry.self, CookLog.self, BarBottle.self, TakeoutOrder.self])
 
     static let cloudContainer = "iCloud.com.michaelkoonmen.garde"
 

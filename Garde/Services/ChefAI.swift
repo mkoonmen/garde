@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import SwiftData
 
 // MARK: - Structured outputs the on-device model fills in
 
@@ -264,6 +265,7 @@ final class ChefAI {
         Do not use EXPIRED items. LEFTOVER items are already-cooked dishes: transform them into something new rather than just reheating.
         Write steps with explicit times when there's waiting, e.g. 'Simmer 10 minutes'.
         \(tasteText(logs))
+        \(Takeout.tasteHint((try? GardeStore.container.mainContext.fetch(FetchDescriptor<TakeoutOrder>())) ?? []))
         """
     }
 

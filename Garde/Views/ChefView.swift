@@ -48,6 +48,7 @@ struct ChefView: View {
                               systemImage: "square.and.arrow.down")
                     }
                     NavigationLink { FridgeCheckView() } label: { Label("Fridge check-in", systemImage: "camera.viewfinder") }
+                    NavigationLink { TakeoutView() } label: { Label("Takeout favorites (DoorDash, Uber Eats)", systemImage: "bag") }
                 } footer: { Text("Share a TikTok, Instagram post, web page or photo to Garde to save the recipe.") }
 
                 Section("Or pick a mood") {
