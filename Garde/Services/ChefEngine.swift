@@ -63,11 +63,20 @@ final class ChefEngine {
     /// By default MLX kills the whole app on any GPU error (that was the crash in 2.9.5).
     /// This turns those errors into "fall back to Apple's model" instead, and keeps MLX's memory cache small.
     static func installSafety() {
+        #if targetEnvironment(simulator)
+        return
+        #endif
         setErrorHandler({ message, _ in
             let text = message.map { String(cString: $0) } ?? "GPU error"
             ChefEngine.mlxFault = text
             DispatchQueue.main.async { ChefEngine.recordFault(text) }
         })
+    }
+    /// Only touch MLX's GPU memory settings right before the downloaded model runs (never at launch / in the simulator).
+    private static var memoryTuned = false
+    private static func tuneMemory() {
+        guard !memoryTuned else { return }
+        memoryTuned = true
         Memory.cacheLimit = 256 * 1024 * 1024
     }
 
@@ -159,6 +168,7 @@ final class ChefEngine {
     /// `fast: true` always uses Apple's model (scanning, where speed matters more than prose).
     func session(instructions: String, fast: Bool = false) -> LanguageModelSession {
         if #available(iOS 27.0, *), usingLocal, !fast {
+            Self.tuneMemory()
             let model = #huggingFaceLanguageModel(configuration: Self.modelConfig, capabilities: [.guidedGeneration])
             return LanguageModelSession(model: model, instructions: instructions)
         }
