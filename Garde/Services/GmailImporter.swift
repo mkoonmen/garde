@@ -111,7 +111,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
 
     // MARK: Import
 
-    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0, takeout = 0 }
+    struct ImportReport { var receipts = 0, items = 0, skipped = 0, emails = 0, takeout = 0, waiting = 0 }
 
     /// Imports grocery receipt emails not seen before. `progress(done, total)` is called as each email is read.
     @discardableResult
@@ -153,7 +153,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 // Status emails ("delivered", "rate your order") would duplicate the same meal.
                 if EmailReceipt.isNotice(subject) { report.skipped += 1; processed.insert(id); continue }
                 // Without the AI, leave it unread so it's picked up once the model is ready.
-                guard brainReady else { report.skipped += 1; continue }
+                guard brainReady else { report.waiting += 1; continue }
                 if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
                     order.sourceID = "gmail:" + id
                     context.insert(order)

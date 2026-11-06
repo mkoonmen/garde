@@ -274,6 +274,7 @@ struct GmailSettingsView: View {
                                  : try await GmailImporter.shared.importNew(context: context, progress: update)
                 message = r.emails == 0 ? "No new grocery emails."
                     : "Read \(r.emails) email\(r.emails == 1 ? "" : "s"): \(r.receipts) grocery receipt\(r.receipts == 1 ? "" : "s") (\(Plural.items(r.items)))\(r.takeout > 0 ? ", \(r.takeout) takeout orders" : "")\(r.skipped > 0 ? ", \(r.skipped) skipped" : "")."
+                        + (r.waiting > 0 ? " \(r.waiting) takeout orders will be read once Apple Intelligence is ready." : "")
             } catch { message = error.localizedDescription }
             working = false
         }
