@@ -17,6 +17,7 @@ struct ShoppingListView: View {
     @State private var shopping = false
 
     private var open: [ShoppingItem] { list.filter { !$0.isChecked && !$0.isDismissed } }
+    private var dismissedMealItems: [ShoppingItem] { list.filter(\.isDismissed) }
     private var done: [ShoppingItem] { list.filter { $0.isChecked && !$0.isDismissed } }
     private var grouped: [(FoodCategory, [ShoppingItem])] {
         let g = Dictionary(grouping: open, by: \.category)
@@ -69,6 +70,15 @@ struct ShoppingListView: View {
                     Section {
                         Label(e, systemImage: "tag.slash").foregroundStyle(.secondary).font(.footnote)
                         NavigationLink("Deals settings") { DealsView() }
+                    }
+                }
+                if !dismissedMealItems.isEmpty {
+                    Section {
+                        DisclosureGroup("Removed meal ingredients") {
+                            ForEach(dismissedMealItems) { item in
+                                Button("Restore " + item.name) { item.isDismissed = false }
+                            }
+                        }
                     }
                 }
                 if open.isEmpty {
@@ -212,7 +222,7 @@ struct DealsView: View {
     @State private var category: FoodCategory?
     @State private var store: String?
     @State private var expanded: Set<String> = []
-    @Query(filter: #Predicate<ShoppingItem> { !$0.isChecked }) private var list: [ShoppingItem]
+    @Query(filter: #Predicate<ShoppingItem> { !$0.isChecked && !$0.isDismissed }) private var list: [ShoppingItem]
     @Query(filter: #Predicate<PantryItem> { !$0.isUsedUp }) private var pantry: [PantryItem]
     private var terms: [String] { DealsService.terms(list: list, pantry: pantry) }
 

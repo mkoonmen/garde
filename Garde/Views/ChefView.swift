@@ -356,7 +356,7 @@ struct RecipeDetailView: View {
                 if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
                 if !need.isEmpty {
                     Button(addedMissing ? "Added to your list" : "Add \(need.count) missing to list", systemImage: addedMissing ? "checkmark" : "cart.badge.plus") {
-                        var onList = Set(((try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []).filter { !$0.isChecked }.map { $0.name.lowercased() })
+                        var onList = Set(((try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []).filter { !$0.isChecked && !$0.isDismissed }.map { $0.name.lowercased() })
                         for line in need {
                             let n = RecipeScaler.foodName(line).capitalized
                             if !onList.contains(n.lowercased()) {

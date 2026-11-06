@@ -291,6 +291,9 @@ struct FinishCookingView: View {
     private func save() {
         guard !saved else { return }
         do {
+            if try context.fetch(FetchDescriptor<CookLog>()).contains(where: { $0.id == operationID }) {
+                saved = true; onDone(); return
+            }
             try KitchenStock.consume(requirements, selected: selected, operationID: operationID, context: context)
             for item in usedItems where finished.contains(item.id) { item.markUsed() }
             let log = CookLog(title: title, rating: rating, wouldChange: change, neverAgain: neverAgain, cost: estimatedCost)

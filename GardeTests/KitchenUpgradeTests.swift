@@ -56,15 +56,15 @@ struct KitchenUpgradeTests {
         let context = container.mainContext
         let cream = PantryItem(name: "Heavy cream", category: .dairy, quantity: 200, unit: "ml")
         context.insert(cream)
-        for title in ["First dinner", "Second dinner"] {
-            context.insert(MealPlanEntry(day: .now, title: title, summary: "", minutes: 20, servings: 2,
+        for (index, title) in ["First dinner", "Second dinner"].enumerated() {
+            context.insert(MealPlanEntry(day: Date.now.addingTimeInterval(Double(index) * 86_400), title: title, summary: "", minutes: 20, servings: 2,
                                          ingredients: ["150 ml heavy cream"], steps: ["Warm gently."], needToBuy: []))
         }
         try MealShopping.reconcile(context: context)
         let list = try context.fetch(FetchDescriptor<ShoppingItem>())
         #expect(list.count == 1)
         #expect(list.first?.quantityNote == "100 ml")
-        #expect(list.first?.reason.contains("First dinner") == false || list.first?.reason.contains("Second dinner") == true)
+        #expect(list.first?.reason.contains("Second dinner") == true)
         try MealShopping.reconcile(context: context)
         #expect(try context.fetchCount(FetchDescriptor<ShoppingItem>()) == 1)
         list[0].isDismissed = true

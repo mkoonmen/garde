@@ -9,9 +9,9 @@ struct ShoppingModeView: View {
     @State private var startedWith = 0
     @State private var inCart: Set<UUID> = []     // checked off during this trip: stay visible so a mis-tap can be undone
 
-    private var open: [ShoppingItem] { list.filter { !$0.isChecked } }
+    private var open: [ShoppingItem] { list.filter { !$0.isChecked && !$0.isDismissed } }
     private var grouped: [(FoodCategory, [ShoppingItem])] {
-        let shown = list.filter { !$0.isChecked || inCart.contains($0.id) }
+        let shown = list.filter { !$0.isDismissed && (!$0.isChecked || inCart.contains($0.id)) }
         let g = Dictionary(grouping: shown, by: \.category).mapValues { $0.sorted { !$0.isChecked && $1.isChecked } }
         return ShoppingBrain.aisleOrder.compactMap { c in g[c].map { (c, $0) } }
             + g.filter { !ShoppingBrain.aisleOrder.contains($0.key) }.map { ($0.key, $0.value) }

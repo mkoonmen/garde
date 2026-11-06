@@ -44,7 +44,7 @@ enum KitchenFeed {
         let items = (try? context.fetch(FetchDescriptor<PantryItem>(predicate: #Predicate { !$0.isUsedUp }))) ?? []
         let today = Calendar.current.startOfDay(for: .now)
         let plan = (try? context.fetch(FetchDescriptor<MealPlanEntry>(predicate: #Predicate { $0.day == today })))?.first
-        let list = (try? context.fetch(FetchDescriptor<ShoppingItem>(predicate: #Predicate { !$0.isChecked })))?.count ?? 0
+        let list = (try? context.fetch(FetchDescriptor<ShoppingItem>(predicate: #Predicate { !$0.isChecked && !$0.isDismissed })))?.count ?? 0
         let snap = Snapshot(
             tonight: plan.map { .init(title: $0.title, summary: $0.summary, minutes: $0.minutes, ingredients: $0.ingredients, steps: $0.steps) },
             useFirst: items.filter { ($0.daysLeft ?? 99) <= 3 }.sorted { ($0.daysLeft ?? 0) < ($1.daysLeft ?? 0) }.prefix(6)

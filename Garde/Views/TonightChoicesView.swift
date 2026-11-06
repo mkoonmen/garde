@@ -10,6 +10,7 @@ struct TonightChoicesView: View {
     @State private var daily = DailyPick.shared
     @State private var cooking: DailyPick.Pick?
     @State private var message: String?
+    @State private var plannedID: UUID?
     private var inventorySignature: String {
         let food = items.map { "\($0.id)/\($0.availableLabel)/\($0.ingredientName)/\($0.daysLeft ?? 999)" }.sorted().joined(separator: "|")
         return food + (profile?.allergies.joined(separator: "|") ?? "") + (profile?.householdMemory.joined(separator: "|") ?? "") + String(profile?.weeknightMinutes ?? 30) + logs.map { $0.id.uuidString }.joined()
@@ -34,6 +35,7 @@ struct TonightChoicesView: View {
             Button("Something easier", systemImage: "timer") { refresh(easier: true) }.disabled(daily.working)
             if let problem = daily.problem, !daily.choices.isEmpty { Text(problem).font(.caption).foregroundStyle(.secondary) }
             if let message { Text(message).font(.caption) }
+            if plannedID != nil { Button("Undo tomorrow’s plan") { undoPlan() } }
         } header: {
             HStack {
                 Text("Tonight’s choices")
@@ -57,11 +59,22 @@ struct TonightChoicesView: View {
         do {
             let plans = try context.fetch(FetchDescriptor<MealPlanEntry>())
             guard !plans.contains(where: { $0.day == start && $0.title == pick.title }) else { message = "Already planned for tomorrow."; return }
-            context.insert(MealPlanEntry(day: day, title: pick.title, summary: pick.summary, minutes: pick.minutes, servings: pick.servings,
-                                         ingredients: pick.ingredients, steps: pick.steps, needToBuy: []))
+            let entry = MealPlanEntry(day: day, title: pick.title, summary: pick.summary, minutes: pick.minutes, servings: pick.servings,
+                                      ingredients: pick.ingredients, steps: pick.steps, needToBuy: [])
+            context.insert(entry)
+            plannedID = entry.id
             try context.save()
             try MealShopping.reconcile(context: context)
             message = "Planned for tomorrow. The List includes the amounts needed."
         } catch { message = error.localizedDescription }
     }
+    private func undoPlan() {
+        do {
+            if let entry = try context.fetch(FetchDescriptor<MealPlanEntry>()).first(where: { $0.id == plannedID }) { context.delete(entry) }
+            try context.save()
+            try MealShopping.reconcile(context: context)
+            plannedID = nil; message = "Tomorrow’s plan was removed."
+        } catch { message = error.localizedDescription }
+    }
+
 }

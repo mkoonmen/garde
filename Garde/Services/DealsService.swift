@@ -58,7 +58,7 @@ final class DealsService {
 
     /// What to look for on sale: everything on the list, plus things in the kitchen that run out within 3 days.
     static func terms(list: [ShoppingItem], pantry: [PantryItem]) -> [String] {
-        list.filter { !$0.isChecked }.map(\.name) + pantry.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) <= 3 }.map(\.name)
+        list.filter { !$0.isChecked && !$0.isDismissed }.map(\.name) + pantry.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) <= 3 }.map(\.name)
     }
 
     var stores: [String] { Array(Set(flyers.map(\.store))).sorted() }
