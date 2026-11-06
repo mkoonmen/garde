@@ -121,7 +121,7 @@ enum KitchenStock {
     }
 
     static func rememberDetails(for item: PantryItem, existing: [PantryItem]) {
-        guard let previous = existing.filter({ $0.productKey == item.productKey }).max(by: { $0.purchaseDate < $1.purchaseDate }) else { return }
+        guard let previous = existing.filter({ $0.productKey == item.productKey || FoodIdentity.productKey($0.name) == FoodIdentity.productKey(item.name) }).max(by: { $0.purchaseDate < $1.purchaseDate }) else { return }
         item.ingredientOverride = previous.ingredientOverride
         item.packageAmount = previous.packageAmount
         item.packageUnit = previous.packageUnit
@@ -133,6 +133,7 @@ enum KitchenStock {
         let current = PantrySnapshot(item)
         after.didRestockUsedUp = current.didRestockUsedUp
         after.didRestockExpired = current.didRestockExpired
+        after.lowRestockSuggested = current.lowRestockSuggested
         return after == current
     }
 

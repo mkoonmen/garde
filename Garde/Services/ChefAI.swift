@@ -392,7 +392,7 @@ final class ChefAI {
 
         // 1. Outline: one short line per day.
         let outlineSession = ChefEngine.shared.session(instructions: baseInstructions(profile: profile, logs: logs))
-        let outline = try await outlineSession.reply(to: """
+        guard let outline = try? await outlineSession.reply(to: """
         Sketch one dinner per day for \(days) days starting \(start) (dayIndex 0 to \(days - 1)). Titles and main ingredients only.
         Use the soonest-expiring food on the earliest days. Vary proteins and cuisines. Weeknights under 45 minutes.
         Frozen items need a night to thaw: don't put frozen meat or fish on day 0.
@@ -400,7 +400,10 @@ final class ChefAI {
         \(notes.isEmpty ? "" : "Notes for this week: \(notes)")
         Kitchen (soonest-expiring first):
         \(inventory)
-        """, generating: WeekOutline.self)
+        """, generating: WeekOutline.self) else {
+            let recipes = RecipeFoundation.fallback(items: items, profile: profile, logs: logs, request: RecipeRequest())
+            return (recipes.prefix(days).enumerated().map { PlanResult(dayIndex: $0.offset, recipe: $0.element, needToBuy: RecipeScaler.missing($0.element.ingredients, have: items)) }, 0)
+        }
 
         // 2. One full recipe per dinner, each in a fresh session.
         var results: [PlanResult] = []

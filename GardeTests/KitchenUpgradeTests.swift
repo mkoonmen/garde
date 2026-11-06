@@ -131,4 +131,41 @@ struct KitchenUpgradeTests {
         let memory = try #require(restored.mainContext.fetch(FetchDescriptor<KitchenProfile>()).first)
         #expect(memory.householdMemory == profile.householdMemory && memory.preferredStore == "ALDI")
     }
+    @Test func syncedCookingEventsCombineAndLegacyUsedItemsStayFinished() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let cream = PantryItem(name: "Heavy cream", category: .dairy, quantity: 500, unit: "ml")
+        context.insert(cream)
+        KitchenStock.baseline(cream, context: context)
+        let before = PantrySnapshot(cream)
+        cream.remainingAmount = 400; cream.remainingFraction = 0.8
+        let after = PantrySnapshot(cream)
+        for seconds in [10.0, 20.0] {
+            let event = KitchenEvent(itemID: cream.id, action: "Used in cooking", explanation: "Another device", before: before, after: after, operationID: UUID())
+            event.date = cream.purchaseDate.addingTimeInterval(seconds)
+            context.insert(event)
+        }
+        let old = PantryItem(name: "Old milk", category: .dairy)
+        old.isUsedUp = true
+        context.insert(old)
+        KitchenStock.baseline(old, context: context)
+        try KitchenStock.reconcileAmounts(context: context)
+        #expect(cream.availableAmount?.value == 300)
+        #expect(old.isUsedUp)
+    }
+
+    @Test func genericShoppingNeedsAndPreferredProductsMatchDifferently() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let usual = ShoppingItem(name: "Silk almond milk", category: .beverages)
+        usual.isSpecificProduct = true
+        let generic = ShoppingItem(name: "Milk", category: .dairy)
+        context.insert(usual); context.insert(generic)
+        ShoppingBrain.checkOff(names: ["Kirkland homogenized milk 1 gal"], context: context)
+        #expect(generic.isChecked && generic.wasAutoChecked)
+        #expect(!usual.isChecked)
+        #expect(!FoodIdentity.matches("milk", "rice milk"))
+        #expect(!FoodIdentity.matches("egg", "egg noodles"))
+    }
+
 }

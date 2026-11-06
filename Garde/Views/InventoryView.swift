@@ -10,7 +10,6 @@ struct InventoryView: View {
     @State private var editing: PantryItem?
     @State private var adjusting: PantryItem?
     @State private var adding = false
-    @State private var daily = DailyPick.shared
     @State private var quickAdding = false
     @State private var checkingKitchen = false
     @AppStorage("kitchen.check.snoozed") private var checkSnoozed = 0.0
@@ -224,7 +223,7 @@ struct ItemRow: View {
                     if item.isOpened && !item.isLeftover { Text("OPENED").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1).background(Theme.copper.opacity(0.25), in: .capsule) }
                     if item.isLeftover { Text("LEFTOVER").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1).background(Theme.accent.opacity(0.2), in: .capsule) }
                 }
-                Text("\(item.quantity.formatted()) \(item.unit) · \(item.category.label)").font(.caption).foregroundStyle(.secondary)
+                Text(item.availableLabel + " · " + item.category.label).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
@@ -258,10 +257,12 @@ struct ItemEditView: View {
     @State private var ingredientOverride = ""
     @State private var packageAmount = 0.0
     @State private var packageUnit = "ml"
+    @State private var saveProblem: String?
 
     var body: some View {
         NavigationStack {
             Form { Group {
+                if let saveProblem { Section { Text(saveProblem).foregroundStyle(.red) } }
                 if let item { Section { NavigationLink("Item history & Undo") { KitchenHistoryView(item: item) } } }
                 Section("Recipe matching & package size") {
                     TextField("Recipe ingredient (optional)", text: $ingredientOverride)
@@ -419,7 +420,7 @@ struct ItemEditView: View {
             context.insert(KitchenEvent(itemID: target.id, action: "Edited", explanation: "You updated this item.", before: before, after: PantrySnapshot(target)))
         }
         do { try context.save(); dismiss() }
-        catch { context.rollback() }
+        catch { context.rollback(); saveProblem = error.localizedDescription }
     }
 }
 

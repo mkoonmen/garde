@@ -29,14 +29,17 @@ final class DailyPick {
     private(set) var working = false
     private(set) var problem: String?
     private var generated: [RecipeIdea] = []
+    private var favoriteTitles: Set<String> = []
     var isFresh: Bool { pick?.day == GardeStore.dayKey }
 
     func refreshIfNeeded(items: [PantryItem], spices: [Spice], profile: KitchenProfile?, logs: [CookLog], force: Bool = false, easier: Bool = false) async {
         guard let profile else { return }
         let saved = (try? GardeStore.container.mainContext.fetch(FetchDescriptor<SavedRecipe>())) ?? []
+        favoriteTitles = Set(saved.filter(\.isFavorite).map { $0.title.lowercased() })
         let local = RecipeFoundation.candidates(items: items, profile: profile, logs: logs, saved: saved)
+            .filter { !easier || $0.minutes <= min(20, profile.weeknightMinutes) }
         let limit = easier ? min(20, profile.weeknightMinutes) : profile.weeknightMinutes
-        buildChoices(pool: local + generated, items: items, profile: profile, logs: logs, limit: limit)
+        buildChoices(pool: local + generated.filter { !easier || $0.minutes <= limit }, items: items, profile: profile, logs: logs, limit: limit)
         guard !working else { return }
         let tried = UserDefaults.standard.string(forKey: "dailyPick.tried")
         guard force || tried != GardeStore.dayKey else { return }
@@ -56,7 +59,7 @@ final class DailyPick {
             guard !Task.isCancelled else { return }
             generated = out.recipes
             problem = nil
-            buildChoices(pool: local + generated, items: items, profile: profile, logs: logs, limit: limit)
+            buildChoices(pool: local + generated.filter { !easier || $0.minutes <= limit }, items: items, profile: profile, logs: logs, limit: limit)
         } catch is CancellationError { return }
         catch { problem = "Fresh ideas couldn’t load. Your available recipes are ready below." }
     }
@@ -82,7 +85,7 @@ final class DailyPick {
                     case .quick: return Double(covered * 2 - r.minutes)
                     case .loved:
                         let favoriteIngredients = r.ingredients.filter { line in profile.loves.contains { FoodIdentity.contains($0, in: line) } }.count
-                        return Double((loved.contains(r.title.lowercased()) ? 100 : 0) + favoriteIngredients * 10 + covered)
+                        return Double((loved.contains(r.title.lowercased()) || favoriteTitles.contains(r.title.lowercased()) ? 100 : 0) + favoriteIngredients * 10 + covered)
                     }
                 }
                 let x = score(a), y = score(b)

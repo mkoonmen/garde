@@ -7,6 +7,7 @@ struct PantrySnapshot: Codable, Equatable {
     var remainingAmount: Double?
     var expirationDate, openedDate, unopenedExpiration, frozenDate, usedUpDate: Date?
     var expirationIsEstimated, isUsedUp, wasTossed, didRestockUsedUp, didRestockExpired: Bool
+    var lowRestockSuggested: Bool
     var unopenedExpirationIsEstimated: Bool?
     var unopenedLocationRaw: String?
 
@@ -17,6 +18,7 @@ struct PantrySnapshot: Codable, Equatable {
         remainingAmount = item.remainingAmount; expirationDate = item.expirationDate; openedDate = item.openedDate
         unopenedExpiration = item.unopenedExpiration; frozenDate = item.frozenDate; usedUpDate = item.usedUpDate
         expirationIsEstimated = item.expirationIsEstimated; isUsedUp = item.isUsedUp; wasTossed = item.wasTossed
+        lowRestockSuggested = item.lowRestockSuggested
         didRestockUsedUp = item.didRestockUsedUp; didRestockExpired = item.didRestockExpired
         unopenedExpirationIsEstimated = item.unopenedExpirationIsEstimated; unopenedLocationRaw = item.unopenedLocationRaw
     }
@@ -36,6 +38,7 @@ struct PantrySnapshot: Codable, Equatable {
         item.remainingAmount = remainingAmount; item.expirationDate = expirationDate; item.openedDate = openedDate
         item.unopenedExpiration = unopenedExpiration; item.frozenDate = frozenDate; item.usedUpDate = usedUpDate
         item.expirationIsEstimated = expirationIsEstimated; item.isUsedUp = isUsedUp; item.wasTossed = wasTossed
+        item.lowRestockSuggested = lowRestockSuggested
         item.didRestockUsedUp = didRestockUsedUp; item.didRestockExpired = didRestockExpired
         item.unopenedExpirationIsEstimated = unopenedExpirationIsEstimated; item.unopenedLocationRaw = unopenedLocationRaw
     }
@@ -77,6 +80,7 @@ extension PantryItem {
             wasTossed = false
             usedUpDate = isUsedUp ? .now : nil
             if isUsedUp { didRestockUsedUp = false }
+            if remainingFraction > 0.15 { lowRestockSuggested = false }
             lastCheckedDate = .now
         }
     }

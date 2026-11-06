@@ -118,7 +118,7 @@ struct BoughtItemIntent: AppIntent {
         let cat = ShoppingBrain.guessCategory(item)
         let loc = ShelfLife.defaultLocation(for: cat, name: item)
         let exp = ShelfLife.estimatedExpiration(name: item, category: cat, in: loc)
-        ctx.insert(PantryItem(name: name, category: cat, location: loc, expirationDate: exp, expirationIsEstimated: true))
+        KitchenStock.register(PantryItem(name: name, category: cat, location: loc, expirationDate: exp, expirationIsEstimated: true), context: ctx)
         ShoppingBrain.checkOff(names: [item], context: ctx)
         try ctx.save()
         return .result(dialog: "Added \(name) to your \(loc.label.lowercased()). Good until about \(exp.formatted(.dateTime.weekday(.wide).month().day())).")

@@ -13,7 +13,7 @@ struct RecipeQualitySection: View {
     var body: some View {
         Section {
             if !equipment.isEmpty { Label(equipment.joined(separator: ", ").capitalized, systemImage: "frying.pan") }
-            if RecipeFoundation.basics.contains(where: { $0.title == recipe.title }) {
+            if RecipeFoundation.basics.contains(where: { $0.title == recipe.title && $0.ingredients == recipe.ingredients && $0.steps == recipe.steps }) {
                 Text("Garde basic method · total time includes preparation").font(.caption).foregroundStyle(.secondary)
             }
             ForEach(logs.filter { $0.title.caseInsensitiveCompare(recipe.title) == .orderedSame && !$0.wouldChange.isEmpty && !(profiles.first?.ignoredFeedbackIDs.contains($0.id.uuidString) ?? false) }.prefix(3)) { log in

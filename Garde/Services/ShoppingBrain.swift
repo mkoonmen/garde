@@ -96,13 +96,14 @@ enum ShoppingBrain {
                 onList.insert(k)
             }
         }
-        for item in items where !item.isUsedUp && !item.isLeftover && item.remainingFraction > 0 && item.remainingFraction <= 0.15 {
+        for item in items where !item.isUsedUp && !item.isLeftover && item.remainingFraction > 0 && item.remainingFraction <= 0.15 && !item.lowRestockSuggested {
             let k = key(item.name)
             if !onList.contains(k) {
                 let entry = ShoppingItem(name: item.name, category: item.category, reason: "Almost gone")
                 entry.isSpecificProduct = true; entry.sourceItemID = item.id
                 context.insert(entry); onList.insert(k)
             }
+            item.lowRestockSuggested = true
         }
         // Undoing an automatic stock action removes only its own generated suggestion.
         for entry in list where entry.sourceItemID != nil && !entry.isChecked {
