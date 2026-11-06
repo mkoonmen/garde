@@ -56,4 +56,26 @@ enum PriceBook {
         if let c = e.cheapestStore { s += " · cheapest at \(c)" }
         return s
     }
+
+    struct StorePick { let store: String; let cheapestFor: Int; let known: Int; let savings: Double }
+
+    /// Which store is cheapest for this list, from what you've paid before (average per store per item).
+    static func bestStore(for names: [String], in entries: [Entry]) -> StorePick? {
+        var perStore: [String: (count: Int, savings: Double)] = [:]
+        var known = 0
+        for n in names {
+            let k = key(n)
+            guard !k.isEmpty, let e = entries.first(where: { $0.key == k }) else { continue }
+            let avg = Dictionary(grouping: e.paid.filter { $0.store != "Unknown" }, by: \.store).mapValues { $0.map(\.price).reduce(0, +) / Double($0.count) }
+            guard avg.count > 1, let best = avg.min(by: { $0.value < $1.value }) else { continue }
+            known += 1
+            let others = avg.values.filter { $0 != best.value }
+            let saving = others.isEmpty ? 0 : others.reduce(0, +) / Double(others.count) - best.value
+            perStore[best.key, default: (0, 0)].count += 1
+            perStore[best.key, default: (0, 0)].savings += saving
+        }
+        guard known >= 2, let top = perStore.max(by: { $0.value.count == $1.value.count ? $0.value.savings < $1.value.savings : $0.value.count < $1.value.count })
+        else { return nil }
+        return StorePick(store: top.key, cheapestFor: top.value.count, known: known, savings: top.value.savings)
+    }
 }

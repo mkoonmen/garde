@@ -28,6 +28,12 @@ struct ShoppingListView: View {
                         TextField("Add item", text: $draft).focused($typing).submitLabel(.done).onSubmit(add)
                         Button("Add", systemImage: "plus.circle.fill", action: add).labelStyle(.iconOnly).font(.title2).disabled(draft.isEmpty)
                     }
+                    if let pick = PriceBook.bestStore(for: open.map(\.name), in: prices) {
+                        Label {
+                            Text("Shop at **\(pick.store)**: cheapest for \(pick.cheapestFor) of \(pick.known) items you've bought before\(pick.savings >= 1 ? ", about \(pick.savings.formatted(.currency(code: "USD").precision(.fractionLength(0)))) less" : "").")
+                                .font(.subheadline)
+                        } icon: { Image(systemName: "storefront").foregroundStyle(Theme.copper) }
+                    }
                     let usuals = missingUsuals
                     if !usuals.isEmpty && !addedUsuals {
                         Button {

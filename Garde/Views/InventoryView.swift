@@ -9,6 +9,7 @@ struct InventoryView: View {
     @State private var editing: PantryItem?
     @State private var adding = false
     @State private var daily = DailyPick.shared
+    @State private var quickAdding = false
     @State private var pendingExpired: (items: [PantryItem], tossed: Bool)?
     @Query private var spices: [Spice]
     @Query private var profiles: [KitchenProfile]
@@ -140,7 +141,13 @@ struct InventoryView: View {
                 }
             } message: { Text("You can bring any back from More → Used-up history.") }
             .task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs) }
-            .toolbar { Button("Add", systemImage: "plus") { adding = true } }
+            .toolbar {
+                Menu {
+                    Button("Add one item", systemImage: "plus") { adding = true }
+                    Button("Quick add several (type or talk)", systemImage: "text.badge.plus") { quickAdding = true }
+                } label: { Label("Add", systemImage: "plus") } primaryAction: { adding = true }
+            }
+            .sheet(isPresented: $quickAdding) { QuickAddView() }
             .sheet(item: $editing) { ItemEditView(item: $0) }
             .sheet(isPresented: $adding) { ItemEditView(item: nil) }
         }

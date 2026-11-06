@@ -270,3 +270,49 @@ import Foundation
         #expect(TasteProfile.rank(TasteProfile.styles, home: logs, takeout: []).map(\.0).contains("Asian"))
     }
 }
+
+@Suite("Quick add") struct QuickAddTests {
+    @Test func parsesASpokenList() {
+        let l = QuickAdd.parse("eggs, 2 lb chicken thighs, a gallon of milk and baby spinach")
+        #expect(l.map(\.name) == ["Eggs", "Chicken thighs", "Milk", "Baby spinach"])
+        #expect(l[1].quantity == 2 && l[1].unit == "lb")
+        #expect(l[2].unit == "gal")
+        #expect(l[1].category == .poultry)
+    }
+    @Test func dozen() { #expect(QuickAdd.parse("a dozen eggs").first?.quantity == 12) }
+}
+
+@Suite("Where to shop") struct BestStoreTests {
+    @Test func picksCheapestStore() {
+        let d = Date.now
+        let e1 = PriceBook.Entry(key: PriceBook.key("Milk"), name: "Milk", paid: [(d, "ALDI", 3.0), (d, "Stop & Shop", 4.5)])
+        let e2 = PriceBook.Entry(key: PriceBook.key("Eggs"), name: "Eggs", paid: [(d, "ALDI", 4.0), (d, "Stop & Shop", 5.0)])
+        let pick = PriceBook.bestStore(for: ["milk", "eggs"], in: [e1, e2])
+        #expect(pick?.store == "ALDI")
+        #expect(pick?.cheapestFor == 2)
+        #expect(abs((pick?.savings ?? 0) - 2.5) < 0.01)
+    }
+}
+
+@Suite("Dinner timeline") struct DinnerTimelineTests {
+    @Test func startsLongestFirst() {
+        let serve = Date(timeIntervalSince1970: 1_000_000)
+        let s = DinnerTimelineView.plan([("Risotto", 40), ("Short ribs", 180)], serveAt: serve)
+        #expect(s.map(\.name) == ["Short ribs", "Risotto"])
+        #expect(s[0].start == serve.addingTimeInterval(-185 * 60))
+    }
+}
+
+@Suite("Holiday helpers") struct HolidayTests {
+    @Test func thanksgiving2026() {
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 6))!
+        let d = HostView.nextThanksgiving(from: now)
+        let c = Calendar.current.dateComponents([.month, .day], from: d)
+        #expect(c.month == 11 && c.day == 26)
+    }
+    @Test func turkeyThaw() {
+        let serve = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 26, hour: 16))!
+        let start = HostView.thawStart(pounds: 14, serving: serve)
+        #expect(Calendar.current.dateComponents([.month, .day], from: start).day == 22)
+    }
+}
