@@ -84,6 +84,7 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-06 — CloudKit production repair: initialized and deployed all eleven model record types and their indexes from the actual SwiftData models. The container previously had only Users. Added a schema snapshot and a separate signed diagnostic target under Tools/CloudSchema for future schema validation. Deployment was confirmed in CloudKit Console. Physical two-device syncing remains a device check.
 - 2026-11-06 — Full compiler validation: dinner ranking captures favorite titles before its scoring closure, preserving Swift concurrency isolation.
 - 2026-11-06 — Usual purchases added manually or by learned buying cadence retain their specific-product identity, so a different product cannot silently check them off.
 - 2026-11-06 — Ingredient matching keeps common prepared products separate from their namesake ingredients, including garlic bread, chips, soups, dips, nut flours, flavored milk and bottled citrus juice. Regression cases cover the most misleading matches.

@@ -1,0 +1,25 @@
+name: GardeSchemaReview
+options:
+  deploymentTarget:
+    macOS: '15.0'
+settings:
+  base:
+    DEVELOPMENT_TEAM: T3893TN44X
+    CODE_SIGN_STYLE: Automatic
+    PRODUCT_BUNDLE_IDENTIFIER: com.michaelkoonmen.garde
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_LSUIElement: YES
+    CODE_SIGN_ENTITLEMENTS: review.entitlements
+    SWIFT_VERSION: '5.0'
+    ENABLE_APP_SANDBOX: NO
+targets:
+  GardeSchemaReview:
+    type: application
+    platform: macOS
+    sources:
+      - main.swift
+      - ../../Shared/Models.swift
+      - ../../Shared/ShelfLife.swift
+      - ../../Shared/FoodIdentity.swift
+      - ../../Shared/FoodMeasure.swift
+      - ../../Shared/KitchenHistory.swift
