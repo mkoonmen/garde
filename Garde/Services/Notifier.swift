@@ -24,6 +24,7 @@ enum Notifier {
             content.title = "\(item.name) expires soon"
             content.body = warningDays == 1 ? "Use it by tomorrow. Open the chef for ideas." : "Use it within \(warningDays) days. Open the chef for ideas."
             content.sound = .default
+            content.userInfo = ["mustUse": item.name]   // tapping opens the Chef with this item pre-selected
             let trigger = UNCalendarNotificationTrigger(dateMatching: fire, repeats: false)
             let id = "exp-" + item.id.uuidString
             keep.insert(id)
@@ -62,5 +63,30 @@ enum Notifier {
         center.getPendingNotificationRequests { pending in
             center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("thaw-") && !current.contains($0) })
         }
+    }
+}
+
+/// Routes a tapped expiration reminder to the Chef tab with that item already ticked as "must use".
+@MainActor
+@Observable
+final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationRouter()
+    var tab = 0
+    var mustUse: String?
+
+    func install() { UNUserNotificationCenter.current().delegate = self }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let name = response.notification.request.content.userInfo["mustUse"] as? String
+        await MainActor.run {
+            guard let name else { return }
+            self.mustUse = name
+            self.tab = 2
+        }
+    }
+
+    /// Show reminders (and cook timers) even while Garde is open.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }

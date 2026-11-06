@@ -158,9 +158,21 @@ struct ChefView: View {
             }.listRowBackground(RowGlass()) }
             .gardePage()
             .navigationTitle("Chef")
+            .onAppear(perform: takeRoutedItem)
+            .onChange(of: NotificationRouter.shared.mustUse) { _, _ in takeRoutedItem() }
             .toolbar {
                 NavigationLink { MealPlanView() } label: { Label("Week plan", systemImage: "calendar") }
             }
+        }
+    }
+
+    /// An expiration reminder was tapped: tick that item as "must use" and set the mood.
+    private func takeRoutedItem() {
+        guard let name = NotificationRouter.shared.mustUse else { return }
+        NotificationRouter.shared.mustUse = nil
+        if let item = items.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            mustUse.insert(item.id)
+            if mood.isEmpty { mood = "Use up the \(item.name) before it goes bad" }
         }
     }
 

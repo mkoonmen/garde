@@ -4,7 +4,7 @@ import WidgetKit
 
 @main
 struct GardeApp: App {
-    init() { Theme.applyNavigationStyle() }
+    init() { Theme.applyNavigationStyle(); NotificationRouter.shared.install() }
 
     var body: some Scene {
         WindowGroup {
@@ -25,13 +25,15 @@ struct RootView: View {
     @AppStorage("onboarded") private var onboarded = false
     @AppStorage("whatsNew.seen") private var whatsNewSeen = ""
 
+    @Bindable private var router = NotificationRouter.shared
+
     var body: some View {
-        TabView {
-            Tab("Kitchen", systemImage: "refrigerator") { InventoryView() }
-            Tab("Scan", systemImage: "barcode.viewfinder") { ScanView() }
-            Tab("Chef", systemImage: "frying.pan") { ChefView() }
-            Tab("List", systemImage: "checklist") { ShoppingListView() }
-            Tab("More", systemImage: "ellipsis.circle") { MoreView() }
+        TabView(selection: $router.tab) {
+            Tab("Kitchen", systemImage: "refrigerator", value: 0) { InventoryView() }
+            Tab("Scan", systemImage: "barcode.viewfinder", value: 1) { ScanView() }
+            Tab("Chef", systemImage: "frying.pan", value: 2) { ChefView() }
+            Tab("List", systemImage: "checklist", value: 3) { ShoppingListView() }
+            Tab("More", systemImage: "ellipsis.circle", value: 4) { MoreView() }
         }
         .fullScreenCover(isPresented: Binding(get: { !onboarded }, set: { if !$0 { onboarded = true } })) {
             OnboardingView { onboarded = true; whatsNewSeen = WhatsNew.version }
