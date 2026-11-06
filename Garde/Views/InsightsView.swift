@@ -9,6 +9,7 @@ struct InsightsView: View {
     @Query private var receipts: [Receipt]
     @State private var range = 30
     @Query private var profiles: [KitchenProfile]
+    @Query private var takeout: [TakeoutOrder]
     @State private var budgetText = ""
     @FocusState private var editingBudget: Bool
     private var monthSpent: Double {
@@ -62,6 +63,22 @@ struct InsightsView: View {
                 } header: { Text("Budget") }
             }
 
+            let proteins = TasteProfile.rank(TasteProfile.proteins, home: logs, takeout: takeout)
+            let styles = TasteProfile.rank(TasteProfile.styles, home: logs, takeout: takeout)
+            if !proteins.isEmpty || !styles.isEmpty {
+                Section {
+                    if let avg = TasteProfile.average(logs) {
+                        LabeledContent("Average home rating", value: String(format: "%.1f ★ over %d dishes", avg, logs.filter { $0.rating > 0 }.count))
+                    }
+                    if !proteins.isEmpty { tasteBar("Proteins", proteins) }
+                    if !styles.isEmpty { tasteBar("Styles", styles) }
+                    let homeCount = logs.count, outCount = takeout.count
+                    if homeCount + outCount > 0 {
+                        LabeledContent("Cooked vs. ordered", value: "\(homeCount) home · \(outCount) takeout")
+                    }
+                } header: { Text("Your taste") } footer: { Text("From your ratings and takeout receipts. The chef uses the same signals.") }
+            }
+
             Section("Spending") {
                 LabeledContent("Groceries", value: spent, format: .currency(code: "USD"))
                 if weeklySpend.count > 1 {
@@ -107,5 +124,28 @@ struct InsightsView: View {
         .gardePage()
         .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { editingBudget = false } } }
         .navigationTitle("Insights")
+    }
+
+    private func tasteBar(_ label: String, _ ranked: [(String, Int)]) -> some View {
+        let top = Array(ranked.prefix(4)), total = max(top.map(\.1).reduce(0, +), 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    ForEach(Array(top.enumerated()), id: \.offset) { i, p in
+                        Rectangle().fill([Theme.copper, Theme.accent, Color.teal, Color.purple][i % 4].opacity(0.85))
+                            .frame(width: max(geo.size.width * CGFloat(p.1) / CGFloat(total) - 2, 4))
+                    }
+                }.clipShape(.capsule)
+            }.frame(height: 10)
+            HStack(spacing: 10) {
+                ForEach(Array(top.enumerated()), id: \.offset) { i, p in
+                    HStack(spacing: 4) {
+                        Circle().fill([Theme.copper, Theme.accent, Color.teal, Color.purple][i % 4]).frame(width: 7, height: 7)
+                        Text(p.0).font(.caption2)
+                    }
+                }
+            }
+        }.padding(.vertical, 4)
     }
 }
