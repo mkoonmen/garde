@@ -43,6 +43,10 @@ struct RootView: View {
         }
         .task {
             if profiles.isEmpty { context.insert(KitchenProfile()) }
+            #if DEBUG
+            DemoData.seedIfAsked(context: context)
+            if UserDefaults.standard.object(forKey: "startTab") != nil { router.tab = UserDefaults.standard.integer(forKey: "startTab") }
+            #endif
             EmailReceipt.purgeJunk(context: context)
             await Notifier.requestPermission()
             if gmailAuto { _ = try? await GmailImporter.shared.importNew(context: context) }
