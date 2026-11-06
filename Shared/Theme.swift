@@ -88,34 +88,61 @@ extension View {
 
 // MARK: - Living background & glass
 
-/// The kitchen wall behind every screen: navy (or cream) subway-tile backsplash with a warm pendant-light glow.
-/// Static drawing, so it costs nothing while scrolling.
+/// Background behind every screen: a deep navy "night sky" with slow, soft aurora bands in
+/// navy, indigo and teal, a thin copper rim-light along the top edge, and fine film grain.
+/// No big blob: the light stays at the edges so text and glass panels always sit on dark, even color.
 struct GardeBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         let dark = scheme == .dark
-        ZStack {
-            LinearGradient(colors: dark ? [Color(red: 0.13, green: 0.20, blue: 0.42), Color(red: 0.07, green: 0.11, blue: 0.27)]
-                                        : [Color(red: 0.97, green: 0.94, blue: 0.88), Color(red: 0.91, green: 0.86, blue: 0.78)],
-                           startPoint: .top, endPoint: .bottom)
-            Canvas { ctx, size in
-                let tw: CGFloat = 34, th: CGFloat = 17
-                var row = 0
-                var y: CGFloat = 0
-                while y < size.height {
-                    var x: CGFloat = row.isMultiple(of: 2) ? 0 : -tw / 2
-                    while x < size.width {
-                        ctx.fill(Path(roundedRect: CGRect(x: x + 1, y: y + 1, width: tw - 2, height: th - 2), cornerRadius: 3),
-                                 with: .color(dark ? .white.opacity(0.045) : .white.opacity(0.55)))
-                        x += tw
-                    }
-                    y += th; row += 1
+        TimelineView(.animation(minimumInterval: 1 / 15)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            ZStack {
+                (dark ? Color(red: 0.05, green: 0.08, blue: 0.19) : Color(red: 0.96, green: 0.94, blue: 0.90))
+                // Aurora bands drifting slowly across the top third.
+                ForEach(0..<3, id: \.self) { i in
+                    let phase = t * (0.035 + Double(i) * 0.012) + Double(i) * 2.1
+                    Ellipse()
+                        .fill(Self.band(i, dark: dark))
+                        .frame(width: 520, height: 170)
+                        .rotationEffect(.degrees(-18 + Double(i) * 14 + sin(phase) * 6))
+                        .offset(x: CGFloat(cos(phase) * 90), y: CGFloat(-300 + Double(i) * 70 + sin(phase * 1.3) * 25))
+                        .blur(radius: 70)
+                        .opacity(dark ? 0.55 : 0.35)
                 }
+                // Copper rim light hugging the very top.
+                LinearGradient(colors: [Theme.copper.opacity(dark ? 0.35 : 0.25), .clear], startPoint: .top, endPoint: .init(x: 0.5, y: 0.12))
+                // Gentle vignette so edges fall off into deep navy.
+                RadialGradient(colors: [.clear, (dark ? Color.black : Color(red: 0.85, green: 0.80, blue: 0.72)).opacity(dark ? 0.45 : 0.25)],
+                               center: .center, startRadius: 200, endRadius: 650)
+                GrainOverlay(opacity: dark ? 0.05 : 0.04)
             }
-            RadialGradient(colors: [Color(red: 1, green: 0.8, blue: 0.5).opacity(dark ? 0.28 : 0.35), .clear],
-                           center: .init(x: 0.5, y: 0.0), startRadius: 0, endRadius: 280)
         }
         .ignoresSafeArea()
+    }
+
+    static func band(_ i: Int, dark: Bool) -> Color {
+        let night = [Color(red: 0.16, green: 0.30, blue: 0.62), Color(red: 0.12, green: 0.45, blue: 0.55), Color(red: 0.32, green: 0.22, blue: 0.58)]
+        let day = [Color(red: 0.75, green: 0.82, blue: 0.95), Color(red: 0.98, green: 0.84, blue: 0.70), Color(red: 0.86, green: 0.80, blue: 0.95)]
+        return (dark ? night : day)[i % 3]
+    }
+}
+
+/// Static film grain (drawn once) for a printed, premium feel.
+struct GrainOverlay: View {
+    var opacity: Double
+    var body: some View {
+        Canvas { ctx, size in
+            var rng = SystemRandomNumberGenerator()
+            let n = Int(size.width * size.height / 90)
+            for _ in 0..<n {
+                let x = CGFloat.random(in: 0..<size.width, using: &rng), y = CGFloat.random(in: 0..<size.height, using: &rng)
+                ctx.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)), with: .color(.white.opacity(Double.random(in: 0...1, using: &rng))))
+            }
+        }
+        .opacity(opacity)
+        .drawingGroup()
+        .allowsHitTesting(false)
     }
 }
 
