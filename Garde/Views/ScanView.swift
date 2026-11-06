@@ -152,6 +152,14 @@ struct ScanReviewView: View {
                                     .labelsHidden().pickerStyle(.menu)
                                 Stepper("\(item.quantity.formatted()) \(item.unit)", value: $item.quantity, in: 0...99, step: 1).font(.caption)
                             }
+                            if !isReceipt {
+                                Button { item.opened.toggle() } label: {
+                                    Label(item.opened ? "Opened" : "Not opened yet", systemImage: item.opened ? "seal.fill" : "seal")
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 10).padding(.vertical, 4)
+                                        .background(item.opened ? Theme.copper.opacity(0.3) : Color.secondary.opacity(0.15), in: .capsule)
+                                }.buttonStyle(.plain)
+                            }
                             let hits = AllergenGuard.violations(in: [item.name], allergies: allergies)
                             if !hits.isEmpty {
                                 Label("Contains \(hits.joined(separator: ", ")), one of your allergies", systemImage: "exclamationmark.triangle.fill")
@@ -201,6 +209,7 @@ struct ScanReviewView: View {
             if !isReceipt { item.photo = image?.storageJPEG(maxDimension: 600) }
             item.receipt = receipt
             context.insert(item)
+            if p.opened { item.open() }
         }
         ShoppingBrain.checkOff(names: scan.items.filter { $0.include && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }.map(\.name), context: context)
         dismiss(); onDone()

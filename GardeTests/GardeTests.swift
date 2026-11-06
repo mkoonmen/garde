@@ -418,3 +418,27 @@ import Foundation
         #expect(BottleReader.guessKind("Del Maguey Mezcal") == .mezcal)
     }
 }
+
+@MainActor struct OpenedTests {
+    @Test func ketchupMovesToFridgeAndShortens() {
+        let k = PantryItem(name: "Heinz ketchup", category: .condiments, location: .pantry,
+                           expirationDate: Calendar.current.date(byAdding: .day, value: 365, to: .now))
+        #expect(ShelfLife.defaultLocation(for: .condiments, name: "Heinz ketchup") == .pantry)
+        k.open()
+        #expect(k.location == .fridge)
+        #expect((k.daysLeft ?? 999) <= 181)
+        k.unopen()
+        #expect(k.location == .pantry)
+        #expect((k.daysLeft ?? 0) > 300)
+    }
+    @Test func salsaJarIsTwoWeeksOpened() {
+        let s = PantryItem(name: "Jarred salsa", category: .condiments, location: .pantry,
+                           expirationDate: Calendar.current.date(byAdding: .day, value: 300, to: .now))
+        s.open()
+        #expect((s.daysLeft ?? 999) <= 14)
+    }
+    @Test func soySauceStaysInPantry() {
+        #expect(!ShelfLife.needsFridgeAfterOpening(name: "Soy sauce", category: .condiments))
+        #expect(ShelfLife.needsFridgeAfterOpening(name: "Mayonnaise", category: .condiments))
+    }
+}

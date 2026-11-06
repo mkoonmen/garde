@@ -55,7 +55,7 @@ enum Takeout {
         let text = "From: \(from)\nSubject: \(subject)\n\n" + String(focus.text.prefix(3000))
         guard SystemLanguageModel.default.availability == .available || ChefEngine.shared.usingLocal else { return nil }
         let session = ChefEngine.shared.session(instructions: "You read food delivery receipts and list the restaurant and the dishes ordered. Never invent dishes.")
-        guard let p = try? await session.respond(to: text, generating: Parsed.self).content else { return nil }
+        guard let p = try? await session.reply(to: text, generating: Parsed.self, limit: 30) else { return nil }
         let dishes = p.dishes.map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { d in d.count > 1 && !["fee", "tip", "tax", "utensil", "napkin", "service"].contains(where: { d.lowercased().contains($0) }) }
         guard !p.restaurant.isEmpty, !dishes.isEmpty else { return nil }

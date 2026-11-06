@@ -62,6 +62,15 @@ enum ShoppingBrain {
             context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Ran out"))
             onList.insert(key(i.name))
         }
+        // Expired things get put back on the list once each (removing it from the list sticks).
+        var restocked = Set(UserDefaults.standard.stringArray(forKey: "restock.expired") ?? [])
+        for i in items where !i.isUsedUp && !i.isLeftover && (i.daysLeft ?? 0) < 0 && !restocked.contains(i.id.uuidString) {
+            restocked.insert(i.id.uuidString)
+            guard !onList.contains(key(i.name)), !inStock.contains(key(i.name)) else { continue }
+            context.insert(ShoppingItem(name: i.name, category: i.category, reason: "Expired, restock"))
+            onList.insert(key(i.name))
+        }
+        UserDefaults.standard.set(Array(restocked.suffix(500)), forKey: "restock.expired")
         for s in spices where (s.level == .empty || s.level == .low) && !onList.contains(key(s.name)) {
             context.insert(ShoppingItem(name: s.name, category: .condiments, reason: s.level == .empty ? "Spice is empty" : "Spice is low"))
             onList.insert(key(s.name))

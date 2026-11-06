@@ -70,7 +70,7 @@ enum RecipeImporter {
         Keep the original dish. If amounts or steps are missing, fill them in sensibly for a home cook.
         If there is clearly no dish described, return an empty title.
         """)
-        return try await session.respond(to: String(text.prefix(5000)), generating: RecipeIdea.self).content
+        return try await session.reply(to: String(text.prefix(5000)), generating: RecipeIdea.self)
     }
 
     // MARK: Web helpers

@@ -57,7 +57,7 @@ final class ChefConversation {
         thinking = true
         defer { thinking = false }
         do {
-            let reply = try await session.respond(to: trimmed, generating: ChefReply.self).content
+            let reply = try await session.reply(to: trimmed, generating: ChefReply.self, limit: 120)
             var msg = Message(fromUser: false, text: reply.message)
             if let r = reply.recipe, !r.title.isEmpty, !r.steps.isEmpty {
                 let hits = AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: allergies)

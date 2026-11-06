@@ -103,6 +103,7 @@ struct ShoppingListView: View {
                 prices = PriceBook.entries(everything)
                 await refreshDeals()
             }
+            .onChange(of: open.map(\.name)) { _, _ in deals.match(DealsService.terms(list: open, pantry: pantry)) }
         }
     }
 

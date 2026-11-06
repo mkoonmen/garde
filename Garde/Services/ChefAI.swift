@@ -200,6 +200,7 @@ struct ParsedItem: Identifiable, Hashable {
     var price: Double?
     var printedExpiration: Date?
     var include = true
+    var opened = false
 }
 
 struct ParsedScan {
@@ -256,7 +257,7 @@ final class ChefAI {
         You read grocery receipts, food labels and photos of food, and extract the food items.
         Receipts use cryptic abbreviations; expand them to normal names (e.g. 'BNLS SKNLS CHKN THGH' -> 'Boneless skinless chicken thighs').
         Never invent items that are not in the text or labels.
-        """)
+        """, fast: true)
         let prompt = """
         Today is \(Date.now.formatted(date: .numeric, time: .omitted)).
         Text read from the photo:
@@ -267,7 +268,7 @@ final class ChefAI {
         Objects recognized in the photo: \(labels.isEmpty ? "(none)" : labels.joined(separator: ", "))
         """
         do {
-            return ParsedScan(try await session.respond(to: prompt, generating: ScanResult.self).content)
+            return ParsedScan(try await session.reply(to: prompt, generating: ScanResult.self, limit: 45))
         } catch {
             return HeuristicParser.parse(text)
         }
@@ -307,7 +308,7 @@ final class ChefAI {
         Suggest 3 different dishes.
         """
 
-        let batch = try await session.respond(to: prompt, generating: RecipeBatch.self).content
+        let batch = try await session.reply(to: prompt, generating: RecipeBatch.self)
         let never = Set(logs.filter(\.neverAgain).map { $0.title.lowercased() })
         let safe = batch.recipes.filter {
             AllergenGuard.violations(in: [$0.title] + $0.ingredients + $0.steps, allergies: profile.allergies).isEmpty
@@ -418,7 +419,7 @@ final class ChefAI {
         Bottles on hand:
         \(cellar.joined(separator: "\n").ifEmpty("(none)"))
         """
-        var result = try await session.respond(to: prompt, generating: Pairing.self).content
+        var result = try await session.reply(to: prompt, generating: Pairing.self)
         // Never claim a bottle they don't own.
         if !bottles.contains(where: { $0.name.caseInsensitiveCompare(result.bottleFromCellar) == .orderedSame }) {
             result.bottleFromCellar = ""
@@ -440,7 +441,7 @@ final class ChefAI {
         Guests (including host): \(guests)
         Already in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
         """
-        let menu = try await session.respond(to: prompt, generating: HostMenu.self).content
+        let menu = try await session.reply(to: prompt, generating: HostMenu.self)
         let text = menu.courses.flatMap { [$0.dish, $0.note] } + menu.shoppingList + menu.timeline
         if !AllergenGuard.violations(in: text, allergies: all).isEmpty { return (nil, true) }
         return (menu, false)
@@ -460,7 +461,7 @@ final class ChefAI {
         Mood: \(mood.ifEmpty("bartender's choice"))
         Prefer drinks that need nothing extra.
         """
-        let list = try await session.respond(to: prompt, generating: CocktailList.self).content
+        let list = try await session.reply(to: prompt, generating: CocktailList.self)
         return list.drinks.filter { AllergenGuard.violations(in: [$0.name, $0.method] + $0.spec + $0.missing, allergies: profile.allergies).isEmpty }
     }
 
@@ -477,7 +478,7 @@ final class ChefAI {
         Use first (expires soon): \(items.filter { ($0.daysLeft ?? 99) <= 5 }.prefix(12).map(\.name).joined(separator: ", ").ifEmpty("nothing urgent"))
         Also in the kitchen: \(items.prefix(30).map(\.name).joined(separator: ", "))
         """
-        let plan = try await session.respond(to: prompt, generating: MealPrep.self).content
+        let plan = try await session.reply(to: prompt, generating: MealPrep.self)
         let text = plan.dishes.flatMap { [$0.name, $0.storage] + $0.ingredients } + plan.session + plan.shoppingList
         return AllergenGuard.violations(in: text, allergies: profile.allergies).isEmpty ? plan : nil
     }
@@ -491,7 +492,7 @@ final class ChefAI {
         You are a spirits and wine educator leading a home tasting. Only use bottles from the list.
         Snacks must never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
         """)
-        var f = try await session.respond(to: "Bottles on hand:\n" + list.joined(separator: "\n"), generating: Flight.self).content
+        var f = try await session.reply(to: "Bottles on hand:\n" + list.joined(separator: "\n"), generating: Flight.self)
         let safe: (String) -> Bool = { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
         f.snacks = f.snacks.filter(safe)
         f.pours = f.pours.filter(safe)
@@ -509,7 +510,7 @@ final class ChefAI {
         Ingredients: \(ingredients.joined(separator: "; "))
         Steps: \(steps.joined(separator: " | "))
         """
-        let r = try await session.respond(to: prompt, generating: RecipeIdea.self).content
+        let r = try await session.reply(to: prompt, generating: RecipeIdea.self)
         return AllergenGuard.violations(in: [r.title] + r.ingredients + r.steps, allergies: profile.allergies).isEmpty ? r : nil
     }
 
@@ -520,7 +521,7 @@ final class ChefAI {
         You are a fine-dining chef teaching a home cook to plate beautifully with normal home dishes.
         Never add these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
         """)
-        let p = try await session.respond(to: "Dish: \(dish)\nIngredients: \(ingredients.prefix(15).joined(separator: ", "))", generating: Plating.self).content
+        let p = try await session.reply(to: "Dish: \(dish)\nIngredients: \(ingredients.prefix(15).joined(separator: ", "))", generating: Plating.self)
         return AllergenGuard.violations(in: p.steps + [p.garnish], allergies: profile.allergies).isEmpty ? p : nil
     }
 
@@ -537,7 +538,7 @@ final class ChefAI {
         In the kitchen now: \(items.prefix(30).map(\.name).joined(separator: ", "))
         Prefer substitutes from the kitchen list first.
         """
-        var out = try await session.respond(to: prompt, generating: Swaps.self).content
+        var out = try await session.reply(to: prompt, generating: Swaps.self)
         out.options = out.options.filter { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
         return out.options.isEmpty ? nil : out
     }

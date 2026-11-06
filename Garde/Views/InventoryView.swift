@@ -144,6 +144,9 @@ struct InventoryView: View {
                                 Button("Tossed", systemImage: "trash.slash") { item.markUsed(tossed: true) }.tint(.gray)
                             }
                             .swipeActions(edge: .leading) {
+                                if !item.isOpened && !item.isLeftover {
+                                    Button("Opened", systemImage: "seal") { withAnimation { item.open() } }.tint(Theme.copper)
+                                }
                                 if item.canFreeze {
                                     Button("Freeze", systemImage: "snowflake") { withAnimation { item.freeze() } }.tint(.blue)
                                 } else if item.location == .freezer {
@@ -191,6 +194,7 @@ struct ItemRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(item.name).font(.body.weight(.medium))
+                    if item.isOpened && !item.isLeftover { Text("OPENED").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1).background(Theme.copper.opacity(0.25), in: .capsule) }
                     if item.isLeftover { Text("LEFTOVER").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1).background(Theme.accent.opacity(0.2), in: .capsule) }
                 }
                 Text("\(item.quantity.formatted()) \(item.unit) · \(item.category.label)").font(.caption).foregroundStyle(.secondary)
@@ -226,6 +230,7 @@ struct ItemEditView: View {
     @State private var store = ""
     @State private var notes = ""
     @State private var photo: Data?
+    @State private var opened = false
     @State private var loaded = false
 
     var body: some View {
@@ -238,6 +243,18 @@ struct ItemEditView: View {
                         .onChange(of: category) { _, c in guard loaded, item == nil else { return }; location = ShelfLife.defaultLocation(for: c, name: name); reestimate() }
                     Picker("Stored in", selection: $location) { ForEach(StorageLocation.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) } }
                         .onChange(of: location) { _, _ in if loaded && estimated { reestimate() } }
+                    Toggle(isOn: $opened) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Opened")
+                            Text(openedHint).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .onChange(of: opened) { _, o in
+                        guard loaded, let item else { return }
+                        if o { item.open() } else { item.unopen() }
+                        location = item.location; estimated = item.expirationIsEstimated
+                        if let d = item.expirationDate { expiration = d; hasExpiration = true }
+                    }
                 }
                 Section {
                     Stepper("Quantity: \(quantity.formatted())", value: $quantity, in: 0...999, step: 0.5)
@@ -282,15 +299,8 @@ struct ItemEditView: View {
                 Section { PhotoField(data: $photo) }
                 if let item {
                     Section {
-                        if let opened = item.openedDate {
-                            LabeledContent("Opened", value: opened.formatted(date: .abbreviated, time: .omitted))
-                        } else {
-                            Button("I just opened it", systemImage: "seal") {
-                                item.openedDate = .now
-                                if let d = ShelfLife.openedExpiration(name: item.name, category: item.category, current: item.expirationDate) {
-                                    item.expirationDate = d; expiration = d; hasExpiration = true; estimated = false
-                                }
-                            }
+                        if let o = item.openedDate {
+                            LabeledContent("Opened", value: o.formatted(date: .abbreviated, time: .omitted))
                         }
                         if let f = item.frozenDate {
                             LabeledContent("Frozen", value: f.formatted(date: .abbreviated, time: .omitted))
@@ -326,9 +336,22 @@ struct ItemEditView: View {
         price = item.price.map { String(format: "%.2f", $0) } ?? ""
         store = item.store ?? ""; notes = item.notes; photo = item.photo
         estimated = item.expirationIsEstimated
+        opened = item.isOpened
+    }
+
+    private var openedHint: String {
+        let n = name.isEmpty ? "it" : name.lowercased()
+        let fridge = ShelfLife.needsFridgeAfterOpening(name: name, category: category)
+        guard let days = ShelfLife.rule(for: name)?.opened ?? (category == .condiments ? 60 : category == .canned ? 4 : nil) else {
+            return opened ? "Opened" : "Still sealed"
+        }
+        let keep = ItemEditView.keeps(days)
+        return opened ? "Good about \(keep) after opening\(fridge ? ", in the fridge" : "")"
+                      : "Once opened, \(n) keeps about \(keep)\(fridge ? " in the fridge" : "")"
     }
 
     private func save() {
+        let isNew = item == nil
         let target = item ?? { let n = PantryItem(name: name); context.insert(n); return n }()
         target.name = name.trimmingCharacters(in: .whitespaces)
         target.category = category; target.location = location
@@ -338,6 +361,7 @@ struct ItemEditView: View {
         target.expirationIsEstimated = estimated
         target.price = Double(price); target.store = store.isEmpty ? nil : store
         target.notes = notes; target.photo = photo
+        if isNew && opened { target.open() }
         dismiss()
     }
 }

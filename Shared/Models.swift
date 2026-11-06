@@ -53,6 +53,7 @@ final class PantryItem {
     var wasTossed: Bool = false        // true = thrown out (waste), false = eaten
     var isLeftover: Bool = false
     var openedDate: Date?
+    var unopenedExpiration: Date?      // the sealed date, kept so "not opened" can be undone
     var frozenDate: Date?
     var barcode: String?
     var receipt: Receipt?
@@ -78,6 +79,26 @@ final class PantryItem {
         self.price = price
         self.store = store
     }
+
+    /// Mark as opened: shortens the date to the opened shelf life and moves jars/bottles to the fridge.
+    func open(on date: Date = .now) {
+        guard openedDate == nil else { return }
+        if expirationIsEstimated || expirationDate == nil { unopenedExpiration = expirationDate }
+        openedDate = date
+        if location != .freezer && ShelfLife.needsFridgeAfterOpening(name: name, category: category) { location = .fridge }
+        if let d = ShelfLife.openedExpiration(name: name, category: category, current: expirationDate, openedOn: date) {
+            expirationDate = d; expirationIsEstimated = true
+        }
+    }
+    /// Undo "opened" (tapped by mistake): puts the sealed date and spot back.
+    func unopen() {
+        guard openedDate != nil else { return }
+        openedDate = nil
+        expirationDate = unopenedExpiration ?? ShelfLife.estimatedExpiration(name: name, category: category,
+                                                                            in: ShelfLife.defaultLocation(for: category, name: name), from: purchaseDate)
+        location = ShelfLife.defaultLocation(for: category, name: name)
+    }
+    var isOpened: Bool { openedDate != nil }
 
     var category: FoodCategory {
         get { FoodCategory(rawValue: categoryRaw) ?? .other }

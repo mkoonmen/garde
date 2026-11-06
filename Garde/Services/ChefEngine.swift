@@ -6,6 +6,7 @@ import MLXLMCommon
 import MLXHuggingFace
 import MLXFoundationModels
 import HuggingFace
+import MLX
 import Tokenizers
 
 /// Which brain the chef uses. Both run entirely on the iPhone.
@@ -44,7 +45,41 @@ final class ChefEngine {
     }
 
     /// True when the selected brain is usable right now.
-    var usingLocal: Bool { brain == .local8B && localSupported && downloadState == .ready }
+    /// The phone's GPU can't be used while Garde is in the background, and after a GPU fault this launch we stay on Apple's model.
+    var usingLocal: Bool {
+        brain == .local8B && localSupported && downloadState == .ready && Self.mlxFault == nil
+            && UIApplication.shared.applicationState != .background
+    }
+
+    /// Last GPU error from the downloaded model this launch (nil = fine).
+    nonisolated(unsafe) static var mlxFault: String?
+    /// How many launches in a row hit a GPU error; after 2 we switch back to Apple's model.
+    static var faultCount: Int {
+        get { UserDefaults.standard.integer(forKey: "chef.mlxFaults") }
+        set { UserDefaults.standard.set(newValue, forKey: "chef.mlxFaults") }
+    }
+    var autoSwitchedNote: String? { UserDefaults.standard.string(forKey: "chef.autoSwitched") }
+
+    /// By default MLX kills the whole app on any GPU error (that was the crash in 2.9.5).
+    /// This turns those errors into "fall back to Apple's model" instead, and keeps MLX's memory cache small.
+    static func installSafety() {
+        setErrorHandler({ message, _ in
+            let text = message.map { String(cString: $0) } ?? "GPU error"
+            ChefEngine.mlxFault = text
+            DispatchQueue.main.async { ChefEngine.recordFault(text) }
+        })
+        Memory.cacheLimit = 256 * 1024 * 1024
+    }
+
+    private static func recordFault(_ text: String) {
+        faultCount += 1
+        UserDefaults.standard.set(text, forKey: "chef.lastFault")
+        if faultCount >= 2 {
+            UserDefaults.standard.set(ChefBrain.apple.rawValue, forKey: "chef.brain")
+            UserDefaults.standard.set("Qwen hit a phone GPU error twice, so Garde switched back to Apple's model. You can switch again any time.", forKey: "chef.autoSwitched")
+            faultCount = 0
+        }
+    }
 
     /// Bytes written so far and a stall note, shown under the progress bar.
     var downloadedBytes: Int64 = 0
@@ -121,11 +156,50 @@ final class ChefEngine {
     }
 
     /// A session on whichever brain is selected (falls back to Apple's model).
-    func session(instructions: String) -> LanguageModelSession {
-        if #available(iOS 27.0, *), usingLocal {
+    /// `fast: true` always uses Apple's model (scanning, where speed matters more than prose).
+    func session(instructions: String, fast: Bool = false) -> LanguageModelSession {
+        if #available(iOS 27.0, *), usingLocal, !fast {
             let model = #huggingFaceLanguageModel(configuration: Self.modelConfig, capabilities: [.guidedGeneration])
             return LanguageModelSession(model: model, instructions: instructions)
         }
         return LanguageModelSession(instructions: instructions)
+    }
+}
+
+
+struct AITimeoutError: LocalizedError {
+    var errorDescription: String? { "The chef took too long. Try again." }
+}
+
+/// Runs a call and gives up after `seconds`, so a stuck model can never leave a spinner going forever.
+enum AITimeout {
+    private final class Once: @unchecked Sendable {
+        private let lock = NSLock(); private var done = false
+        func claim() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
+    }
+    static func run<T>(seconds: Double, _ op: @escaping () async throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
+            let once = Once()
+            let work = Task {
+                do { let v = try await op(); if once.claim() { cont.resume(returning: v) } }
+                catch { if once.claim() { cont.resume(throwing: error) } }
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(seconds))
+                if once.claim() {
+                    work.cancel()
+                    // A stuck downloaded model: use Apple's model for the rest of this launch.
+                    await MainActor.run { if ChefEngine.shared.usingLocal { ChefEngine.mlxFault = "timed out" } }
+                    cont.resume(throwing: AITimeoutError())
+                }
+            }
+        }
+    }
+}
+
+extension LanguageModelSession {
+    /// `respond(to:generating:)` with a time limit.
+    func reply<T: Generable>(to prompt: String, generating type: T.Type, limit: Double = 90) async throws -> T {
+        try await AITimeout.run(seconds: limit) { try await self.respond(to: prompt, generating: type).content }
     }
 }

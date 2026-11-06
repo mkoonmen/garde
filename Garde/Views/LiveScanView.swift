@@ -20,6 +20,7 @@ struct LiveScanView: View {
         var allergens: [String] = []
         var resolved = false
         var count = 1
+        var opened = false
         var lastSeen = Date.now
     }
     private var allergies: [String] { profiles.flatMap(\.allergies) }
@@ -61,6 +62,12 @@ struct LiveScanView: View {
                             HStack {
                                 Text(c.category.label)
                                 if let e = c.expiration { Text("· exp. \(e.formatted(date: .abbreviated, time: .omitted))") }
+                                Spacer()
+                                Button { c.opened.toggle() } label: {
+                                    Label(c.opened ? "Opened" : "Sealed", systemImage: c.opened ? "seal.fill" : "seal")
+                                        .padding(.horizontal, 8).padding(.vertical, 3)
+                                        .background(c.opened ? Theme.copper.opacity(0.3) : Color.secondary.opacity(0.15), in: .capsule)
+                                }.buttonStyle(.plain)
                             }.font(.caption).foregroundStyle(.secondary)
                             if !c.allergyWarning.isEmpty {
                                 Label("Contains \(c.allergyWarning.joined(separator: ", "))", systemImage: "exclamationmark.triangle.fill")
@@ -134,6 +141,7 @@ struct LiveScanView: View {
                                   expirationIsEstimated: c.expiration == nil)
             item.barcode = c.code
             context.insert(item)
+            if c.opened { item.open() }
         }
         ShoppingBrain.checkOff(names: captured.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }, context: context)
         dismiss()

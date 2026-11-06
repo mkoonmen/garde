@@ -5,7 +5,7 @@ import WidgetKit
 
 @main
 struct GardeApp: App {
-    init() { Theme.applyNavigationStyle(); NotificationRouter.shared.install() }
+    init() { Theme.applyNavigationStyle(); NotificationRouter.shared.install(); ChefEngine.installSafety() }
 
     var body: some Scene {
         WindowGroup {

@@ -83,6 +83,23 @@ enum ShelfLife {
         .init(keywords: ["bread", "bagel", "roll", "bun", "baguette", "sourdough", "pita", "tortilla"], fridge: 10, freezer: 90, pantry: 5, opened: 5),
         .init(keywords: ["fresh pasta", "gnocchi"], fridge: 14, freezer: 60, pantry: nil, opened: 3),
         .init(keywords: ["tofu"], fridge: 30, freezer: 150, pantry: nil, opened: 4),
+        // Jars & bottles: months in the pantry sealed, then the fridge once opened.
+        .init(keywords: ["jarred salsa", "salsa jar", "salsa con queso"], fridge: nil, freezer: nil, pantry: 365, opened: 14),
+        .init(keywords: ["ketchup", "catsup"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
+        .init(keywords: ["mustard", "dijon"], fridge: nil, freezer: nil, pantry: 365, opened: 365),
+        .init(keywords: ["relish"], fridge: nil, freezer: nil, pantry: 365, opened: 240),
+        .init(keywords: ["bbq sauce", "barbecue sauce", "steak sauce", "teriyaki", "hoisin"], fridge: nil, freezer: nil, pantry: 365, opened: 120),
+        .init(keywords: ["ranch", "salad dressing", "dressing", "vinaigrette", "caesar dressing", "blue cheese dressing"], fridge: nil, freezer: nil, pantry: 300, opened: 60),
+        .init(keywords: ["jam", "jelly", "preserves", "marmalade", "fruit spread"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
+        .init(keywords: ["pickle", "pickled", "giardiniera", "pepperoncini", "jalapeño slices", "sauerkraut", "kimchi"], fridge: nil, freezer: nil, pantry: 365, opened: 90),
+        .init(keywords: ["olives", "capers"], fridge: nil, freezer: nil, pantry: 365, opened: 21),
+        .init(keywords: ["pesto"], fridge: nil, freezer: 120, pantry: 365, opened: 7),
+        .init(keywords: ["alfredo sauce", "vodka sauce", "enchilada sauce", "curry paste", "curry sauce"], fridge: nil, freezer: 90, pantry: 365, opened: 5),
+        .init(keywords: ["maple syrup"], fridge: nil, freezer: nil, pantry: 365, opened: 365),
+        .init(keywords: ["horseradish", "tartar sauce", "cocktail sauce", "aioli"], fridge: nil, freezer: nil, pantry: 365, opened: 60),
+        .init(keywords: ["chocolate syrup", "caramel sauce"], fridge: nil, freezer: nil, pantry: 365, opened: 180),
+        .init(keywords: ["applesauce", "fruit cup"], fridge: nil, freezer: nil, pantry: 365, opened: 7),
+        .init(keywords: ["almond milk shelf", "shelf-stable milk", "uht milk", "boxed milk"], fridge: nil, freezer: nil, pantry: 180, opened: 7),
         .init(keywords: ["hummus", "salsa", "guacamole", "dip"], fridge: 14, freezer: nil, pantry: nil, opened: 6),
         .init(keywords: ["mayo", "mayonnaise"], fridge: nil, freezer: nil, pantry: 120, opened: 60),
         .init(keywords: ["wine"], fridge: 5, freezer: nil, pantry: 730, opened: 4),
@@ -150,6 +167,17 @@ enum ShelfLife {
         guard let openedDays, let byOpening = Calendar.current.date(byAdding: .day, value: openedDays, to: openedOn) else { return current }
         guard let current else { return byOpening }
         return min(current, byOpening)
+    }
+
+    /// Things that are fine on the shelf sealed but belong in the fridge once opened.
+    static let shelfStableOnceOpened = ["vinegar", "honey", "soy sauce", "hot sauce", "sriracha", "fish sauce", "oil", "peanut butter",
+                                        "cereal", "oats", "granola", "cracker", "goldfish", "chips", "pasta", "rice", "flour", "sugar", "salt",
+                                        "spice", "coffee", "tea", "cornstarch", "cornmeal", "corn tortilla", "worcestershire", "molasses", "vanilla"]
+    static func needsFridgeAfterOpening(name: String, category: FoodCategory) -> Bool {
+        let n = name.lowercased()
+        if shelfStableOnceOpened.contains(where: { n.contains($0) }) { return false }
+        if let r = rule(for: name), r.pantry != nil, r.opened != nil, (r.opened ?? 0) < (r.pantry ?? 0) { return true }
+        return category == .condiments || category == .canned || category == .beverages && (n.contains("juice") || n.contains("milk"))
     }
 
     /// Best-guess storage spot: item rule says where it keeps longest, else by category.

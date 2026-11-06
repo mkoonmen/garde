@@ -34,6 +34,10 @@ struct GardeSettingsView: View {
                 }
                 .onChange(of: brain) { _, b in engine.brain = b }
                 Text(brain.detail).font(.footnote).foregroundStyle(.secondary)
+                if let note = engine.autoSwitchedNote {
+                    Label(note, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
+                        .onDisappear { UserDefaults.standard.removeObject(forKey: "chef.autoSwitched") }
+                }
                 if brain == .local8B {
                     if !engine.localSupported {
                         Label("Needs iOS 27 or later. Using Apple's model for now.", systemImage: "info.circle").font(.footnote)
