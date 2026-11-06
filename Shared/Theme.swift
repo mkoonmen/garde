@@ -13,6 +13,12 @@ enum Theme {
         ? UIColor(red: 242 / 255, green: 234 / 255, blue: 216 / 255, alpha: 1)
         : UIColor(red: 21 / 255, green: 34 / 255, blue: 79 / 255, alpha: 1) })
 
+    /// App-wide tint for switches, links and selection: navy in light mode, copper in dark mode
+    /// (cream switches on navy were hard to tell on from off).
+    static let tint = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.86, green: 0.50, blue: 0.27, alpha: 1)
+        : UIColor(red: 21 / 255, green: 34 / 255, blue: 79 / 255, alpha: 1) })
+
     /// Card / row surface: lifted navy in dark mode, warm cream in light mode.
     static let card = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.13, green: 0.18, blue: 0.33, alpha: 1)      // #212E54

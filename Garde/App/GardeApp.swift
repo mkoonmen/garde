@@ -10,7 +10,7 @@ struct GardeApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .tint(Theme.accent)
+                .tint(Theme.tint)
         }
         .modelContainer(GardeStore.container)
     }
