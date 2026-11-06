@@ -4,6 +4,7 @@ import SwiftUI
 enum WhatsNew {
     static let version = "2.8"
     static let items: [(icon: String, title: String, text: String)] = [
+        ("sun.max", "Tonight's idea", "Each day the Kitchen tab shows one dinner idea built around what expires first. Tapping an expiration reminder opens the Chef with that item ready to use."),
         ("bag", "Takeout favorites", "Your DoorDash, Uber Eats and restaurant receipts from Gmail become a list of favorite dishes. Tap Cook it for a homemade version. Chef → Takeout favorites."),
         ("tag", "Price book", "Every price you've paid, the lowest, and which store is cheapest. Your shopping list shows last price too. More → Price book."),
         ("person.2", "Scale & swap", "Change servings on any recipe and every amount rescales. Tap ⇄ next to an ingredient for an allergy-safe substitute."),

@@ -8,6 +8,10 @@ struct InventoryView: View {
     @State private var search = ""
     @State private var editing: PantryItem?
     @State private var adding = false
+    @State private var daily = DailyPick.shared
+    @Query private var spices: [Spice]
+    @Query private var profiles: [KitchenProfile]
+    @Query private var logs: [CookLog]
 
     private var visible: [PantryItem] {
         items.filter { (filter == nil || $0.location == filter) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
@@ -22,6 +26,22 @@ struct InventoryView: View {
                     Section { KitchenHero(items: items, filter: $filter) }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
+                if search.isEmpty && filter == nil, let p = daily.pick, daily.isFresh {
+                    Section {
+                        NavigationLink {
+                            RecipeDetailView(title: p.title, summary: p.summary, minutes: p.minutes, servings: p.servings,
+                                             ingredients: p.ingredients, steps: p.steps)
+                        } label: { RecipeRow(title: p.title, summary: p.summary, minutes: p.minutes) }
+                    } header: {
+                        HStack {
+                            Text("Tonight's idea")
+                            Spacer()
+                            Button { Task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs, force: true) } } label: {
+                                if daily.working { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.clockwise") }
+                            }.disabled(daily.working)
+                        }
+                    }
                 }
                 if !expiringSoon.isEmpty && filter == nil && search.isEmpty {
                     Section {
@@ -98,6 +118,7 @@ struct InventoryView: View {
             .gardePage()
             .navigationTitle("Kitchen")
             .searchable(text: $search, prompt: "Search food")
+            .task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs) }
             .toolbar { Button("Add", systemImage: "plus") { adding = true } }
             .sheet(item: $editing) { ItemEditView(item: $0) }
             .sheet(isPresented: $adding) { ItemEditView(item: nil) }
