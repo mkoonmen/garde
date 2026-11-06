@@ -5,12 +5,12 @@ enum TasteProfile {
     static let proteins: [(String, [String])] = [
         ("Chicken", ["chicken"]), ("Beef", ["beef", "steak", "ribeye", "burger", "brisket", "short rib"]), ("Pork", ["pork", "bacon", "ham", "carnitas", "sausage"]),
         ("Seafood", ["salmon", "shrimp", "fish", "cod", "tuna", "scallop", "crab", "lobster", "bass", "halibut", "clam", "mussel"]),
-        ("Turkey", ["turkey"]), ("Lamb", ["lamb"]), ("Vegetarian", ["tofu", "veggie", "vegetarian", "chickpea", "lentil", "bean"]), ("Eggs", ["egg", "omelet", "frittata"]),
+        ("Turkey", ["turkey"]), ("Lamb", ["lamb"]), ("Vegetarian", ["tofu", "veggie", "vegetarian", "chickpea", "lentil", "black bean"]), ("Eggs", ["egg", "omelet", "frittata"]),
     ]
     static let styles: [(String, [String])] = [
         ("Italian", ["pasta", "risotto", "parm", "piccata", "marsala", "pizza", "gnocchi", "carbonara", "bolognese"]),
         ("Mexican", ["taco", "burrito", "enchilada", "quesadilla", "fajita", "carnitas", "salsa"]),
-        ("Asian", ["stir fry", "stir-fry", "teriyaki", "pad", "curry", "ramen", "fried rice", "sushi", "bao", "lo mein", "bibimbap", "pho"]),
+        ("Asian", ["stir fry", "stir-fry", "teriyaki", "pad thai", "pad see ew", "curry", "ramen", "fried rice", "sushi", "bao", "lo mein", "bibimbap", "pho"]),
         ("American", ["burger", "bbq", "wings", "mac and cheese", "fries", "sandwich", "meatloaf"]),
         ("Mediterranean", ["greek", "gyro", "shawarma", "hummus", "falafel", "kebab"]),
         ("Soups & stews", ["soup", "stew", "chili", "chowder"]),
@@ -22,7 +22,10 @@ enum TasteProfile {
         var count: [String: Int] = [:]
         func add(_ text: String, _ weight: Int) {
             let t = text.lowercased()
-            for (name, words) in table where words.contains(where: { t.contains($0) }) { count[name, default: 0] += weight }
+            let tokens = Set(t.split { !$0.isLetter }.map(String.init))
+            // Multi-word keys match as phrases; single words must be whole words ("eggplant" isn't eggs, "hamburger" isn't ham).
+            func hit(_ k: String) -> Bool { k.contains(" ") || k.contains("-") ? t.contains(k) : tokens.contains(k) || tokens.contains(k + "s") }
+            for (name, words) in table where words.contains(where: hit) { count[name, default: 0] += weight }
         }
         for l in home where !l.neverAgain { add(l.title, l.rating >= 4 ? 2 : 1) }
         for o in takeout { o.dishes.forEach { add($0, 1) }; add(o.cuisine, 1) }

@@ -161,6 +161,7 @@ struct ReceiptDetailView: View {
     @State private var showText = false
     @State private var editing: PantryItem?
     @State private var confirmDelete = false
+    private var sortedItems: [PantryItem] { (receipt.items ?? []).sorted { $0.name < $1.name } }
     var body: some View {
         List { Group {
             if let data = receipt.image, let img = UIImage(data: data) {
@@ -174,14 +175,14 @@ struct ReceiptDetailView: View {
                 }
             }
             Section {
-                ForEach(receipt.items ?? []) { i in
+                ForEach(sortedItems) { i in
                     Button { editing = i } label: {
                         HStack { Text(i.name); Spacer(); if let p = i.price { Text(p, format: .currency(code: "USD")).foregroundStyle(.secondary) } }
                             .contentShape(.rect)
                     }.buttonStyle(.plain)
                 }
-                .onDelete { offsets in let list = receipt.items ?? []; offsets.forEach { context.delete(list[$0]) } }
-            } header: { Text("Items") } footer: { Text("Tap to fix an item, swipe to remove it.") }
+                .onDelete { offsets in let list = sortedItems; for i in offsets where i < list.count { list[i].receipt = nil } }
+            } header: { Text("Items") } footer: { Text("Tap to fix an item. Swipe to take it off this receipt (it stays in your kitchen).") }
             Section { DisclosureGroup("Raw text", isExpanded: $showText) { Text(receipt.rawText).font(.caption.monospaced()) } }
             Section {
                 Button("Not a grocery receipt: remove it", systemImage: "trash", role: .destructive) { confirmDelete = true }
@@ -190,13 +191,20 @@ struct ReceiptDetailView: View {
         .gardePage()
         .navigationTitle(receipt.store.isEmpty ? "Receipt" : receipt.store)
         .sheet(item: $editing) { ItemEditView(item: $0) }
-        .confirmationDialog("Remove this receipt and its \(Plural.items(receipt.items?.count ?? 0))?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Remove", role: .destructive) {
-                (receipt.items ?? []).forEach(context.delete)
-                context.delete(receipt)
-                try? context.save()
-                dismiss()
-            }
+        .confirmationDialog("Remove this receipt?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Remove receipt and its items from my kitchen", role: .destructive) { remove(items: true) }
+            Button("Remove receipt only") { remove(items: false) }
+        }
+    }
+
+    /// Leave the screen first, then delete, so nothing reads a deleted receipt.
+    private func remove(items: Bool) {
+        let r = receipt, its = receipt.items ?? []
+        dismiss()
+        Task { @MainActor in
+            if items { its.forEach(context.delete) } else { its.forEach { $0.receipt = nil } }
+            context.delete(r)
+            try? context.save()
         }
     }
 }

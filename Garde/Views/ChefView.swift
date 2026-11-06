@@ -168,6 +168,8 @@ struct ChefView: View {
             .onAppear(perform: takeRoutedItem)
             .onChange(of: NotificationRouter.shared.mustUse) { _, _ in takeRoutedItem() }
             .onChange(of: NotificationRouter.shared.mood) { _, _ in takeRoutedItem() }
+            .navigationDestination(isPresented: Binding(get: { NotificationRouter.shared.openWeekPlan },
+                                                        set: { NotificationRouter.shared.openWeekPlan = $0 })) { MealPlanView() }
             .toolbar {
                 NavigationLink { MealPlanView() } label: { Label("Week plan", systemImage: "calendar") }
             }
@@ -347,11 +349,12 @@ struct RecipeDetailView: View {
                 if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
                 if !need.isEmpty {
                     Button(addedMissing ? "Added to your list" : "Add \(need.count) missing to list", systemImage: addedMissing ? "checkmark" : "cart.badge.plus") {
-                        let onList = Set(((try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []).filter { !$0.isChecked }.map { $0.name.lowercased() })
+                        var onList = Set(((try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []).filter { !$0.isChecked }.map { $0.name.lowercased() })
                         for line in need {
                             let n = RecipeScaler.foodName(line).capitalized
                             if !onList.contains(n.lowercased()) {
                                 context.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), quantityNote: line, reason: "For \(title)"))
+                                onList.insert(n.lowercased())
                             }
                         }
                         try? context.save()

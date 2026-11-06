@@ -75,8 +75,8 @@ struct MealPlanView: View {
         .gardePage()
         .navigationTitle("Week plan")
         .toolbar {
-            if !plan.isEmpty {
-                ShareLink(item: "This week's dinners\n\n" + plan.map { "\($0.day.formatted(.dateTime.weekday(.wide))): \($0.title)" }.joined(separator: "\n") + "\n\nFrom Garde") {
+            if !upcoming.isEmpty {
+                ShareLink(item: "This week's dinners\n\n" + upcoming.prefix(7).map { "\($0.day.formatted(.dateTime.weekday(.wide))): \($0.title)" }.joined(separator: "\n") + "\n\nFrom Garde") {
                     Label("Share plan", systemImage: "square.and.arrow.up")
                 }
             }

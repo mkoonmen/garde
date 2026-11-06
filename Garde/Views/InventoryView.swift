@@ -9,6 +9,7 @@ struct InventoryView: View {
     @State private var editing: PantryItem?
     @State private var adding = false
     @State private var daily = DailyPick.shared
+    @State private var pendingExpired: (items: [PantryItem], tossed: Bool)?
     @Query private var spices: [Spice]
     @Query private var profiles: [KitchenProfile]
     @Query private var logs: [CookLog]
@@ -77,13 +78,9 @@ struct InventoryView: View {
                         Text(expired.prefix(6).map(\.name).joined(separator: ", ") + (expired.count > 6 ? "…" : ""))
                             .font(.subheadline).foregroundStyle(.secondary)
                         HStack {
-                            Button("Toss all \(expired.count)", systemImage: "trash") {
-                                withAnimation { expired.forEach { $0.markUsed(tossed: true) } }
-                            }.tint(.red)
+                            Button("Toss all \(expired.count)", systemImage: "trash") { pendingExpired = (expired, true) }.tint(.red)
                             Spacer()
-                            Button("We ate them", systemImage: "checkmark") {
-                                withAnimation { expired.forEach { $0.markUsed() } }
-                            }
+                            Button("We ate them", systemImage: "checkmark") { pendingExpired = (expired, false) }
                         }.buttonStyle(.bordered)
                     } header: { Text("Past their date") } footer: { Text("Clear them out so expirations and the chef stay accurate. Tossed items count toward waste.") }
                 }
@@ -135,6 +132,13 @@ struct InventoryView: View {
             .gardePage()
             .navigationTitle("Kitchen")
             .searchable(text: $search, prompt: "Search food")
+            .confirmationDialog(pendingExpired.map { $0.tossed ? "Toss \(Plural.items($0.items.count))?" : "Mark \(Plural.items($0.items.count)) eaten?" } ?? "",
+                                isPresented: Binding(get: { pendingExpired != nil }, set: { if !$0 { pendingExpired = nil } }), titleVisibility: .visible) {
+                Button(pendingExpired?.tossed == true ? "Toss them" : "We ate them", role: pendingExpired?.tossed == true ? .destructive : nil) {
+                    if let p = pendingExpired { withAnimation { p.items.forEach { $0.markUsed(tossed: p.tossed) } }; try? context.save() }
+                    pendingExpired = nil
+                }
+            } message: { Text("You can bring any back from More → Used-up history.") }
             .task { await daily.refreshIfNeeded(items: items, spices: spices, profile: profiles.first, logs: logs) }
             .toolbar { Button("Add", systemImage: "plus") { adding = true } }
             .sheet(item: $editing) { ItemEditView(item: $0) }

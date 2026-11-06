@@ -1,5 +1,6 @@
 import SwiftUI
 import CloudKit
+import UserNotifications
 
 struct GardeSettingsView: View {
     @State private var engine = ChefEngine.shared
@@ -12,6 +13,9 @@ struct GardeSettingsView: View {
         Form { Group {
             Section {
                 Toggle("Sunday \"plan the week\" reminder", isOn: $weeklyNudge)
+                    .onChange(of: weeklyNudge) { _, on in
+                        if !on { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["weekly-plan"]) }
+                    }
             } footer: { Text("5 PM on Sundays, with how much in your kitchen expires that week.") }
             Section {
                 Picker("Chef brain", selection: $brain) {

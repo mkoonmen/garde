@@ -141,6 +141,7 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
             .union(((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).compactMap(\.sourceID))
         let fresh = ids.filter { !processed.contains($0) && !known.contains("gmail:" + $0) }
         let brainReady = ChefAI().state == .available
+        var existingTakeout = (try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []
         report.emails = fresh.count
 
         let chef = ChefAI()
@@ -157,13 +158,15 @@ final class GmailImporter: NSObject, ASWebAuthenticationPresentationContextProvi
                 if let order = await Takeout.parse(subject: subject, from: from, body: body, date: date, service: service) {
                     // The same meal often arrives as a confirmation and a receipt: keep one.
                     let day = Calendar.current.startOfDay(for: date)
-                    let dupes = ((try? context.fetch(FetchDescriptor<TakeoutOrder>())) ?? []).contains {
+                    let dupes = !order.dishes.isEmpty && existingTakeout.contains {
                         Calendar.current.startOfDay(for: $0.date) == day && $0.restaurant.caseInsensitiveCompare(order.restaurant) == .orderedSame
                             && Set($0.dishes.map { $0.lowercased() }) == Set(order.dishes.map { $0.lowercased() })
+                            && ($0.total == nil || order.total == nil || abs(($0.total ?? 0) - (order.total ?? 0)) < 0.01)
                     }
                     if dupes { report.skipped += 1; processed.insert(id); continue }
                     order.sourceID = "gmail:" + id
                     context.insert(order)
+                    existingTakeout.append(order)
                     report.takeout += 1
                 } else { report.skipped += 1 }
                 processed.insert(id); try? context.save()

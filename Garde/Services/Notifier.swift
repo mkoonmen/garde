@@ -43,7 +43,7 @@ enum Notifier {
         guard UserDefaults.standard.object(forKey: "weeklyNudge") as? Bool ?? true else {
             center.removePendingNotificationRequests(withIdentifiers: ["weekly-plan"]); return
         }
-        let soon = items.filter { !$0.isUsedUp && ($0.daysLeft ?? 99) <= 7 }.count
+        let soon = items.filter { !$0.isUsedUp && (0...7).contains($0.daysLeft ?? 99) }.count
         let content = UNMutableNotificationContent()
         content.title = "Plan the week?"
         content.body = soon > 0 ? "\(soon) thing\(soon == 1 ? "" : "s") in your kitchen expire this week. Garde can plan dinners around them."
@@ -89,7 +89,8 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationRouter()
     var tab = 0
     var mustUse: String?
-    var mood: String?          // e.g. from the spice rack: "Something that shows off smoked paprika"
+    var mood: String?
+    var openWeekPlan = false          // e.g. from the spice rack: "Something that shows off smoked paprika"
 
     func install() { UNUserNotificationCenter.current().delegate = self }
 
@@ -97,7 +98,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let name = response.notification.request.content.userInfo["mustUse"] as? String
         let weekly = response.notification.request.identifier == "weekly-plan"
         await MainActor.run {
-            if weekly { self.tab = 2; return }
+            if weekly { self.tab = 2; self.openWeekPlan = true; return }
             guard let name else { return }
             self.mustUse = name
             self.tab = 2
