@@ -21,17 +21,25 @@ final class DailyPick {
     }()
     private(set) var working = false
 
-    private static var today: String { Date.now.formatted(.iso8601.year().month().day()) }
+    private static var today: String { GardeStore.dayKey }
     var isFresh: Bool { pick?.day == Self.today }
 
     func refreshIfNeeded(items: [PantryItem], spices: [Spice], profile: KitchenProfile?, logs: [CookLog], force: Bool = false) async {
-        guard force || !isFresh, !working, let profile, items.count >= 3 else { return }
+        let tried = UserDefaults.standard.string(forKey: "dailyPick.tried")
+        guard force || (!isFresh && tried != Self.today), !working, let profile else { return }
+        let fresh = items.filter { ($0.daysLeft ?? 99) >= 0 }
+        guard fresh.count >= 3 else { return }
         let chef = ChefAI()
         guard chef.state == .available else { return }
         working = true; defer { working = false }
-        let soon = items.filter { ($0.daysLeft ?? 99) <= 3 }.prefix(3).map(\.name)
+        if !force {   // let launch finish first, and only try once a day if it fails
+            try? await Task.sleep(for: .seconds(3))
+            if Task.isCancelled { return }
+            UserDefaults.standard.set(Self.today, forKey: "dailyPick.tried")
+        }
+        let soon = fresh.filter { ($0.daysLeft ?? 99) <= 3 }.sorted { ($0.daysLeft ?? 99) < ($1.daysLeft ?? 99) }.prefix(3).map(\.name)
         let req = ChefAI.RecipeRequest(mood: "Tonight's dinner, weeknight easy", maxMinutes: 45, mustUse: Array(soon))
-        guard let out = try? await chef.suggestRecipes(items: items, spices: spices, profile: profile, logs: logs, request: req),
+        guard let out = try? await chef.suggestRecipes(items: fresh, spices: spices, profile: profile, logs: logs, request: req),
               let r = out.recipes.first else { return }
         let p = Pick(day: Self.today, title: r.title, summary: r.summary, minutes: r.minutes, servings: r.servings,
                      ingredients: r.ingredients, steps: r.steps)

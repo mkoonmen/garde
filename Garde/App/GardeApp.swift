@@ -48,7 +48,11 @@ struct RootView: View {
             if UserDefaults.standard.object(forKey: "startTab") != nil { router.tab = UserDefaults.standard.integer(forKey: "startTab") }
             #endif
             EmailReceipt.purgeJunk(context: context)
+            #if DEBUG
             if !UserDefaults.standard.bool(forKey: "demoData") { await Notifier.requestPermission() }
+            #else
+            await Notifier.requestPermission()
+            #endif
             if gmailAuto { _ = try? await GmailImporter.shared.importNew(context: context) }
             ShoppingBrain.refreshRunningLow(context: context)
         }

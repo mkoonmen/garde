@@ -452,7 +452,10 @@ final class ChefAI {
         Snacks must never include these allergens or anything made from them: \(profile.allergies.isEmpty ? "none" : profile.allergies.joined(separator: "; ")).
         """)
         var f = try await session.respond(to: "Bottles on hand:\n" + list.joined(separator: "\n"), generating: Flight.self).content
-        f.snacks = f.snacks.filter { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
+        let safe: (String) -> Bool = { AllergenGuard.violations(in: [$0], allergies: profile.allergies).isEmpty }
+        f.snacks = f.snacks.filter(safe)
+        f.pours = f.pours.filter(safe)
+        if !safe(f.why) { f.why = "" }
         return f
     }
 

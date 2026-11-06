@@ -26,7 +26,7 @@ struct GardeProvider: TimelineProvider {
             .prefix(4).map { (name: $0.name, days: $0.daysLeft) }
         let today = Calendar.current.startOfDay(for: .now)
         let shared = UserDefaults(suiteName: GardeStore.appGroup)
-        let idea = shared?.string(forKey: "dailyPick.day") == Date.now.formatted(.iso8601.year().month().day()) ? shared?.string(forKey: "dailyPick.title") : nil
+        let idea = shared?.string(forKey: "dailyPick.day") == GardeStore.dayKey ? shared?.string(forKey: "dailyPick.title") : nil
         let dinner = (try? ctx.fetch(FetchDescriptor<MealPlanEntry>(predicate: #Predicate { $0.day == today })))?.first?.title ?? idea
         return GardeEntry(date: .now, expiring: Array(items), dinner: dinner)
     }

@@ -244,17 +244,21 @@ struct RecipeDetailView: View {
     @State private var addedMissing = false
     @State private var plating: Plating?
     @State private var platingLoading = false
+    @State private var platingError: String?
+    @State private var need: [String] = []
 
     private var serves: Int { people == 0 ? servings : people }
     private var factor: Double { servings > 0 ? Double(serves) / Double(servings) : 1 }
     private var shownIngredients: [String] { ingredients.map { RecipeScaler.scale($0, by: factor) } }
 
     /// Ingredient lines with nothing matching in the kitchen (salt, pepper, oil and water assumed).
-    private var missing: [String] {
-        let basics = ["salt", "pepper", "water", "olive oil", "oil", "ice"]
+    private func computeMissing() -> [String] {
+        let basicWords: Set<String> = ["salt", "pepper", "water", "oil", "olive", "ice", "kosher", "sea", "black", "white", "ground",
+                                        "freshly", "fresh", "cracked", "extra-virgin", "extra", "virgin", "and", "or", "flaky", "neutral", "vegetable", "canola"]
         return shownIngredients.filter { line in
             let food = RecipeScaler.foodName(line).lowercased()
-            guard !food.isEmpty, !basics.contains(where: { food == $0 || food.hasPrefix($0 + " and") }) else { return false }
+            let words = food.split(separator: " ").map(String.init)
+            guard !words.isEmpty, !words.allSatisfy({ basicWords.contains($0) }) else { return false }
             return !items.contains { ShoppingBrain.appears($0.name, in: line) || ShoppingBrain.appears(food, in: $0.name) }
         }
     }
@@ -332,10 +336,16 @@ struct RecipeDetailView: View {
                     }
                 }
                 if let swapError { Text(swapError).font(.caption).foregroundStyle(.orange) }
-                let need = missing
                 if !need.isEmpty {
                     Button(addedMissing ? "Added to your list" : "Add \(need.count) missing to list", systemImage: addedMissing ? "checkmark" : "cart.badge.plus") {
-                        ShoppingBrain.add(needToBuy: need.map { RecipeScaler.foodName($0) }, for: title, day: .now, context: context)
+                        let onList = Set(((try? context.fetch(FetchDescriptor<ShoppingItem>())) ?? []).filter { !$0.isChecked }.map { $0.name.lowercased() })
+                        for line in need {
+                            let n = RecipeScaler.foodName(line).capitalized
+                            if !onList.contains(n.lowercased()) {
+                                context.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), quantityNote: line, reason: "For \(title)"))
+                            }
+                        }
+                        try? context.save()
                         addedMissing = true
                     }.disabled(addedMissing)
                 }
@@ -354,9 +364,15 @@ struct RecipeDetailView: View {
                 } else {
                     Button(platingLoading ? "Thinking…" : "Show me how to plate it", systemImage: "fork.knife") {
                         guard let profile = profiles.first else { return }
-                        platingLoading = true
-                        Task { plating = try? await chef.plating(dish: title, ingredients: ingredients, profile: profile); platingLoading = false }
+                        if case .unavailable(let why) = chef.state { platingError = why; return }
+                        platingLoading = true; platingError = nil
+                        Task {
+                            defer { platingLoading = false }
+                            plating = try? await chef.plating(dish: title, ingredients: ingredients, profile: profile)
+                            if plating == nil { platingError = "Couldn't find a plating that's safe for your allergies. Try again." }
+                        }
                     }.disabled(platingLoading)
+                    if let platingError { Text(platingError).font(.caption).foregroundStyle(.orange) }
                 }
             }
             if let saved {
@@ -389,6 +405,8 @@ struct RecipeDetailView: View {
         .gardePage()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: shownIngredients, initial: true) { _, _ in need = computeMissing(); addedMissing = false }
+        .onChange(of: items.count) { _, _ in need = computeMissing() }
         .toolbar {
             ShareLink(item: "\(title)\n\(summary)\n\nServes \(serves) · \(minutes) min\n\nINGREDIENTS\n" + shownIngredients.map { "• " + $0 }.joined(separator: "\n")
                       + "\n\nSTEPS\n" + steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n") + "\n\nFrom Garde") {

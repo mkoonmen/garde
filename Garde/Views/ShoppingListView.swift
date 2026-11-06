@@ -11,6 +11,7 @@ struct ShoppingListView: View {
     @FocusState private var typing: Bool
     @Query private var everything: [PantryItem]
     @State private var prices: [PriceBook.Entry] = []
+    @State private var addedUsuals = false
 
     private var open: [ShoppingItem] { list.filter { !$0.isChecked } }
     private var done: [ShoppingItem] { list.filter(\.isChecked) }
@@ -28,11 +29,13 @@ struct ShoppingListView: View {
                         Button("Add", systemImage: "plus.circle.fill", action: add).labelStyle(.iconOnly).font(.title2).disabled(draft.isEmpty)
                     }
                     let usuals = missingUsuals
-                    if !usuals.isEmpty {
+                    if !usuals.isEmpty && !addedUsuals {
                         Button {
+                            addedUsuals = true
                             withAnimation {
                                 for n in usuals { context.insert(ShoppingItem(name: n, category: ShoppingBrain.guessCategory(n), reason: "One of your usuals")) }
                             }
+                            try? context.save()
                         } label: {
                             Label("Add my usuals (\(usuals.count)): \(usuals.prefix(3).joined(separator: ", "))\(usuals.count > 3 ? "…" : "")",
                                   systemImage: "arrow.triangle.2.circlepath").font(.subheadline).lineLimit(2)

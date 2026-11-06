@@ -27,7 +27,8 @@ struct InventoryView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
-                if search.isEmpty && filter == nil, let p = daily.pick, daily.isFresh {
+                if search.isEmpty && filter == nil, let p = daily.pick, daily.isFresh,
+                   AllergenGuard.violations(in: [p.title] + p.ingredients + p.steps, allergies: profiles.first?.allergies ?? []).isEmpty {
                     Section {
                         NavigationLink {
                             RecipeDetailView(title: p.title, summary: p.summary, minutes: p.minutes, servings: p.servings,

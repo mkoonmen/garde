@@ -356,6 +356,12 @@ enum GardeStore {
 
     static let cloudContainer = "iCloud.com.michaelkoonmen.garde"
 
+    /// Today's date in local time, "2026-11-05" (ISO formatting would use UTC and roll over at dinner time).
+    static var dayKey: String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: .now)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
     /// The app syncs through the user's private iCloud database (when iCloud sync is on); the widget only reads locally.
     static var syncEnabled: Bool {
         UserDefaults(suiteName: appGroup)?.object(forKey: "icloudSync") as? Bool ?? true
