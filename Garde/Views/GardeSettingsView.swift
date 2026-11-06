@@ -9,6 +9,7 @@ struct GardeSettingsView: View {
     @State private var iCloudStatus = "Checking…"
     @AppStorage("weeklyNudge") private var weeklyNudge = true
     @AppStorage("leftoverNudge") private var leftoverNudge = true
+    @AppStorage("cookTips") private var cookTips = true
 
     var body: some View {
         Form { Group {
@@ -18,6 +19,7 @@ struct GardeSettingsView: View {
                         if !on { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["weekly-plan"]) }
                     }
                 Toggle("Leftovers-for-lunch reminder", isOn: $leftoverNudge)
+                Toggle("Technique tips in cook mode", isOn: $cookTips)
             } footer: { Text("Sunday: 5 PM, with how much in your kitchen expires that week. Leftovers: 11:30 the day after you save them.") }
             Section {
                 Picker("Chef brain", selection: $brain) {

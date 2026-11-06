@@ -18,6 +18,7 @@ struct CookModeView: View {
 
     @State private var index = 0
     @State private var voice = CookVoice()
+    @AppStorage("cookTips") private var showTips = true
     @State private var readAloud = true
     @State private var showIngredients = false
     @State private var timers: [StepTimer] = []
@@ -98,6 +99,10 @@ struct CookModeView: View {
                 Text("STEP \(index + 1) OF \(steps.count)").font(.caption.weight(.bold)).foregroundStyle(.secondary)
                 Text(step).font(.system(size: 30, weight: .medium, design: .serif)).multilineTextAlignment(.center).minimumScaleFactor(0.5)
                     .id(index).transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                if showTips, let tip = ChefTips.tip(for: step) {
+                    Label(tip, systemImage: "lightbulb").font(.callout).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading).padding(10).background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
+                }
                 if let secs = stepSeconds {
                     Button { startTimer(secs) } label: {
                         Label("Start \(secs >= 3600 ? "\(secs / 3600)h \(secs % 3600 / 60)m" : "\(secs / 60) min") timer", systemImage: "timer")

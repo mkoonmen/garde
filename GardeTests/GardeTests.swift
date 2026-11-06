@@ -363,3 +363,10 @@ import Foundation
         #expect(card?.grade == "A")
     }
 }
+
+@Suite("Chef tips") struct ChefTipTests {
+    @Test func matches() {
+        #expect(ChefTips.tip(for: "Sear the chicken 6 minutes per side.") != nil)
+        #expect(ChefTips.tip(for: "Serve and enjoy.") == nil)
+    }
+}
