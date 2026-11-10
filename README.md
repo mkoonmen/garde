@@ -20,8 +20,9 @@ Full screen, big text, screen stays on. Steps can be read aloud; say **"next", "
 Ratings and cooking notes feed the chef and week planner. Loved dishes steer suggestions, and "never again" dishes are filtered out in code. More → What the chef remembers (Chef memory) lets you edit weeknight time, spice and leftover preferences, favorite brands, store preferences and household notes. Review or edit a cooking note, or stop using it in suggestions.
 
 ### Siri & widgets
-- "What's expiring in Garde" · "What's for dinner in Garde" · "Add to my Garde list" · "How's my grocery budget in Garde" · "What's in season in Garde" · used / bought / do I have
+- "What's expiring in Garde" · "What's for dinner in Garde" · "Add to my Garde list" · "I opened something in Garde" · "How's my grocery budget in Garde" · "What's in season in Garde" · used / bought / do I have
 - Home-screen widget (small / medium) and lock-screen widgets: tonight's planned dinner + what to use first.
+- Cook mode Live Activity: current step and timer countdown on the Lock Screen and Dynamic Island.
 
 ### Gmail receipts (one-time setup)
 1. Google Cloud Console → new project → enable **Gmail API**.
@@ -84,6 +85,12 @@ One-time: create the app in App Store Connect with bundle ID `com.michaelkoonmen
 - Direct DoorDash / Uber Eats account connections: neither offers an API for personal apps. Their emailed receipts (read through Gmail) are used instead.
 
 ## Change log
+- 2026-11-10 — v3.1 "less effort" release:
+  - **Household list** (List → person icon): two-way sync with a Reminders list called "Garde groceries" (`Services/HouseholdList.swift`). Share that list in Reminders and anyone can add or tick off items without Garde; their adds appear in the List tagged "Added in Reminders". Deleting in either place removes it in the other. Syncs when the app opens, when the list changes, and when Reminders changes.
+  - **Cooking Live Activity**: Cook mode shows the dish, current step and the next timer counting down on the Lock Screen and Dynamic Island (`Shared/CookingActivity.swift`, `CookingLiveActivity` in the widget bundle; `NSSupportsLiveActivities`). Ends when you leave Cook mode. Extensions compile with `GARDE_EXTENSION` so app-only code stays out of them.
+  - **Sunday auto-plan**: the weekly notification now comes Sunday 10 am and tapping it opens Week plan and builds 5 dinners right away (expiring food first, this week's sales, your ratings).
+  - **Waste coach** (`Services/WasteCoach.swift`): foods you toss at least twice and at least as often as you finish them (last 90 days) get a tip on the List ("Tossed 3 of the last 4. Try a smaller size, or freeze half") and are scheduled early in the week plan.
+  - **Siri: "I opened something in Garde"**: marks a sealed item opened, moves jars to the fridge and shortens the date.
 - 2026-11-06 — v3.0 final release: build 202611061836 archived and uploaded successfully, completed Apple processing, and is Testing in the Me internal group. Validation includes two successful iOS runs of 81 tests, two additional shared-core Swift Testing checks, and live simulator checks of Chef memory and Half → history → Undo (1 → 0.5 → 1). The final build includes the consistent available-stock rules across Chef tools. Garde's simulator and preview helper were shut down after verification.
 - 2026-11-06 — Final chef consistency check: all cooking prompts use the same measured inventory, excluding expired, finished and zero-stock items. Hosting, meal prep, cocktails, substitutions and chat now share those rules. Added lightweight Swift Testing checks for the shared core that run on this Mac without starting a simulator.
 - 2026-11-06 — Amount-check history includes the estimated percentage remaining, so Full, Half, Almost gone and Finished checks can be distinguished later.

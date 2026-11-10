@@ -458,3 +458,19 @@ struct NewCategoryTests {
         #expect(ShoppingBrain.guessCategory("English muffins") == .bakery)
     }
 }
+
+@MainActor struct WasteCoachTests {
+    @Test func flagsFoodsYouUsuallyToss() {
+        func used(_ n: String, tossed: Bool) -> PantryItem {
+            let i = PantryItem(name: n, category: .produce, location: .fridge, expirationDate: .now)
+            i.markUsed(tossed: tossed); return i
+        }
+        let all = [used("Spinach", tossed: true), used("Baby spinach", tossed: true), used("Spinach", tossed: false), used("Spinach", tossed: true),
+                   used("Eggs", tossed: false), used("Eggs", tossed: true)]
+        let wasted = WasteCoach.oftenWasted(all)
+        #expect(wasted.contains { $0.name.lowercased().contains("spinach") })
+        #expect(!wasted.contains { $0.name == "Eggs" })
+        #expect(WasteCoach.tip(for: "Spinach", wasted: wasted) != nil)
+        #expect(WasteCoach.plannerNote(all).contains("pinach"))
+    }
+}

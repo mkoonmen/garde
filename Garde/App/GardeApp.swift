@@ -104,6 +104,7 @@ struct RootView: View {
                 KitchenProfile.merge(context: context)
                 if gmailAuto { Task { _ = try? await GmailImporter.shared.importNew(context: context) } }
                 ShoppingBrain.refreshRunningLow(context: context)
+                Task { await HouseholdList.shared.sync(context: context); HouseholdList.shared.watch(context: context) }
             default: break
             }
         }

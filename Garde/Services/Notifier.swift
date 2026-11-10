@@ -62,11 +62,11 @@ enum Notifier {
         }
         let soon = items.filter { !$0.isUsedUp && (0...7).contains($0.daysLeft ?? 99) }.count
         let content = UNMutableNotificationContent()
-        content.title = "Plan the week?"
-        content.body = soon > 0 ? "\(soon) thing\(soon == 1 ? "" : "s") in your kitchen expire this week. Garde can plan dinners around them."
-                                : "Garde can plan this week's dinners from what you have."
+        content.title = "Your week of dinners"
+        content.body = soon > 0 ? "\(soon) thing\(soon == 1 ? "" : "s") in your kitchen expire this week. Tap and Garde plans 5 dinners around them and this week's sales."
+                                : "Tap and Garde plans 5 dinners from what you have and this week's sales."
         content.sound = .default
-        var when = DateComponents(); when.weekday = 1; when.hour = 17
+        var when = DateComponents(); when.weekday = 1; when.hour = 10
         center.add(UNNotificationRequest(identifier: "weekly-plan", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: true)))
     }
 
@@ -107,6 +107,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     var tab = 0
     var mustUse: String?
     var mood: String?
+    var autoPlan = false              // weekly notification: build the plan as soon as it opens
     var openWeekPlan = false          // e.g. from the spice rack: "Something that shows off smoked paprika"
 
     func install() { UNUserNotificationCenter.current().delegate = self }
@@ -115,7 +116,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let name = response.notification.request.content.userInfo["mustUse"] as? String
         let weekly = response.notification.request.identifier == "weekly-plan"
         await MainActor.run {
-            if weekly { self.tab = 2; self.openWeekPlan = true; return }
+            if weekly { self.tab = 2; self.autoPlan = true; self.openWeekPlan = true; return }
             guard let name else { return }
             self.mustUse = name
             self.tab = 2

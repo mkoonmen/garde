@@ -142,6 +142,28 @@ struct HaveItemIntent: AppIntent {
     }
 }
 
+// "Hey Siri, I opened the salsa in Garde"
+struct OpenedItemIntent: AppIntent {
+    static let title: LocalizedStringResource = "I opened something"
+    static let description = IntentDescription("Marks a sealed item as opened: moves jars to the fridge and shortens the date.")
+    @Parameter(title: "Item") var item: String
+    static var parameterSummary: some ParameterSummary { Summary("Opened \(\.$item)") }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let ctx = GardeStore.container.mainContext
+        let stock = try ctx.fetch(FetchDescriptor<PantryItem>(predicate: #Predicate { !$0.isUsedUp }))
+        let matches = stock.filter { !$0.isOpened && (ShoppingBrain.appears(item, in: $0.name) || ShoppingBrain.appears($0.name, in: item)) }
+            .sorted { ($0.daysLeft ?? 999) < ($1.daysLeft ?? 999) }
+        guard let hit = matches.first else { return .result(dialog: "I couldn't find a sealed \(item) in your kitchen.") }
+        let before = hit.location
+        hit.open()
+        try ctx.save()
+        let moved = hit.location != before ? " Keep it in the fridge now." : ""
+        return .result(dialog: "Marked \(hit.name) opened.\(moved) It's good \(Theme.expiryText(hit.daysLeft).lowercased()).")
+    }
+}
+
 struct GardeShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: WhatsExpiringIntent(), phrases: ["What's expiring in \(.applicationName)", "What's going bad in \(.applicationName)"],
@@ -150,6 +172,8 @@ struct GardeShortcuts: AppShortcutsProvider {
                     shortTitle: "Tonight's dinner", systemImageName: "frying.pan")
         AppShortcut(intent: UsedItemIntent(), phrases: ["I used something up in \(.applicationName)", "Mark something used in \(.applicationName)"],
                     shortTitle: "Used it up", systemImageName: "checkmark.circle")
+        AppShortcut(intent: OpenedItemIntent(), phrases: ["I opened something in \(.applicationName)", "Mark something opened in \(.applicationName)"],
+                    shortTitle: "I opened", systemImageName: "seal")
         AppShortcut(intent: BoughtItemIntent(), phrases: ["I bought something in \(.applicationName)", "Add groceries to \(.applicationName)"],
                     shortTitle: "I bought", systemImageName: "bag")
         AppShortcut(intent: HaveItemIntent(), phrases: ["Do I have something in \(.applicationName)", "Check my \(.applicationName) kitchen"],

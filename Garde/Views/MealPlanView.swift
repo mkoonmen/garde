@@ -20,6 +20,7 @@ struct MealPlanView: View {
     @State private var notes = ""
     @State private var fakeOut = true
     @Query private var takeout: [TakeoutOrder]
+    @Query(filter: #Predicate<PantryItem> { $0.isUsedUp }) private var usedUp: [PantryItem]
     @State private var working = false
     @State private var message: String?
     @State private var step = ""
@@ -73,6 +74,13 @@ struct MealPlanView: View {
             }
         }.listRowBackground(RowGlass()) }
         .gardePage()
+        .task {
+            // Opened from the Sunday notification: build the week straight away if nothing is planned.
+            if NotificationRouter.shared.autoPlan {
+                NotificationRouter.shared.autoPlan = false
+                if upcoming.filter({ !$0.isCooked }).isEmpty && !working { await makePlan() }
+            }
+        }
         .navigationTitle("Week plan")
         .toolbar {
             if !upcoming.isEmpty {
@@ -88,7 +96,7 @@ struct MealPlanView: View {
         working = true; message = nil; defer { working = false }
         do {
             step = "Sketching the week…"
-            let out = try await chef.planWeek(days: days, items: items, spices: spices, profile: profile, logs: logs, notes: notes + fakeOutNote) { i, n in
+            let out = try await chef.planWeek(days: days, items: items, spices: spices, profile: profile, logs: logs, notes: notes + fakeOutNote + WasteCoach.plannerNote(usedUp)) { i, n in
                 step = "Writing dinner \(i) of \(n)…"
             }
             step = ""

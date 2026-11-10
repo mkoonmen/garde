@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import SwiftData
+import ActivityKit
 
 struct GardeEntry: TimelineEntry {
     let date: Date
@@ -68,6 +69,57 @@ struct GardeWidgetView: View {
 }
 
 @main
+struct GardeWidgets: WidgetBundle {
+    var body: some Widget {
+        GardeWidget()
+        CookingLiveActivity()
+    }
+}
+
+/// Cook mode on the Lock Screen and Dynamic Island: current step and the next timer counting down.
+struct CookingLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: CookingAttributes.self) { ctx in
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label(ctx.attributes.title, systemImage: "frying.pan").font(.headline).lineLimit(1)
+                    Spacer()
+                    if let end = ctx.state.timerEnds, end > .now {
+                        Text(timerInterval: Date.now...end, countsDown: true).font(.title3.monospacedDigit().bold())
+                            .foregroundStyle(.orange).multilineTextAlignment(.trailing).frame(maxWidth: 90)
+                    }
+                }
+                Text("Step \(ctx.state.step + 1) of \(ctx.state.total)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(ctx.state.text).font(.subheadline).lineLimit(3)
+            }
+            .padding()
+            .activityBackgroundTint(Color.black.opacity(0.6))
+        } dynamicIsland: { ctx in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Label("Step \(ctx.state.step + 1)/\(ctx.state.total)", systemImage: "frying.pan").font(.caption)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    if let end = ctx.state.timerEnds, end > .now {
+                        Text(timerInterval: Date.now...end, countsDown: true).monospacedDigit().foregroundStyle(.orange).frame(maxWidth: 70)
+                    }
+                }
+                DynamicIslandExpandedRegion(.bottom) { Text(ctx.state.text).font(.caption).lineLimit(2) }
+            } compactLeading: {
+                Image(systemName: "frying.pan").foregroundStyle(.orange)
+            } compactTrailing: {
+                if let end = ctx.state.timerEnds, end > .now {
+                    Text(timerInterval: Date.now...end, countsDown: true).monospacedDigit().frame(maxWidth: 44)
+                } else {
+                    Text("\(ctx.state.step + 1)/\(ctx.state.total)")
+                }
+            } minimal: {
+                Image(systemName: "timer").foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
 struct GardeWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "GardeWidget", provider: GardeProvider()) { entry in

@@ -15,6 +15,8 @@ struct ShoppingListView: View {
     @State private var prices: [PriceBook.Entry] = []
     @State private var addedUsuals = false
     @State private var shopping = false
+    @State private var household = HouseholdList.shared
+    @State private var showHousehold = false
 
     private var open: [ShoppingItem] { list.filter { !$0.isChecked && !$0.isDismissed } }
     private var dismissedMealItems: [ShoppingItem] { list.filter(\.isDismissed) }
@@ -104,12 +106,16 @@ struct ShoppingListView: View {
             .gardePage()
             .navigationTitle("List")
             .toolbar {
+                Button { showHousehold = true } label: {
+                    Label("Household", systemImage: household.enabled ? "person.2.fill" : "person.2")
+                }
                 if !open.isEmpty {
                     Button("Shop", systemImage: "cart") { shopping = true }
                     ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
                 }
             }
             .fullScreenCover(isPresented: $shopping) { ShoppingModeView(prices: prices) }
+            .sheet(isPresented: $showHousehold) { HouseholdListSheet().presentationDetents([.medium, .large]) }
             .refreshable { ShoppingBrain.refreshRunningLow(context: context); await forceRefreshDeals() }
             .task {
                 ShoppingBrain.refreshRunningLow(context: context)
@@ -118,6 +124,9 @@ struct ShoppingListView: View {
                 await refreshDeals()
             }
             .onChange(of: open.map(\.name)) { _, _ in deals.match(DealsService.terms(list: open, pantry: pantry)) }
+            .onChange(of: list.map { "\($0.id)\($0.isChecked)\($0.isDismissed)" }) { _, _ in
+                Task { await household.sync(context: context) }
+            }
         }
         .onChange(of: finishedItemIDs) { _, _ in ShoppingBrain.refreshRunningLow(context: context) }
         .onChange(of: stockSignature) { _, _ in
@@ -131,6 +140,7 @@ struct ShoppingListView: View {
         guard let profile = profiles.first, !profile.preferredStore.isEmpty, !profile.allowExtraStore else { return deals.matchedDeals }
         return deals.matchedDeals.filter { $0.store.localizedCaseInsensitiveContains(profile.preferredStore) }
     }
+    private var wasted: [WasteCoach.Record] { WasteCoach.oftenWasted(everything) }
     private var stockSignature: String { pantry.map { "\($0.id)/\($0.availableLabel)/\($0.ingredientName)" }.sorted().joined(separator: "|") }
     private var planSignature: String { mealPlans.map { "\($0.id)/\($0.isCooked)/" + $0.ingredients.joined(separator: "|") }.sorted().joined(separator: "|") }
     private var finishedItemIDs: [UUID] {
@@ -161,6 +171,9 @@ struct ShoppingListView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name + (item.quantityNote.isEmpty ? "" : " · \(item.quantityNote)")).strikethrough(item.isChecked)
                     if !item.reason.isEmpty && item.reason != "Added by you" { Text(item.reason).font(.caption).foregroundStyle(.secondary) }
+                    if !item.isChecked, let tip = WasteCoach.tip(for: item.name, wasted: wasted) {
+                        Label(tip, systemImage: "leaf.arrow.triangle.circlepath").font(.caption).foregroundStyle(.orange)
+                    }
                     if item.isSpecificProduct { Text("Your usual product").font(.caption2).foregroundStyle(.secondary) }
                     if !item.mealNote.isEmpty { Text(item.mealNote).font(.caption).foregroundStyle(.secondary) }
                     if item.wasAutoChecked { Text("Matched to purchased groceries · tap to undo").font(.caption).foregroundStyle(.secondary) }
@@ -390,5 +403,42 @@ struct GardeProminent: ButtonStyle {
             .foregroundStyle(.white)
             .padding(.horizontal, 16).padding(.vertical, 9)
             .background(Theme.copper.opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.4), in: .capsule)
+    }
+}
+
+
+/// Turn the shared Reminders list on or off, and how to share it.
+struct HouseholdListSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var household = HouseholdList.shared
+    @State private var on = HouseholdList.shared.enabled
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Share through Reminders", isOn: $on)
+                        .onChange(of: on) { _, v in
+                            Task { if v { await household.turnOn(context: context); on = household.enabled } else { household.turnOff() } }
+                        }
+                    if !household.status.isEmpty { Text(household.status).font(.footnote).foregroundStyle(.secondary) }
+                } footer: {
+                    Text("Garde keeps a Reminders list called “\(HouseholdList.listName)” in step with this List, both ways. Anyone you share it with can add things or tick them off in Reminders, no Garde needed.")
+                }
+                if on {
+                    Section("Share it with your household") {
+                        Label("Open the Reminders app", systemImage: "1.circle")
+                        Label("Tap “\(HouseholdList.listName)”, then the share button (person icon) at the top", systemImage: "2.circle")
+                        Label("Invite them by message. When they join, their adds show up here", systemImage: "3.circle")
+                        Button("Open Reminders") { if let u = URL(string: "x-apple-reminderkit://") { UIApplication.shared.open(u) } }
+                        Button("Sync now") { Task { await household.sync(context: context) } }
+                    }
+                }
+            }
+            .gardePage()
+            .navigationTitle("Household list").navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+        }
     }
 }

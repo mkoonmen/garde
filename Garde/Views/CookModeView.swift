@@ -154,6 +154,7 @@ struct CookModeView: View {
         .onChange(of: timers.count) { _, _ in shareToTV() }
         .onDisappear {
             KitchenFeed.setCooking(title: nil, context: context)
+            CookActivity.end()
             UIApplication.shared.isIdleTimerDisabled = false
             voice.stop()
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: timers.map { "timer-\($0.id)" })
@@ -182,8 +183,9 @@ struct CookModeView: View {
 
     /// Lets Koonmen OS show the current step on the kitchen TV.
     private func shareToTV() {
-        KitchenFeed.setCooking(title: title, step: index, total: steps.count, text: step,
-                               timerEndsAt: timers.filter { $0.ends > .now }.map(\.ends).min(), context: context)
+        let nextTimer = timers.filter { $0.ends > .now }.map(\.ends).min()
+        KitchenFeed.setCooking(title: title, step: index, total: steps.count, text: step, timerEndsAt: nextTimer, context: context)
+        CookActivity.update(title: title, step: index, total: steps.count, text: step, timerEnds: nextTimer)
     }
 
     private func go(_ delta: Int) {
