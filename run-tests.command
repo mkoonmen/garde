@@ -17,7 +17,7 @@ print(next(x['udid'] for _,v in ios for x in v if 'iPhone' in x['name']))")
   USED_SIM=0
   cleanup() { if (( USED_SIM )); then xcrun simctl shutdown "$SIM" >/dev/null 2>&1 || true; fi }
   trap cleanup EXIT
-  xcodebuild build-for-testing -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "id=$SIM" \
+  xcodebuild build-for-testing -clonedSourcePackagesDirPath build/SourcePackages -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "id=$SIM" \
     CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO SWIFT_ENABLE_BATCH_MODE=NO > build/test-full.log 2>&1
   test_result=$?
   if (( test_result == 0 )); then
@@ -34,7 +34,7 @@ PY
       sleep 15
     done
     USED_SIM=1
-    xcodebuild test-without-building -parallel-testing-enabled NO -collect-test-diagnostics never -jobs 1 \
+    xcodebuild test-without-building -clonedSourcePackagesDirPath build/SourcePackages -parallel-testing-enabled NO -collect-test-diagnostics never -jobs 1 \
       -project Garde.xcodeproj -scheme Garde -destination "id=$SIM" CODE_SIGNING_ALLOWED=NO >> build/test-full.log 2>&1
     test_result=$?
   fi

@@ -12,7 +12,7 @@ mkdir -p build
   xcrun metal -v >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
   BUILD=$(date +%Y%m%d%H%M)
   rm -rf build/Garde.xcarchive
-  xcodebuild archive -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "generic/platform=iOS" \
+  xcodebuild archive -clonedSourcePackagesDirPath build/SourcePackages -jobs 1 -project Garde.xcodeproj -scheme Garde -destination "generic/platform=iOS" \
     -archivePath build/Garde.xcarchive -allowProvisioningUpdates \
     DEVELOPMENT_TEAM=T3893TN44X CURRENT_PROJECT_VERSION=$BUILD COMPILER_INDEX_STORE_ENABLE=NO > build/xcodebuild-full.log 2>&1
   archive_result=$?
